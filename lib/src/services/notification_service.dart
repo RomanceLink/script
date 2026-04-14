@@ -68,9 +68,9 @@ class NotificationService {
           }
           break;
         case AssistantTaskKind.adCooldown:
-          if (state.adCompleted < definition.targetCount) {
+          if (state.intervalCompleted(definition.id) < definition.targetCount) {
             final next =
-                state.adNextAvailableAt ??
+                state.intervalNextAt(definition.id) ??
                 _timeForToday(
                   now,
                   definition.startHour,
@@ -108,9 +108,19 @@ class NotificationService {
   }
 
   Future<void> _showSummary(DailyTaskState state) async {
-    final morning = state.isCompleted('feed_am') ? '完成' : '未完';
-    final evening = state.isCompleted('feed_pm') ? '完成' : '未完';
-    final body = '广告 ${state.adCompleted}/20 · 上午 $morning · 下午 $evening';
+    final body = state.taskDefinitions
+        .where((task) => state.isHomeVisible(task.id))
+        .take(3)
+        .map((task) {
+          switch (task.kind) {
+            case AssistantTaskKind.adCooldown:
+              return '${task.title} ${state.intervalCompleted(task.id)}/${task.targetCount}';
+            case AssistantTaskKind.feedWindow:
+            case AssistantTaskKind.fixedPoint:
+              return '${task.title} ${state.isCompleted(task.id) ? '完成' : '未完'}';
+          }
+        })
+        .join(' · ');
     await _plugin.show(
       id: summaryNotificationId,
       title: '今日任务看板',

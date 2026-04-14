@@ -18,8 +18,12 @@ class TaskEngine {
     return !now.isBefore(start) && now.isBefore(end);
   }
 
-  static bool canCompleteAd(DateTime now, DailyTaskState state) {
-    final next = state.adNextAvailableAt;
+  static bool canCompleteCounterTask(
+    DateTime now,
+    DailyTaskState state,
+    AssistantTaskDefinition definition,
+  ) {
+    final next = state.intervalNextAt(definition.id);
     return next == null || !now.isBefore(next);
   }
 
@@ -36,21 +40,26 @@ class TaskEngine {
     return !now.isBefore(due);
   }
 
-  static String adCountdownLabel(DateTime now, DailyTaskState state) {
-    if (!state.isEnabled('ads')) {
+  static String counterTaskLabel(
+    DateTime now,
+    DailyTaskState state,
+    AssistantTaskDefinition definition,
+  ) {
+    if (!state.isEnabled(definition.id)) {
       return '今日已关闭此任务。';
     }
-    if (state.adCompleted >= 20) {
-      return '今日广告已满 20 次。';
+    final doneCount = state.intervalCompleted(definition.id);
+    if (doneCount >= definition.targetCount) {
+      return '今日已完成 ${definition.targetCount} 次。';
     }
-    final next = state.adNextAvailableAt;
+    final next = state.intervalNextAt(definition.id);
     if (next == null || !now.isBefore(next)) {
-      return '现在可做下一次广告。';
+      return '现在可执行下一次。';
     }
     final remaining = next.difference(now);
     final minutes = remaining.inMinutes;
     final seconds = remaining.inSeconds % 60;
-    return '距下次广告 ${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    return '距下次 ${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   static ReminderPreview? nextReminder(
@@ -81,9 +90,9 @@ class TaskEngine {
           }
           break;
         case AssistantTaskKind.adCooldown:
-          if (state.adCompleted < definition.targetCount) {
+          if (state.intervalCompleted(definition.id) < definition.targetCount) {
             final when =
-                state.adNextAvailableAt ??
+                state.intervalNextAt(definition.id) ??
                 _timeForToday(
                   now,
                   definition.startHour,

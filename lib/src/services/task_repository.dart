@@ -20,14 +20,25 @@ class TaskRepository {
     }
 
     final decoded = jsonDecode(raw) as Map<String, Object?>;
-    final state = DailyTaskState.fromJson(decoded);
+    final state = DailyTaskState.fromJson(
+      decoded,
+      fallbackDefinitions: definitions,
+    );
 
     if (state.dateKey != fresh.dateKey) {
-      await save(fresh);
-      return fresh;
+      final reset = DailyTaskState.freshFor(
+        DateTime.now(),
+        state.taskDefinitions,
+        templates: state.templateDefinitions,
+        selectedAppPackage: state.selectedAppPackage,
+        selectedAppLabel: state.selectedAppLabel,
+        homeVisibleTaskIds: state.homeVisibleTaskIds,
+      );
+      await save(reset);
+      return reset;
     }
 
-    if (state.enabledTaskIds.isEmpty) {
+    if (state.taskDefinitions.isEmpty) {
       await save(fresh);
       return fresh;
     }

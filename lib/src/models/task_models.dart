@@ -10,8 +10,8 @@ class AssistantTaskDefinition {
     this.endHour,
     this.endMinute,
     this.targetCount = 0,
-    this.chunkMinutes = 0,
     this.cooldownMinutes = 0,
+    this.ringtoneLabel = '默认铃声',
   });
 
   final String id;
@@ -22,8 +22,8 @@ class AssistantTaskDefinition {
   final int? endHour;
   final int? endMinute;
   final int targetCount;
-  final int chunkMinutes;
   final int cooldownMinutes;
+  final String ringtoneLabel;
 
   String get timeLabel {
     if (endHour != null && endMinute != null) {
@@ -32,66 +32,149 @@ class AssistantTaskDefinition {
     return '${_two(startHour)}:${_two(startMinute)}';
   }
 
+  AssistantTaskDefinition copyWith({
+    String? id,
+    AssistantTaskKind? kind,
+    String? title,
+    int? startHour,
+    int? startMinute,
+    int? endHour,
+    int? endMinute,
+    int? targetCount,
+    int? cooldownMinutes,
+    String? ringtoneLabel,
+    bool clearEnd = false,
+  }) {
+    return AssistantTaskDefinition(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      title: title ?? this.title,
+      startHour: startHour ?? this.startHour,
+      startMinute: startMinute ?? this.startMinute,
+      endHour: clearEnd ? null : (endHour ?? this.endHour),
+      endMinute: clearEnd ? null : (endMinute ?? this.endMinute),
+      targetCount: targetCount ?? this.targetCount,
+      cooldownMinutes: cooldownMinutes ?? this.cooldownMinutes,
+      ringtoneLabel: ringtoneLabel ?? this.ringtoneLabel,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'kind': kind.name,
+      'title': title,
+      'startHour': startHour,
+      'startMinute': startMinute,
+      'endHour': endHour,
+      'endMinute': endMinute,
+      'targetCount': targetCount,
+      'cooldownMinutes': cooldownMinutes,
+      'ringtoneLabel': ringtoneLabel,
+    };
+  }
+
+  factory AssistantTaskDefinition.fromJson(Map<String, Object?> json) {
+    return AssistantTaskDefinition(
+      id: json['id'] as String,
+      kind: AssistantTaskKind.values.byName(json['kind'] as String),
+      title: json['title'] as String,
+      startHour: json['startHour'] as int,
+      startMinute: json['startMinute'] as int,
+      endHour: json['endHour'] as int?,
+      endMinute: json['endMinute'] as int?,
+      targetCount: json['targetCount'] as int? ?? 0,
+      cooldownMinutes: json['cooldownMinutes'] as int? ?? 0,
+      ringtoneLabel: json['ringtoneLabel'] as String? ?? '默认铃声',
+    );
+  }
+
   String _two(int value) => value.toString().padLeft(2, '0');
 }
 
 class DailyTaskState {
   const DailyTaskState({
     required this.dateKey,
+    required this.taskDefinitions,
+    required this.templateDefinitions,
     required this.enabledTaskIds,
+    required this.homeVisibleTaskIds,
     required this.completedTaskIds,
-    required this.adCompleted,
-    required this.adNextAvailableAt,
+    required this.intervalCompletedCounts,
+    required this.intervalNextAvailableAt,
     required this.selectedAppPackage,
     required this.selectedAppLabel,
   });
 
   final String dateKey;
+  final List<AssistantTaskDefinition> taskDefinitions;
+  final List<AssistantTaskDefinition> templateDefinitions;
   final Set<String> enabledTaskIds;
+  final Set<String> homeVisibleTaskIds;
   final Set<String> completedTaskIds;
-  final int adCompleted;
-  final DateTime? adNextAvailableAt;
+  final Map<String, int> intervalCompletedCounts;
+  final Map<String, DateTime> intervalNextAvailableAt;
   final String selectedAppPackage;
   final String selectedAppLabel;
 
   factory DailyTaskState.freshFor(
     DateTime now,
-    List<AssistantTaskDefinition> definitions,
-  ) {
+    List<AssistantTaskDefinition> definitions, {
+    List<AssistantTaskDefinition> templates = const [],
+    String selectedAppPackage = 'com.ss.android.ugc.aweme.lite',
+    String selectedAppLabel = '抖音极速版',
+    Set<String>? homeVisibleTaskIds,
+  }) {
     final dateKey =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final taskIds = definitions.map((it) => it.id).toSet();
     return DailyTaskState(
       dateKey: dateKey,
-      enabledTaskIds: definitions.map((it) => it.id).toSet(),
+      taskDefinitions: definitions,
+      templateDefinitions: templates,
+      enabledTaskIds: taskIds,
+      homeVisibleTaskIds: homeVisibleTaskIds ?? taskIds,
       completedTaskIds: const {},
-      adCompleted: 0,
-      adNextAvailableAt: null,
-      selectedAppPackage: 'com.ss.android.ugc.aweme.lite',
-      selectedAppLabel: '抖音极速版',
+      intervalCompletedCounts: const {},
+      intervalNextAvailableAt: const {},
+      selectedAppPackage: selectedAppPackage,
+      selectedAppLabel: selectedAppLabel,
     );
   }
 
   bool isEnabled(String taskId) => enabledTaskIds.contains(taskId);
 
+  bool isHomeVisible(String taskId) => homeVisibleTaskIds.contains(taskId);
+
   bool isCompleted(String taskId) => completedTaskIds.contains(taskId);
 
+  int intervalCompleted(String taskId) => intervalCompletedCounts[taskId] ?? 0;
+
+  DateTime? intervalNextAt(String taskId) => intervalNextAvailableAt[taskId];
+
   DailyTaskState copyWith({
+    String? dateKey,
+    List<AssistantTaskDefinition>? taskDefinitions,
+    List<AssistantTaskDefinition>? templateDefinitions,
     Set<String>? enabledTaskIds,
+    Set<String>? homeVisibleTaskIds,
     Set<String>? completedTaskIds,
-    int? adCompleted,
-    DateTime? adNextAvailableAt,
+    Map<String, int>? intervalCompletedCounts,
+    Map<String, DateTime>? intervalNextAvailableAt,
     String? selectedAppPackage,
     String? selectedAppLabel,
-    bool clearAdNextAvailableAt = false,
   }) {
     return DailyTaskState(
-      dateKey: dateKey,
+      dateKey: dateKey ?? this.dateKey,
+      taskDefinitions: taskDefinitions ?? this.taskDefinitions,
+      templateDefinitions: templateDefinitions ?? this.templateDefinitions,
       enabledTaskIds: enabledTaskIds ?? this.enabledTaskIds,
+      homeVisibleTaskIds: homeVisibleTaskIds ?? this.homeVisibleTaskIds,
       completedTaskIds: completedTaskIds ?? this.completedTaskIds,
-      adCompleted: adCompleted ?? this.adCompleted,
-      adNextAvailableAt: clearAdNextAvailableAt
-          ? null
-          : (adNextAvailableAt ?? this.adNextAvailableAt),
+      intervalCompletedCounts:
+          intervalCompletedCounts ?? this.intervalCompletedCounts,
+      intervalNextAvailableAt:
+          intervalNextAvailableAt ?? this.intervalNextAvailableAt,
       selectedAppPackage: selectedAppPackage ?? this.selectedAppPackage,
       selectedAppLabel: selectedAppLabel ?? this.selectedAppLabel,
     );
@@ -100,34 +183,81 @@ class DailyTaskState {
   Map<String, Object?> toJson() {
     return {
       'dateKey': dateKey,
+      'taskDefinitions': taskDefinitions.map((item) => item.toJson()).toList(),
+      'templateDefinitions': templateDefinitions
+          .map((item) => item.toJson())
+          .toList(),
       'enabledTaskIds': enabledTaskIds.toList(),
+      'homeVisibleTaskIds': homeVisibleTaskIds.toList(),
       'completedTaskIds': completedTaskIds.toList(),
-      'adCompleted': adCompleted,
-      'adNextAvailableAt': adNextAvailableAt?.millisecondsSinceEpoch,
+      'intervalCompletedCounts': intervalCompletedCounts,
+      'intervalNextAvailableAt': intervalNextAvailableAt.map(
+        (key, value) => MapEntry(key, value.millisecondsSinceEpoch),
+      ),
       'selectedAppPackage': selectedAppPackage,
       'selectedAppLabel': selectedAppLabel,
     };
   }
 
-  factory DailyTaskState.fromJson(Map<String, Object?> json) {
+  factory DailyTaskState.fromJson(
+    Map<String, Object?> json, {
+    required List<AssistantTaskDefinition> fallbackDefinitions,
+  }) {
+    final taskDefinitions =
+        ((json['taskDefinitions'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<Map<String, Object?>>()
+            .map(AssistantTaskDefinition.fromJson)
+            .toList();
+    final effectiveDefinitions = taskDefinitions.isEmpty
+        ? fallbackDefinitions
+        : taskDefinitions;
+    final templateDefinitions =
+        ((json['templateDefinitions'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<Map<String, Object?>>()
+            .map(AssistantTaskDefinition.fromJson)
+            .toList();
     final enabled =
         ((json['enabledTaskIds'] as List<Object?>?) ?? const <Object?>[])
+            .map((item) => '$item')
+            .toSet();
+    final visible =
+        ((json['homeVisibleTaskIds'] as List<Object?>?) ?? const <Object?>[])
             .map((item) => '$item')
             .toSet();
     final completed =
         ((json['completedTaskIds'] as List<Object?>?) ?? const <Object?>[])
             .map((item) => '$item')
             .toSet();
-    final epoch = json['adNextAvailableAt'] as int?;
+    final oldAdCompleted = json['adCompleted'] as int? ?? 0;
+    final oldAdNext = json['adNextAvailableAt'] as int?;
 
+    final intervalCounts =
+        (json['intervalCompletedCounts'] as Map<Object?, Object?>?)?.map(
+          (key, value) => MapEntry('$key', value as int),
+        ) ??
+        (oldAdCompleted > 0 ? {'ads': oldAdCompleted} : <String, int>{});
+
+    final intervalNext =
+        (json['intervalNextAvailableAt'] as Map<Object?, Object?>?)?.map(
+          (key, value) => MapEntry(
+            '$key',
+            DateTime.fromMillisecondsSinceEpoch(value as int),
+          ),
+        ) ??
+        (oldAdNext != null
+            ? {'ads': DateTime.fromMillisecondsSinceEpoch(oldAdNext)}
+            : <String, DateTime>{});
+
+    final taskIds = effectiveDefinitions.map((it) => it.id).toSet();
     return DailyTaskState(
       dateKey: json['dateKey'] as String,
-      enabledTaskIds: enabled,
+      taskDefinitions: effectiveDefinitions,
+      templateDefinitions: templateDefinitions,
+      enabledTaskIds: enabled.isEmpty ? taskIds : enabled,
+      homeVisibleTaskIds: visible.isEmpty ? taskIds : visible,
       completedTaskIds: completed,
-      adCompleted: json['adCompleted'] as int? ?? 0,
-      adNextAvailableAt: epoch == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(epoch),
+      intervalCompletedCounts: intervalCounts,
+      intervalNextAvailableAt: intervalNext,
       selectedAppPackage:
           json['selectedAppPackage'] as String? ??
           'com.ss.android.ugc.aweme.lite',

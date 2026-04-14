@@ -56,13 +56,11 @@ class _DashboardPageState extends State<DashboardPage> {
   final TaskRepository _repository = TaskRepository();
   final NotificationService _notifications = NotificationService();
   final DouyinLauncher _launcher = DouyinLauncher();
-  final List<AssistantTaskDefinition> _definitions = defaultTaskDefinitions;
 
   late Timer _ticker;
   DailyTaskState? _state;
   String? _error;
   bool _loading = true;
-  bool _loadingApps = false;
 
   @override
   void initState() {
@@ -70,7 +68,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) async {
       final state = _state;
       if (state != null && state.dateKey != _todayKey(DateTime.now())) {
-        await _resetToday(showMessage: false);
+        await _resetForNewDay(showMessage: false);
       }
       if (mounted) {
         setState(() {});
@@ -84,9 +82,9 @@ class _DashboardPageState extends State<DashboardPage> {
       if (widget.enablePlatformServices) {
         await _notifications.initialize();
       }
-      final state = await _repository.loadOrCreateToday(_definitions);
+      final state = await _repository.loadOrCreateToday(defaultTaskDefinitions);
       if (widget.enablePlatformServices) {
-        await _notifications.scheduleForState(state, _definitions);
+        await _notifications.scheduleForState(state, state.taskDefinitions);
       }
       if (!mounted) {
         return;
@@ -112,18 +110,10 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  Future<void> _mutateState(
-    DailyTaskState Function(DailyTaskState state) transform, {
-    String? message,
-  }) async {
-    final current = _state;
-    if (current == null) {
-      return;
-    }
-    final next = transform(current);
+  Future<void> _persistState(DailyTaskState next, {String? message}) async {
     await _repository.save(next);
     if (widget.enablePlatformServices) {
-      await _notifications.scheduleForState(next, _definitions);
+      await _notifications.scheduleForState(next, next.taskDefinitions);
     }
     if (!mounted) {
       return;
@@ -136,38 +126,34 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _toggleTask(String taskId, bool enabled) async {
-    await _mutateState((state) {
-      final nextEnabled = {...state.enabledTaskIds};
-      final nextCompleted = {...state.completedTaskIds};
-
-      if (enabled) {
-        nextEnabled.add(taskId);
-      } else {
-        nextEnabled.remove(taskId);
-        nextCompleted.remove(taskId);
-      }
-
-      final isAds = taskId == 'ads';
-      return state.copyWith(
-        enabledTaskIds: nextEnabled,
-        completedTaskIds: nextCompleted,
-        adCompleted: isAds && !enabled ? 0 : state.adCompleted,
-        adNextAvailableAt: isAds && !enabled ? null : state.adNextAvailableAt,
-        clearAdNextAvailableAt: isAds && !enabled,
-      );
-    }, message: enabled ? '任务已开启' : '任务已关闭');
+  Future<void> _mutateState(
+    DailyTaskState Function(DailyTaskState state) transform, {
+    String? message,
+  }) async {
+    final current = _state;
+    if (current == null) {
+      return;
+    }
+    await _persistState(transform(current), message: message);
   }
 
-  Future<void> _markFeedDone(String taskId) async {
-    await _mutateState((state) {
-      return state.copyWith(
-        completedTaskIds: {...state.completedTaskIds, taskId},
-      );
-    }, message: '已标记完成');
+  Future<void> _resetForNewDay({bool showMessage = true}) async {
+    final current = _state;
+    if (current == null) {
+      return;
+    }
+    final next = DailyTaskState.freshFor(
+      DateTime.now(),
+      current.taskDefinitions,
+      templates: current.templateDefinitions,
+      selectedAppPackage: current.selectedAppPackage,
+      selectedAppLabel: current.selectedAppLabel,
+      homeVisibleTaskIds: current.homeVisibleTaskIds,
+    );
+    await _persistState(next, message: showMessage ? '今日记录已重置' : null);
   }
 
-  Future<void> _markFixedDone(String taskId) async {
+  Future<void> _markSingleTaskDone(String taskId) async {
     await _mutateState((state) {
       return state.copyWith(
         completedTaskIds: {...state.completedTaskIds, taskId},
@@ -175,18 +161,25 @@ class _DashboardPageState extends State<DashboardPage> {
     }, message: '已标记完成');
   }
 
-  Future<void> _markAdDone() async {
+  Future<void> _markCounterTaskDone(AssistantTaskDefinition task) async {
     final now = DateTime.now();
     await _mutateState((state) {
-      final nextCount = (state.adCompleted + 1).clamp(0, 20);
-      return state.copyWith(
-        adCompleted: nextCount,
-        adNextAvailableAt: nextCount >= 20
-            ? null
-            : now.add(const Duration(minutes: 10)),
-        clearAdNextAvailableAt: nextCount >= 20,
+      final nextCount = (state.intervalCompleted(task.id) + 1).clamp(
+        0,
+        task.targetCount,
       );
-    }, message: '已记录一次广告，倒计时开始');
+      final nextCounts = {...state.intervalCompletedCounts, task.id: nextCount};
+      final nextTimes = {...state.intervalNextAvailableAt};
+      if (nextCount >= task.targetCount) {
+        nextTimes.remove(task.id);
+      } else {
+        nextTimes[task.id] = now.add(Duration(minutes: task.cooldownMinutes));
+      }
+      return state.copyWith(
+        intervalCompletedCounts: nextCounts,
+        intervalNextAvailableAt: nextTimes,
+      );
+    }, message: '已记录一次，倒计时开始');
   }
 
   Future<void> _openSelectedApp() async {
@@ -198,87 +191,22 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) {
       return;
     }
-    _showMessage(ok ? '已尝试打开 ${state.selectedAppLabel}' : '打开失败，请重新选择应用');
+    _showMessage(ok ? '已尝试打开 ${state.selectedAppLabel}' : '打开失败，请到设置重新选择');
   }
 
-  Future<void> _usePresetApp({
-    required String packageName,
-    required String label,
-  }) async {
-    await _mutateState((state) {
-      return state.copyWith(
-        selectedAppPackage: packageName,
-        selectedAppLabel: label,
-      );
-    }, message: '已切换为 $label');
-  }
-
-  Future<void> _pickApp() async {
-    if (_loadingApps) {
+  Future<void> _openSettings() async {
+    final state = _state;
+    if (state == null) {
       return;
     }
-    setState(() {
-      _loadingApps = true;
-    });
-
-    final apps = await _launcher.listLaunchableApps();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _loadingApps = false;
-    });
-
-    final selected = await showModalBottomSheet<LaunchableApp>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        return SafeArea(
-          child: SizedBox(
-            height: 520,
-            child: ListView.builder(
-              itemCount: apps.length,
-              itemBuilder: (context, index) {
-                final app = apps[index];
-                return ListTile(
-                  title: Text(app.appName),
-                  subtitle: Text(app.packageName),
-                  onTap: () => Navigator.of(context).pop(app),
-                );
-              },
-            ),
-          ),
-        );
-      },
+    final next = await Navigator.of(context).push<DailyTaskState>(
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(initialState: state, launcher: _launcher),
+      ),
     );
 
-    if (selected == null) {
-      return;
-    }
-
-    await _mutateState((state) {
-      return state.copyWith(
-        selectedAppPackage: selected.packageName,
-        selectedAppLabel: selected.appName,
-      );
-    }, message: '已选择 ${selected.appName}');
-  }
-
-  Future<void> _resetToday({bool showMessage = true}) async {
-    final fresh = DailyTaskState.freshFor(DateTime.now(), _definitions);
-    await _repository.save(fresh);
-    if (widget.enablePlatformServices) {
-      await _notifications.scheduleForState(fresh, _definitions);
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _state = fresh;
-    });
-    if (showMessage) {
-      _showMessage('今日记录已重置');
+    if (next != null) {
+      await _persistState(next, message: '设置已保存');
     }
   }
 
@@ -296,13 +224,10 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (_error != null) {
       return Scaffold(
         body: Center(
@@ -315,25 +240,28 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     final state = _state!;
-    final nextReminder = TaskEngine.nextReminder(now, state, _definitions);
-    final enabledCount = _definitions
-        .where((task) => state.isEnabled(task.id))
-        .length;
-    final completedCount = _definitions.where((task) {
+    final tasks = state.taskDefinitions
+        .where((task) => state.isHomeVisible(task.id))
+        .toList();
+    final nextReminder = TaskEngine.nextReminder(
+      now,
+      state,
+      state.taskDefinitions,
+    );
+    final doneCount = tasks.where((task) {
       if (!state.isEnabled(task.id)) {
         return false;
       }
-      if (task.kind == AssistantTaskKind.adCooldown) {
-        return state.adCompleted >= task.targetCount;
-      }
-      return state.isCompleted(task.id);
+      return task.kind == AssistantTaskKind.adCooldown
+          ? state.intervalCompleted(task.id) >= task.targetCount
+          : state.isCompleted(task.id);
     }).length;
 
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isDark
+            colors: theme.brightness == Brightness.dark
                 ? [const Color(0xFF102021), const Color(0xFF0E1717)]
                 : [const Color(0xFFF4FBF8), const Color(0xFFE4F5EF)],
             begin: Alignment.topCenter,
@@ -345,96 +273,120 @@ class _DashboardPageState extends State<DashboardPage> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             children: [
               _HeaderCard(
-                dateLabel: state.dateKey,
-                enabledCount: enabledCount,
-                completedCount: completedCount,
-                nextReminder: nextReminder,
-                onOpenApp: _openSelectedApp,
-                onReset: _resetToday,
-                selectedAppLabel: state.selectedAppLabel,
+                title: '半自动任务精灵',
+                subtitle: nextReminder == null
+                    ? '今天无后续提醒'
+                    : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
+                action: IconButton.filledTonal(
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings),
+                ),
               ),
               const SizedBox(height: 14),
-              _AppTargetCard(
-                label: state.selectedAppLabel,
-                packageName: state.selectedAppPackage,
-                loadingApps: _loadingApps,
-                onUseLite: () => _usePresetApp(
-                  packageName: 'com.ss.android.ugc.aweme.lite',
-                  label: '抖音极速版',
-                ),
-                onUseDouyin: () => _usePresetApp(
-                  packageName: 'com.ss.android.ugc.aweme',
-                  label: '抖音',
-                ),
-                onPickApp: _pickApp,
-              ),
-              const SizedBox(height: 14),
-              _TaskSectionLabel(title: '今日任务', subtitle: '展开单项卡片，处理完成、开关、倒计时。'),
-              const SizedBox(height: 12),
-              ..._definitions.map((definition) {
-                switch (definition.kind) {
-                  case AssistantTaskKind.feedWindow:
-                    return _ExpandableTaskCard(
-                      title: definition.title,
-                      timeLabel: definition.timeLabel,
-                      enabled: state.isEnabled(definition.id),
-                      badge: state.isCompleted(definition.id) ? '已完成' : '待完成',
-                      badgeColor: state.isCompleted(definition.id)
-                          ? colors.primary
-                          : colors.tertiary,
-                      onToggle: (value) => _toggleTask(definition.id, value),
-                      child: _FeedTaskBody(
-                        definition: definition,
-                        enabled: state.isEnabled(definition.id),
-                        isActive: TaskEngine.isFeedWindowActive(
-                          now,
-                          definition,
-                        ),
-                        isDone: state.isCompleted(definition.id),
-                        onDone: () => _markFeedDone(definition.id),
+              Card(
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      _StatPill(label: '首页显示 ${tasks.length} 项'),
+                      const SizedBox(width: 8),
+                      _StatPill(label: '已完成 $doneCount 项'),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: _openSelectedApp,
+                        icon: const Icon(Icons.open_in_new),
+                        label: Text('打开${state.selectedAppLabel}'),
                       ),
-                    );
-                  case AssistantTaskKind.adCooldown:
-                    return _ExpandableTaskCard(
-                      title: definition.title,
-                      timeLabel:
-                          '默认显示于通知栏 ${state.adCompleted}/${definition.targetCount}',
-                      enabled: state.isEnabled(definition.id),
-                      badge: '${state.adCompleted}/${definition.targetCount}',
-                      badgeColor: colors.secondary,
-                      onToggle: (value) => _toggleTask(definition.id, value),
-                      child: _AdTaskBody(
-                        enabled: state.isEnabled(definition.id),
-                        completed: state.adCompleted,
-                        targetCount: definition.targetCount,
-                        canComplete: TaskEngine.canCompleteAd(now, state),
-                        countdownLabel: TaskEngine.adCountdownLabel(now, state),
-                        onDone: _markAdDone,
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (tasks.isEmpty)
+                Card(
+                  elevation: 0,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      '首页当前无任务。去右上角设置页，开启“在首页显示”。',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                  ),
+                ),
+              ...tasks.map((task) {
+                switch (task.kind) {
+                  case AssistantTaskKind.feedWindow:
+                    return _TaskCard(
+                      task: task,
+                      status: state.isCompleted(task.id)
+                          ? '已完成'
+                          : (TaskEngine.isFeedWindowActive(now, task)
+                                ? '进行中'
+                                : '等待中'),
+                      child: _SingleTaskBody(
+                        description: state.isEnabled(task.id)
+                            ? (state.isCompleted(task.id)
+                                  ? '本时段已完成。'
+                                  : '时间段 ${task.timeLabel}，到时后点完成。')
+                            : '今日已关闭此任务。',
+                        enabled: state.isEnabled(task.id),
+                        canComplete:
+                            state.isEnabled(task.id) &&
+                            !state.isCompleted(task.id) &&
+                            TaskEngine.isFeedWindowActive(now, task),
+                        buttonLabel: '标记完成',
+                        onDone: () => _markSingleTaskDone(task.id),
                       ),
                     );
                   case AssistantTaskKind.fixedPoint:
-                    return _ExpandableTaskCard(
-                      title: definition.title,
-                      timeLabel: definition.timeLabel,
-                      enabled: state.isEnabled(definition.id),
-                      badge: state.isCompleted(definition.id)
+                    return _TaskCard(
+                      task: task,
+                      status: state.isCompleted(task.id)
                           ? '已完成'
-                          : (TaskEngine.isFixedTaskDue(now, definition)
+                          : (TaskEngine.isFixedTaskDue(now, task)
                                 ? '到点'
                                 : '未到时'),
-                      badgeColor: state.isCompleted(definition.id)
-                          ? colors.primary
-                          : (TaskEngine.isFixedTaskDue(now, definition)
-                                ? colors.tertiary
-                                : colors.outline),
-                      onToggle: (value) => _toggleTask(definition.id, value),
-                      child: _FixedTaskBody(
-                        enabled: state.isEnabled(definition.id),
-                        isDone: state.isCompleted(definition.id),
-                        isDue: TaskEngine.isFixedTaskDue(now, definition),
-                        onDone: () => _markFixedDone(definition.id),
-                        appLabel: state.selectedAppLabel,
-                        onOpenApp: _openSelectedApp,
+                      child: _SingleTaskBody(
+                        description: state.isEnabled(task.id)
+                            ? (state.isCompleted(task.id)
+                                  ? '本任务已完成。'
+                                  : '将在 ${task.timeLabel} 提醒。')
+                            : '今日已关闭此任务。',
+                        enabled: state.isEnabled(task.id),
+                        canComplete:
+                            state.isEnabled(task.id) &&
+                            !state.isCompleted(task.id),
+                        buttonLabel: '标记完成',
+                        onDone: () => _markSingleTaskDone(task.id),
+                      ),
+                    );
+                  case AssistantTaskKind.adCooldown:
+                    final count = state.intervalCompleted(task.id);
+                    return _TaskCard(
+                      task: task,
+                      status: '$count/${task.targetCount}',
+                      child: _CounterTaskBody(
+                        description: TaskEngine.counterTaskLabel(
+                          now,
+                          state,
+                          task,
+                        ),
+                        enabled: state.isEnabled(task.id),
+                        canComplete:
+                            state.isEnabled(task.id) &&
+                            count < task.targetCount &&
+                            TaskEngine.canCompleteCounterTask(now, state, task),
+                        buttonLabel: count >= task.targetCount
+                            ? '今日已完成'
+                            : (TaskEngine.canCompleteCounterTask(
+                                    now,
+                                    state,
+                                    task,
+                                  )
+                                  ? '本次已完成'
+                                  : '倒计时中'),
+                        onDone: () => _markCounterTaskDone(task),
                       ),
                     );
                 }
@@ -447,24 +399,484 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.dateLabel,
-    required this.enabledCount,
-    required this.completedCount,
-    required this.nextReminder,
-    required this.onOpenApp,
-    required this.onReset,
-    required this.selectedAppLabel,
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({
+    required this.initialState,
+    required this.launcher,
+    super.key,
   });
 
-  final String dateLabel;
-  final int enabledCount;
-  final int completedCount;
-  final ReminderPreview? nextReminder;
-  final Future<void> Function() onOpenApp;
-  final Future<void> Function() onReset;
-  final String selectedAppLabel;
+  final DailyTaskState initialState;
+  final DouyinLauncher launcher;
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late DailyTaskState _draft;
+  bool _loadingApps = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.initialState;
+  }
+
+  void _toggleHomeVisible(String taskId, bool visible) {
+    final next = {..._draft.homeVisibleTaskIds};
+    if (visible) {
+      next.add(taskId);
+    } else {
+      next.remove(taskId);
+    }
+    setState(() {
+      _draft = _draft.copyWith(homeVisibleTaskIds: next);
+    });
+  }
+
+  Future<void> _pickApp() async {
+    setState(() => _loadingApps = true);
+    final apps = await widget.launcher.listLaunchableApps();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _loadingApps = false);
+    final selected = await showModalBottomSheet<LaunchableApp>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: 520,
+          child: ListView.builder(
+            itemCount: apps.length,
+            itemBuilder: (context, index) {
+              final app = apps[index];
+              return ListTile(
+                title: Text(app.appName),
+                subtitle: Text(app.packageName),
+                onTap: () => Navigator.of(context).pop(app),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    if (selected == null) {
+      return;
+    }
+    setState(() {
+      _draft = _draft.copyWith(
+        selectedAppPackage: selected.packageName,
+        selectedAppLabel: selected.appName,
+      );
+    });
+  }
+
+  Future<void> _editTask({AssistantTaskDefinition? task}) async {
+    final edited = await showModalBottomSheet<AssistantTaskDefinition>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => TaskEditorSheet(task: task),
+    );
+    if (edited == null) {
+      return;
+    }
+    setState(() {
+      final exists = _draft.taskDefinitions.any((item) => item.id == edited.id);
+      _draft = _draft.copyWith(
+        taskDefinitions: exists
+            ? _draft.taskDefinitions
+                  .map((item) => item.id == edited.id ? edited : item)
+                  .toList()
+            : [..._draft.taskDefinitions, edited],
+        enabledTaskIds: {..._draft.enabledTaskIds, edited.id},
+        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds, edited.id},
+      );
+    });
+  }
+
+  void _deleteTask(String taskId) {
+    setState(() {
+      _draft = _draft.copyWith(
+        taskDefinitions: _draft.taskDefinitions
+            .where((item) => item.id != taskId)
+            .toList(),
+        enabledTaskIds: {..._draft.enabledTaskIds}..remove(taskId),
+        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds}..remove(taskId),
+        completedTaskIds: {..._draft.completedTaskIds}..remove(taskId),
+        intervalCompletedCounts: {..._draft.intervalCompletedCounts}
+          ..remove(taskId),
+        intervalNextAvailableAt: {..._draft.intervalNextAvailableAt}
+          ..remove(taskId),
+      );
+    });
+  }
+
+  void _saveAsTemplate(AssistantTaskDefinition task) {
+    setState(() {
+      _draft = _draft.copyWith(
+        templateDefinitions: [..._draft.templateDefinitions, task.copyWith()],
+      );
+    });
+  }
+
+  void _applyTemplate(AssistantTaskDefinition template) {
+    final copy = template.copyWith(
+      id: 'task_${DateTime.now().millisecondsSinceEpoch}',
+      title: '${template.title} 副本',
+    );
+    setState(() {
+      _draft = _draft.copyWith(
+        taskDefinitions: [..._draft.taskDefinitions, copy],
+        enabledTaskIds: {..._draft.enabledTaskIds, copy.id},
+        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds, copy.id},
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('设置'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_draft),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _editTask(),
+        icon: const Icon(Icons.add),
+        label: const Text('新增任务'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        children: [
+          Card(
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '启动应用',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_draft.selectedAppLabel),
+                  Text(_draft.selectedAppPackage),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _draft = _draft.copyWith(
+                              selectedAppPackage:
+                                  'com.ss.android.ugc.aweme.lite',
+                              selectedAppLabel: '抖音极速版',
+                            );
+                          });
+                        },
+                        child: const Text('抖音极速版'),
+                      ),
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _draft = _draft.copyWith(
+                              selectedAppPackage: 'com.ss.android.ugc.aweme',
+                              selectedAppLabel: '抖音',
+                            );
+                          });
+                        },
+                        child: const Text('抖音'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _loadingApps ? null : _pickApp,
+                        icon: const Icon(Icons.apps),
+                        label: const Text('选择应用'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '首页任务',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          ..._draft.taskDefinitions.map((task) {
+            return Card(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                title: Text(task.title),
+                subtitle: Text(
+                  '${task.kind.name} · ${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
+                ),
+                leading: Switch(
+                  value: _draft.isHomeVisible(task.id),
+                  onChanged: (value) => _toggleHomeVisible(task.id, value),
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'edit':
+                        _editTask(task: task);
+                        break;
+                      case 'template':
+                        _saveAsTemplate(task);
+                        break;
+                      case 'delete':
+                        _deleteTask(task.id);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('编辑')),
+                    PopupMenuItem(value: 'template', child: Text('存为模板')),
+                    PopupMenuItem(value: 'delete', child: Text('删除')),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
+          Text(
+            '模板库',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          ...[...defaultTaskDefinitions, ..._draft.templateDefinitions].map((
+            template,
+          ) {
+            return Card(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                title: Text(template.title),
+                subtitle: Text(
+                  '${template.kind.name} · ${template.timeLabel} · 铃声 ${template.ringtoneLabel}',
+                ),
+                trailing: FilledButton(
+                  onPressed: () => _applyTemplate(template),
+                  child: const Text('使用'),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class TaskEditorSheet extends StatefulWidget {
+  const TaskEditorSheet({this.task, super.key});
+
+  final AssistantTaskDefinition? task;
+
+  @override
+  State<TaskEditorSheet> createState() => _TaskEditorSheetState();
+}
+
+class _TaskEditorSheetState extends State<TaskEditorSheet> {
+  late TextEditingController _titleController;
+  late TextEditingController _ringtoneController;
+  late AssistantTaskKind _kind;
+  late TimeOfDay _start;
+  TimeOfDay? _end;
+  late TextEditingController _targetController;
+  late TextEditingController _cooldownController;
+
+  @override
+  void initState() {
+    super.initState();
+    final task = widget.task;
+    _titleController = TextEditingController(text: task?.title ?? '');
+    _ringtoneController = TextEditingController(
+      text: task?.ringtoneLabel ?? '默认铃声',
+    );
+    _kind = task?.kind ?? AssistantTaskKind.fixedPoint;
+    _start = TimeOfDay(
+      hour: task?.startHour ?? 9,
+      minute: task?.startMinute ?? 0,
+    );
+    _end = task?.endHour == null
+        ? null
+        : TimeOfDay(hour: task!.endHour!, minute: task.endMinute!);
+    _targetController = TextEditingController(
+      text: '${task?.targetCount ?? 1}',
+    );
+    _cooldownController = TextEditingController(
+      text: '${task?.cooldownMinutes ?? 10}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _ringtoneController.dispose();
+    _targetController.dispose();
+    _cooldownController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStart() async {
+    final next = await showTimePicker(context: context, initialTime: _start);
+    if (next != null) {
+      setState(() => _start = next);
+    }
+  }
+
+  Future<void> _pickEnd() async {
+    final next = await showTimePicker(
+      context: context,
+      initialTime: _end ?? _start,
+    );
+    if (next != null) {
+      setState(() => _end = next);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isCounter = _kind == AssistantTaskKind.adCooldown;
+    final isWindow = _kind == AssistantTaskKind.feedWindow;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: '任务名称'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<AssistantTaskKind>(
+              initialValue: _kind,
+              items: AssistantTaskKind.values
+                  .map(
+                    (kind) =>
+                        DropdownMenuItem(value: kind, child: Text(kind.name)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _kind = value!),
+              decoration: const InputDecoration(labelText: '任务类型'),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('开始时间'),
+              subtitle: Text(_start.format(context)),
+              trailing: TextButton(
+                onPressed: _pickStart,
+                child: const Text('选择'),
+              ),
+            ),
+            if (isWindow)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('结束时间'),
+                subtitle: Text(_end?.format(context) ?? '未选择'),
+                trailing: TextButton(
+                  onPressed: _pickEnd,
+                  child: const Text('选择'),
+                ),
+              ),
+            if (isCounter) ...[
+              TextField(
+                controller: _targetController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '循环次数'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _cooldownController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '间隔分钟'),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _ringtoneController,
+              decoration: const InputDecoration(
+                labelText: '提醒铃声名称',
+                helperText: '先存标签，后续可接真实铃声文件',
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                final title = _titleController.text.trim();
+                if (title.isEmpty) {
+                  return;
+                }
+                Navigator.of(context).pop(
+                  AssistantTaskDefinition(
+                    id:
+                        widget.task?.id ??
+                        'task_${DateTime.now().millisecondsSinceEpoch}',
+                    kind: _kind,
+                    title: title,
+                    startHour: _start.hour,
+                    startMinute: _start.minute,
+                    endHour: isWindow ? _end?.hour ?? _start.hour : null,
+                    endMinute: isWindow ? _end?.minute ?? _start.minute : null,
+                    targetCount: isCounter
+                        ? int.tryParse(_targetController.text) ?? 1
+                        : 0,
+                    cooldownMinutes: isCounter
+                        ? int.tryParse(_cooldownController.text) ?? 10
+                        : 0,
+                    ringtoneLabel: _ringtoneController.text.trim().isEmpty
+                        ? '默认铃声'
+                        : _ringtoneController.text.trim(),
+                  ),
+                );
+              },
+              child: const Text('保存任务'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
+  const _HeaderCard({
+    required this.title,
+    required this.subtitle,
+    required this.action,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget action;
 
   @override
   Widget build(BuildContext context) {
@@ -474,209 +886,60 @@ class _HeaderCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [colors.primaryContainer, colors.secondaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            '半自动任务精灵',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          Text('日期 $dateLabel'),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _InfoPill(label: '已开启 $enabledCount 项'),
-              _InfoPill(label: '已完成 $completedCount 项'),
-              _InfoPill(
-                label: nextReminder == null
-                    ? '无后续提醒'
-                    : '下一提醒 ${nextReminder!.timeLabel}',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            nextReminder == null
-                ? '今天剩余提醒已排完。'
-                : '${nextReminder!.label} 即将提醒。',
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onOpenApp,
-                  icon: const Icon(Icons.open_in_new),
-                  label: Text('打开$selectedAppLabel'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onReset,
-                  icon: const Icon(Icons.restart_alt),
-                  label: const Text('重置今日'),
-                ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(subtitle),
+              ],
+            ),
           ),
+          action,
         ],
       ),
     );
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label});
+class _StatPill extends StatelessWidget {
+  const _StatPill({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.7),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
+      child: Text(label),
     );
   }
 }
 
-class _AppTargetCard extends StatelessWidget {
-  const _AppTargetCard({
-    required this.label,
-    required this.packageName,
-    required this.loadingApps,
-    required this.onUseLite,
-    required this.onUseDouyin,
-    required this.onPickApp,
-  });
-
-  final String label;
-  final String packageName;
-  final bool loadingApps;
-  final Future<void> Function() onUseLite;
-  final Future<void> Function() onUseDouyin;
-  final Future<void> Function() onPickApp;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '启动应用设置',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Text('当前：$label'),
-            const SizedBox(height: 2),
-            Text(
-              packageName,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                OutlinedButton(
-                  onPressed: onUseLite,
-                  child: const Text('抖音极速版'),
-                ),
-                OutlinedButton(onPressed: onUseDouyin, child: const Text('抖音')),
-                FilledButton.icon(
-                  onPressed: loadingApps ? null : onPickApp,
-                  icon: loadingApps
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.apps),
-                  label: const Text('选择其他应用'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskSectionLabel extends StatelessWidget {
-  const _TaskSectionLabel({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExpandableTaskCard extends StatelessWidget {
-  const _ExpandableTaskCard({
-    required this.title,
-    required this.timeLabel,
-    required this.enabled,
-    required this.badge,
-    required this.badgeColor,
-    required this.onToggle,
+class _TaskCard extends StatelessWidget {
+  const _TaskCard({
+    required this.task,
+    required this.status,
     required this.child,
   });
 
-  final String title;
-  final String timeLabel;
-  final bool enabled;
-  final String badge;
-  final Color badgeColor;
-  final ValueChanged<bool> onToggle;
+  final AssistantTaskDefinition task;
+  final String status;
   final Widget child;
 
   @override
@@ -684,163 +947,44 @@ class _ExpandableTaskCard extends StatelessWidget {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          title: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeLabel,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badge,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: badgeColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              children: [
-                Text(
-                  enabled ? '今日开启' : '今日关闭',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: enabled
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                Switch(value: enabled, onChanged: onToggle),
-              ],
-            ),
-          ),
-          children: [child],
-        ),
+      child: ExpansionTile(
+        title: Text(task.title),
+        subtitle: Text('${task.timeLabel} · 铃声 ${task.ringtoneLabel}'),
+        trailing: Chip(label: Text(status)),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [child],
       ),
     );
   }
 }
 
-class _FeedTaskBody extends StatelessWidget {
-  const _FeedTaskBody({
-    required this.definition,
+class _SingleTaskBody extends StatelessWidget {
+  const _SingleTaskBody({
+    required this.description,
     required this.enabled,
-    required this.isActive,
-    required this.isDone,
-    required this.onDone,
-  });
-
-  final AssistantTaskDefinition definition;
-  final bool enabled;
-  final bool isActive;
-  final bool isDone;
-  final Future<void> Function() onDone;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = !enabled
-        ? '今日已关闭。'
-        : isDone
-        ? '本时段已完成。'
-        : (isActive ? '当前时段进行中，可直接点完成。' : '未到时段，届时会锁屏提醒。');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(status),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: enabled && !isDone && isActive ? onDone : null,
-            icon: const Icon(Icons.task_alt),
-            label: const Text('标记本时段完成'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AdTaskBody extends StatelessWidget {
-  const _AdTaskBody({
-    required this.enabled,
-    required this.completed,
-    required this.targetCount,
     required this.canComplete,
-    required this.countdownLabel,
+    required this.buttonLabel,
     required this.onDone,
   });
 
+  final String description;
   final bool enabled;
-  final int completed;
-  final int targetCount;
   final bool canComplete;
-  final String countdownLabel;
+  final String buttonLabel;
   final Future<void> Function() onDone;
 
   @override
   Widget build(BuildContext context) {
-    final buttonLabel = !enabled
-        ? '今日已关闭'
-        : completed >= targetCount
-        ? '今日已完成'
-        : (canComplete ? '本次广告已完成' : '倒计时中');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          countdownLabel,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        Text('通知栏会显示进度，例如 $completed/$targetCount。点击一次后即锁 10 分钟。'),
+        Text(description),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: enabled && completed < targetCount && canComplete
-                ? onDone
-                : null,
-            icon: const Icon(Icons.alarm),
-            label: Text(buttonLabel),
+          child: FilledButton(
+            onPressed: enabled && canComplete ? onDone : null,
+            child: Text(buttonLabel),
           ),
         ),
       ],
@@ -848,54 +992,34 @@ class _AdTaskBody extends StatelessWidget {
   }
 }
 
-class _FixedTaskBody extends StatelessWidget {
-  const _FixedTaskBody({
+class _CounterTaskBody extends StatelessWidget {
+  const _CounterTaskBody({
+    required this.description,
     required this.enabled,
-    required this.isDone,
-    required this.isDue,
+    required this.canComplete,
+    required this.buttonLabel,
     required this.onDone,
-    required this.appLabel,
-    required this.onOpenApp,
   });
 
+  final String description;
   final bool enabled;
-  final bool isDone;
-  final bool isDue;
+  final bool canComplete;
+  final String buttonLabel;
   final Future<void> Function() onDone;
-  final String appLabel;
-  final Future<void> Function() onOpenApp;
 
   @override
   Widget build(BuildContext context) {
-    final status = !enabled
-        ? '今日已关闭。'
-        : isDone
-        ? '本任务已完成。'
-        : (isDue ? '已到时间，可处理。' : '未到时间，届时会锁屏提醒。');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(status),
+        Text(description),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: enabled && !isDone ? onDone : null,
-                icon: const Icon(Icons.task_alt),
-                label: const Text('标记完成'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onOpenApp,
-                icon: const Icon(Icons.open_in_new),
-                label: Text('打开$appLabel'),
-              ),
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: enabled && canComplete ? onDone : null,
+            child: Text(buttonLabel),
+          ),
         ),
       ],
     );
