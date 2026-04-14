@@ -22,11 +22,15 @@ class NotificationService {
     await _plugin.initialize(settings: settings);
 
     if (Platform.isAndroid) {
-      await _plugin
+      final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.requestNotificationsPermission();
+          >();
+      await androidPlugin?.requestNotificationsPermission();
+      final canExact = await androidPlugin?.canScheduleExactNotifications();
+      if (canExact == false) {
+        await androidPlugin?.requestExactAlarmsPermission();
+      }
     }
   }
 
@@ -150,6 +154,7 @@ class NotificationService {
           visibility: NotificationVisibility.public,
           playSound: true,
           enableVibration: true,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,

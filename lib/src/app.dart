@@ -16,25 +16,27 @@ class ScriptAssistantApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const shell = Color(0xFFF5F0E4);
-    const ink = Color(0xFF201B17);
-    const rust = Color(0xFFB65E35);
+    const seed = Color(0xFF55B7A7);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Task Sprite',
+      themeMode: ThemeMode.system,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: shell,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: rust,
+          seedColor: seed,
           brightness: Brightness.light,
-          surface: Colors.white,
         ),
-        textTheme: Typography.blackMountainView.apply(
-          bodyColor: ink,
-          displayColor: ink,
+        scaffoldBackgroundColor: const Color(0xFFF4FBF8),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seed,
+          brightness: Brightness.dark,
         ),
+        scaffoldBackgroundColor: const Color(0xFF0E1717),
       ),
       home: DashboardPage(enablePlatformServices: enablePlatformServices),
     );
@@ -60,6 +62,7 @@ class _DashboardPageState extends State<DashboardPage> {
   DailyTaskState? _state;
   String? _error;
   bool _loading = true;
+  bool _loadingApps = false;
 
   @override
   void initState() {
@@ -183,7 +186,83 @@ class _DashboardPageState extends State<DashboardPage> {
             : now.add(const Duration(minutes: 10)),
         clearAdNextAvailableAt: nextCount >= 20,
       );
-    }, message: '广告已记录，10 分钟后再提醒');
+    }, message: '已记录一次广告，倒计时开始');
+  }
+
+  Future<void> _openSelectedApp() async {
+    final state = _state;
+    if (state == null) {
+      return;
+    }
+    final ok = await _launcher.openPackage(state.selectedAppPackage);
+    if (!mounted) {
+      return;
+    }
+    _showMessage(ok ? '已尝试打开 ${state.selectedAppLabel}' : '打开失败，请重新选择应用');
+  }
+
+  Future<void> _usePresetApp({
+    required String packageName,
+    required String label,
+  }) async {
+    await _mutateState((state) {
+      return state.copyWith(
+        selectedAppPackage: packageName,
+        selectedAppLabel: label,
+      );
+    }, message: '已切换为 $label');
+  }
+
+  Future<void> _pickApp() async {
+    if (_loadingApps) {
+      return;
+    }
+    setState(() {
+      _loadingApps = true;
+    });
+
+    final apps = await _launcher.listLaunchableApps();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _loadingApps = false;
+    });
+
+    final selected = await showModalBottomSheet<LaunchableApp>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: SizedBox(
+            height: 520,
+            child: ListView.builder(
+              itemCount: apps.length,
+              itemBuilder: (context, index) {
+                final app = apps[index];
+                return ListTile(
+                  title: Text(app.appName),
+                  subtitle: Text(app.packageName),
+                  onTap: () => Navigator.of(context).pop(app),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    await _mutateState((state) {
+      return state.copyWith(
+        selectedAppPackage: selected.packageName,
+        selectedAppLabel: selected.appName,
+      );
+    }, message: '已选择 ${selected.appName}');
   }
 
   Future<void> _resetToday({bool showMessage = true}) async {
@@ -216,6 +295,9 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -249,9 +331,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFF8F4EA), Color(0xFFE7D8BE)],
+            colors: isDark
+                ? [const Color(0xFF102021), const Color(0xFF0E1717)]
+                : [const Color(0xFFF4FBF8), const Color(0xFFE4F5EF)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -265,11 +349,27 @@ class _DashboardPageState extends State<DashboardPage> {
                 enabledCount: enabledCount,
                 completedCount: completedCount,
                 nextReminder: nextReminder,
-                onOpenDouyin: _launcher.openDouyin,
+                onOpenApp: _openSelectedApp,
                 onReset: _resetToday,
+                selectedAppLabel: state.selectedAppLabel,
               ),
-              const SizedBox(height: 16),
-              _TaskSectionLabel(title: '今日任务', subtitle: '每项可独立展开、关闭、完成。'),
+              const SizedBox(height: 14),
+              _AppTargetCard(
+                label: state.selectedAppLabel,
+                packageName: state.selectedAppPackage,
+                loadingApps: _loadingApps,
+                onUseLite: () => _usePresetApp(
+                  packageName: 'com.ss.android.ugc.aweme.lite',
+                  label: '抖音极速版',
+                ),
+                onUseDouyin: () => _usePresetApp(
+                  packageName: 'com.ss.android.ugc.aweme',
+                  label: '抖音',
+                ),
+                onPickApp: _pickApp,
+              ),
+              const SizedBox(height: 14),
+              _TaskSectionLabel(title: '今日任务', subtitle: '展开单项卡片，处理完成、开关、倒计时。'),
               const SizedBox(height: 12),
               ..._definitions.map((definition) {
                 switch (definition.kind) {
@@ -280,8 +380,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       enabled: state.isEnabled(definition.id),
                       badge: state.isCompleted(definition.id) ? '已完成' : '待完成',
                       badgeColor: state.isCompleted(definition.id)
-                          ? const Color(0xFF2E7D4F)
-                          : const Color(0xFFB65E35),
+                          ? colors.primary
+                          : colors.tertiary,
                       onToggle: (value) => _toggleTask(definition.id, value),
                       child: _FeedTaskBody(
                         definition: definition,
@@ -297,10 +397,11 @@ class _DashboardPageState extends State<DashboardPage> {
                   case AssistantTaskKind.adCooldown:
                     return _ExpandableTaskCard(
                       title: definition.title,
-                      timeLabel: '每日 ${definition.targetCount} 次',
+                      timeLabel:
+                          '默认显示于通知栏 ${state.adCompleted}/${definition.targetCount}',
                       enabled: state.isEnabled(definition.id),
                       badge: '${state.adCompleted}/${definition.targetCount}',
-                      badgeColor: const Color(0xFF3C728A),
+                      badgeColor: colors.secondary,
                       onToggle: (value) => _toggleTask(definition.id, value),
                       child: _AdTaskBody(
                         enabled: state.isEnabled(definition.id),
@@ -322,16 +423,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ? '到点'
                                 : '未到时'),
                       badgeColor: state.isCompleted(definition.id)
-                          ? const Color(0xFF2E7D4F)
+                          ? colors.primary
                           : (TaskEngine.isFixedTaskDue(now, definition)
-                                ? const Color(0xFFB65E35)
-                                : const Color(0xFF7A7368)),
+                                ? colors.tertiary
+                                : colors.outline),
                       onToggle: (value) => _toggleTask(definition.id, value),
                       child: _FixedTaskBody(
                         enabled: state.isEnabled(definition.id),
                         isDone: state.isCompleted(definition.id),
                         isDue: TaskEngine.isFixedTaskDue(now, definition),
                         onDone: () => _markFixedDone(definition.id),
+                        appLabel: state.selectedAppLabel,
+                        onOpenApp: _openSelectedApp,
                       ),
                     );
                 }
@@ -350,24 +453,30 @@ class _HeaderCard extends StatelessWidget {
     required this.enabledCount,
     required this.completedCount,
     required this.nextReminder,
-    required this.onOpenDouyin,
+    required this.onOpenApp,
     required this.onReset,
+    required this.selectedAppLabel,
   });
 
   final String dateLabel;
   final int enabledCount;
   final int completedCount;
   final ReminderPreview? nextReminder;
-  final Future<void> Function() onOpenDouyin;
+  final Future<void> Function() onOpenApp;
   final Future<void> Function() onReset;
+  final String selectedAppLabel;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1A16),
+        gradient: LinearGradient(
+          colors: [colors.primaryContainer, colors.secondaryContainer],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
@@ -375,18 +484,12 @@ class _HeaderCard extends StatelessWidget {
         children: [
           Text(
             '半自动任务精灵',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          Text(
-            '日期 $dateLabel',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: const Color(0xFFE8DCCA),
-            ),
-          ),
+          Text('日期 $dateLabel'),
           const SizedBox(height: 14),
           Wrap(
             spacing: 10,
@@ -404,21 +507,17 @@ class _HeaderCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             nextReminder == null
-                ? '今日提醒已全部安排完毕。'
+                ? '今天剩余提醒已排完。'
                 : '${nextReminder!.label} 即将提醒。',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFFE8DCCA),
-              height: 1.4,
-            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onOpenDouyin,
+                  onPressed: onOpenApp,
                   icon: const Icon(Icons.open_in_new),
-                  label: const Text('打开抖音'),
+                  label: Text('打开$selectedAppLabel'),
                 ),
               ),
               const SizedBox(width: 10),
@@ -427,10 +526,6 @@ class _HeaderCard extends StatelessWidget {
                   onPressed: onReset,
                   icon: const Icon(Icons.restart_alt),
                   label: const Text('重置今日'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF8E8274)),
-                  ),
                 ),
               ),
             ],
@@ -448,17 +543,88 @@ class _InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2E2823),
+        color: colors.surface.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _AppTargetCard extends StatelessWidget {
+  const _AppTargetCard({
+    required this.label,
+    required this.packageName,
+    required this.loadingApps,
+    required this.onUseLite,
+    required this.onUseDouyin,
+    required this.onPickApp,
+  });
+
+  final String label;
+  final String packageName;
+  final bool loadingApps;
+  final Future<void> Function() onUseLite;
+  final Future<void> Function() onUseDouyin;
+  final Future<void> Function() onPickApp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '启动应用设置',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text('当前：$label'),
+            const SizedBox(height: 2),
+            Text(
+              packageName,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                OutlinedButton(
+                  onPressed: onUseLite,
+                  child: const Text('抖音极速版'),
+                ),
+                OutlinedButton(onPressed: onUseDouyin, child: const Text('抖音')),
+                FilledButton.icon(
+                  onPressed: loadingApps ? null : onPickApp,
+                  icon: loadingApps
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.apps),
+                  label: const Text('选择其他应用'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -485,9 +651,9 @@ class _TaskSectionLabel extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF655C4F)),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       ],
     );
@@ -515,24 +681,14 @@ class _ExpandableTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE3D4BA)),
-      ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          collapsedShape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
           title: Row(
             children: [
               Expanded(
@@ -549,7 +705,7 @@ class _ExpandableTaskCard extends StatelessWidget {
                     Text(
                       timeLabel,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFF6D6458),
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ],
@@ -579,11 +735,11 @@ class _ExpandableTaskCard extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  enabled ? '今日已开启' : '今日已关闭',
+                  enabled ? '今日开启' : '今日关闭',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: enabled
-                        ? const Color(0xFF2E7D4F)
-                        : const Color(0xFF7A7368),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -617,15 +773,15 @@ class _FeedTaskBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = !enabled
-        ? '今日已关闭，不提醒。'
+        ? '今日已关闭。'
         : isDone
         ? '本时段已完成。'
-        : (isActive ? '当前时段进行中，可直接点完成。' : '未到时段，届时会提醒。');
+        : (isActive ? '当前时段进行中，可直接点完成。' : '未到时段，届时会锁屏提醒。');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(status, style: Theme.of(context).textTheme.bodyMedium),
+        Text(status),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -659,6 +815,12 @@ class _AdTaskBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonLabel = !enabled
+        ? '今日已关闭'
+        : completed >= targetCount
+        ? '今日已完成'
+        : (canComplete ? '本次广告已完成' : '倒计时中');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -666,13 +828,10 @@ class _AdTaskBody extends StatelessWidget {
           countdownLabel,
           style: Theme.of(
             context,
-          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
-        Text(
-          '每次看完广告后手点一次完成。当前 $completed / $targetCount。',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        Text('通知栏会显示进度，例如 $completed/$targetCount。点击一次后即锁 10 分钟。'),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -680,8 +839,8 @@ class _AdTaskBody extends StatelessWidget {
             onPressed: enabled && completed < targetCount && canComplete
                 ? onDone
                 : null,
-            icon: const Icon(Icons.check_circle),
-            label: const Text('本次广告已完成'),
+            icon: const Icon(Icons.alarm),
+            label: Text(buttonLabel),
           ),
         ),
       ],
@@ -695,33 +854,48 @@ class _FixedTaskBody extends StatelessWidget {
     required this.isDone,
     required this.isDue,
     required this.onDone,
+    required this.appLabel,
+    required this.onOpenApp,
   });
 
   final bool enabled;
   final bool isDone;
   final bool isDue;
   final Future<void> Function() onDone;
+  final String appLabel;
+  final Future<void> Function() onOpenApp;
 
   @override
   Widget build(BuildContext context) {
     final status = !enabled
-        ? '今日已关闭，不提醒。'
+        ? '今日已关闭。'
         : isDone
         ? '本任务已完成。'
-        : (isDue ? '已到时间，可处理。' : '未到时间，届时提醒。');
+        : (isDue ? '已到时间，可处理。' : '未到时间，届时会锁屏提醒。');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(status, style: Theme.of(context).textTheme.bodyMedium),
+        Text(status),
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: enabled && !isDone ? onDone : null,
-            icon: const Icon(Icons.task_alt),
-            label: const Text('标记完成'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: enabled && !isDone ? onDone : null,
+                icon: const Icon(Icons.task_alt),
+                label: const Text('标记完成'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onOpenApp,
+                icon: const Icon(Icons.open_in_new),
+                label: Text('打开$appLabel'),
+              ),
+            ),
+          ],
         ),
       ],
     );

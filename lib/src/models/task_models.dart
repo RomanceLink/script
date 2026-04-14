@@ -42,6 +42,8 @@ class DailyTaskState {
     required this.completedTaskIds,
     required this.adCompleted,
     required this.adNextAvailableAt,
+    required this.selectedAppPackage,
+    required this.selectedAppLabel,
   });
 
   final String dateKey;
@@ -49,6 +51,8 @@ class DailyTaskState {
   final Set<String> completedTaskIds;
   final int adCompleted;
   final DateTime? adNextAvailableAt;
+  final String selectedAppPackage;
+  final String selectedAppLabel;
 
   factory DailyTaskState.freshFor(
     DateTime now,
@@ -62,6 +66,8 @@ class DailyTaskState {
       completedTaskIds: const {},
       adCompleted: 0,
       adNextAvailableAt: null,
+      selectedAppPackage: 'com.ss.android.ugc.aweme.lite',
+      selectedAppLabel: '抖音极速版',
     );
   }
 
@@ -74,6 +80,8 @@ class DailyTaskState {
     Set<String>? completedTaskIds,
     int? adCompleted,
     DateTime? adNextAvailableAt,
+    String? selectedAppPackage,
+    String? selectedAppLabel,
     bool clearAdNextAvailableAt = false,
   }) {
     return DailyTaskState(
@@ -84,6 +92,8 @@ class DailyTaskState {
       adNextAvailableAt: clearAdNextAvailableAt
           ? null
           : (adNextAvailableAt ?? this.adNextAvailableAt),
+      selectedAppPackage: selectedAppPackage ?? this.selectedAppPackage,
+      selectedAppLabel: selectedAppLabel ?? this.selectedAppLabel,
     );
   }
 
@@ -94,6 +104,8 @@ class DailyTaskState {
       'completedTaskIds': completedTaskIds.toList(),
       'adCompleted': adCompleted,
       'adNextAvailableAt': adNextAvailableAt?.millisecondsSinceEpoch,
+      'selectedAppPackage': selectedAppPackage,
+      'selectedAppLabel': selectedAppLabel,
     };
   }
 
@@ -116,6 +128,10 @@ class DailyTaskState {
       adNextAvailableAt: epoch == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(epoch),
+      selectedAppPackage:
+          json['selectedAppPackage'] as String? ??
+          'com.ss.android.ugc.aweme.lite',
+      selectedAppLabel: json['selectedAppLabel'] as String? ?? '抖音极速版',
     );
   }
 }

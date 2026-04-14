@@ -1,17 +1,43 @@
 import 'dart:io';
 
-import 'package:android_intent_plus/android_intent.dart';
+import 'package:device_apps/device_apps.dart';
+
+class LaunchableApp {
+  const LaunchableApp({required this.packageName, required this.appName});
+
+  final String packageName;
+  final String appName;
+}
 
 class DouyinLauncher {
-  Future<void> openDouyin() async {
+  Future<bool> openPackage(String packageName) async {
     if (!Platform.isAndroid) {
-      return;
+      return false;
     }
-    const intent = AndroidIntent(
-      action: 'action_main',
-      package: 'com.ss.android.ugc.aweme',
-      category: 'android.intent.category.LAUNCHER',
+    return DeviceApps.openApp(packageName);
+  }
+
+  Future<List<LaunchableApp>> listLaunchableApps() async {
+    if (!Platform.isAndroid) {
+      return const [];
+    }
+
+    final apps = await DeviceApps.getInstalledApplications(
+      includeSystemApps: false,
+      onlyAppsWithLaunchIntent: true,
     );
-    await intent.launch();
+
+    final mapped =
+        apps
+            .map(
+              (app) => LaunchableApp(
+                packageName: app.packageName,
+                appName: app.appName,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.appName.compareTo(b.appName));
+
+    return mapped;
   }
 }
