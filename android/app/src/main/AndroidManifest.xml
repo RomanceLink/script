@@ -9,7 +9,8 @@
     <application
         android:label="自律时钟"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".AlarmActivity"
             android:exported="false"

@@ -348,6 +348,24 @@ class _DashboardPageState extends State<DashboardPage> {
     return mottos[seed % mottos.length];
   }
 
+  List<Color> _indicatorPalette(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const [
+            Color(0xFF7ED8C3),
+            Color(0xFF8EB8FF),
+            Color(0xFFFFB989),
+            Color(0xFFE8A8FF),
+            Color(0xFFF6D77A),
+          ]
+        : const [
+            Color(0xFF69C5AF),
+            Color(0xFF7FA7F8),
+            Color(0xFFFFA977),
+            Color(0xFFD38FF2),
+            Color(0xFFE5C45A),
+          ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -581,17 +599,21 @@ class _DashboardPageState extends State<DashboardPage> {
                       spacing: 8,
                       children: List.generate(
                         tasks.length,
-                        (index) => AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: _currentTaskPage == index ? 24 : 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: _currentTaskPage == index
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outlineVariant,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
+                        (index) {
+                          final palette = _indicatorPalette(theme.brightness);
+                          final dotColor = palette[index % palette.length];
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: _currentTaskPage == index ? 24 : 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _currentTaskPage == index
+                                  ? dotColor
+                                  : dotColor.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -895,6 +917,12 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mintFill = theme.brightness == Brightness.dark
+        ? const Color(0xFF1F3D39)
+        : const Color(0xFFDDF5EC);
+    final mintText = theme.brightness == Brightness.dark
+        ? const Color(0xFF94DFC9)
+        : const Color(0xFF2F7D6B);
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
@@ -907,164 +935,183 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _editTask(),
-        icon: const Icon(Icons.add),
         label: const Text('新增任务'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '启动应用',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _draft.selectedAppLabel,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    _draft.selectedAppPackage,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _draft = _draft.copyWith(
-                              selectedAppPackage:
-                                  'com.ss.android.ugc.aweme.lite',
-                              selectedAppLabel: '抖音极速版',
-                            );
-                          });
-                        },
-                        child: const Text('抖音极速版'),
-                      ),
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _draft = _draft.copyWith(
-                              selectedAppPackage: 'com.ss.android.ugc.aweme',
-                              selectedAppLabel: '抖音',
-                            );
-                          });
-                        },
-                        child: const Text('抖音'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _loadingApps ? null : _pickApp,
-                        icon: const Icon(Icons.apps),
-                        label: const Text('选择应用'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          _SettingsSectionCard(
+            accent: const Color(0xFF78BEA8),
+            title: '启动应用',
+            subtitle: _draft.selectedAppLabel,
+            helper: _draft.selectedAppPackage,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _PastelButton(
+                  label: '抖音极速版',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1F3D39)
+                      : const Color(0xFFDDF5EC),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFF94DFC9)
+                      : const Color(0xFF2F7D6B),
+                  onPressed: () {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        selectedAppPackage: 'com.ss.android.ugc.aweme.lite',
+                        selectedAppLabel: '抖音极速版',
+                      );
+                    });
+                  },
+                ),
+                _PastelButton(
+                  label: '抖音',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF243649)
+                      : const Color(0xFFE5F0FF),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFA7C5FF)
+                      : const Color(0xFF456DAA),
+                  onPressed: () {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        selectedAppPackage: 'com.ss.android.ugc.aweme',
+                        selectedAppLabel: '抖音',
+                      );
+                    });
+                  },
+                ),
+                _PastelButton(
+                  label: _loadingApps ? '加载中...' : '选择应用',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF3F3022)
+                      : const Color(0xFFFFEFD9),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFFFCF8D)
+                      : const Color(0xFFB06C22),
+                  onPressed: _loadingApps ? null : _pickApp,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '提醒权限与系统设置',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '全屏提醒本身不依赖悬浮窗或辅助功能。核心是：精确闹钟、通知、忽略电池优化。悬浮窗与辅助功能仅给后续悬浮工具或自动辅助预留。',
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton(
-                        onPressed:
-                            widget.alarmBridge.openFullScreenIntentSettings,
-                        child: const Text('全屏通知'),
+          _SettingsSectionCard(
+            accent: const Color(0xFF80A7F5),
+            title: '提醒权限与系统设置',
+            subtitle: '闹钟、通知、锁屏弹出',
+            helper: '全屏提醒不依赖悬浮窗或辅助功能。核心是：精确闹钟、通知、忽略电池优化。',
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _PastelButton(
+                  label: '全屏通知',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF243649)
+                      : const Color(0xFFE5F0FF),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFA7C5FF)
+                      : const Color(0xFF456DAA),
+                  onPressed: widget.alarmBridge.openFullScreenIntentSettings,
+                ),
+                _PastelButton(
+                  label: '精确闹钟',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1F3D39)
+                      : const Color(0xFFDDF5EC),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFF94DFC9)
+                      : const Color(0xFF2F7D6B),
+                  onPressed: widget.alarmBridge.openExactAlarmSettings,
+                ),
+                _PastelButton(
+                  label: '通知权限',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF3A2F44)
+                      : const Color(0xFFF2E4FF),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFE0BAFF)
+                      : const Color(0xFF8A53B5),
+                  onPressed: widget.alarmBridge.openNotificationSettings,
+                ),
+                _PastelButton(
+                  label: '电池白名单',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF3F3022)
+                      : const Color(0xFFFFEFD9),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFFFCF8D)
+                      : const Color(0xFFB06C22),
+                  onPressed: widget.alarmBridge.requestIgnoreBatteryOptimizations,
+                ),
+                _PastelButton(
+                  label: '悬浮窗设置',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF353A21)
+                      : const Color(0xFFF4F6D9),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFDBE28F)
+                      : const Color(0xFF7B8128),
+                  onPressed: widget.alarmBridge.openOverlaySettings,
+                ),
+                _PastelButton(
+                  label: '辅助功能设置',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF3A3040)
+                      : const Color(0xFFFFE5F2),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFFFB5D7)
+                      : const Color(0xFFB85082),
+                  onPressed: widget.alarmBridge.openAccessibilitySettings,
+                ),
+                _PastelButton(
+                  label: '10秒自测',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1F3D39)
+                      : const Color(0xFFDDF5EC),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFF94DFC9)
+                      : const Color(0xFF2F7D6B),
+                  onPressed: () async {
+                    final now = DateTime.now().add(const Duration(seconds: 10));
+                    await widget.alarmBridge.scheduleSelfTest(
+                      AlarmReminder(
+                        id: 'self_test',
+                        taskId: 'self_test',
+                        title: '10秒自测提醒',
+                        body: '若正常，10秒后应直接弹出全屏提醒。',
+                        whenEpochMillis: now.millisecondsSinceEpoch,
+                        ringtoneSource: RingtoneSource.systemAlarm,
+                        ringtoneLabel: '系统闹钟铃声',
+                        ringtoneValue: null,
                       ),
-                      OutlinedButton(
-                        onPressed: widget.alarmBridge.openExactAlarmSettings,
-                        child: const Text('精确闹钟'),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('已安排 10 秒后自测')),
+                      );
+                    }
+                  },
+                ),
+                _PastelButton(
+                  label: '厂商指引',
+                  background: theme.brightness == Brightness.dark
+                      ? const Color(0xFF243649)
+                      : const Color(0xFFE5F0FF),
+                  foreground: theme.brightness == Brightness.dark
+                      ? const Color(0xFFA7C5FF)
+                      : const Color(0xFF456DAA),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const VendorGuidePage(),
                       ),
-                      OutlinedButton(
-                        onPressed: widget.alarmBridge.openNotificationSettings,
-                        child: const Text('通知权限'),
-                      ),
-                      OutlinedButton(
-                        onPressed: widget
-                            .alarmBridge
-                            .requestIgnoreBatteryOptimizations,
-                        child: const Text('电池白名单'),
-                      ),
-                      OutlinedButton(
-                        onPressed: widget.alarmBridge.openOverlaySettings,
-                        child: const Text('悬浮窗设置'),
-                      ),
-                      OutlinedButton(
-                        onPressed: widget.alarmBridge.openAccessibilitySettings,
-                        child: const Text('辅助功能设置'),
-                      ),
-                      FilledButton(
-                        onPressed: () async {
-                          final now = DateTime.now().add(
-                            const Duration(seconds: 10),
-                          );
-                          await widget.alarmBridge.scheduleSelfTest(
-                            AlarmReminder(
-                              id: 'self_test',
-                              taskId: 'self_test',
-                              title: '10秒自测提醒',
-                              body: '若正常，10秒后应直接弹出全屏提醒。',
-                              whenEpochMillis: now.millisecondsSinceEpoch,
-                              ringtoneSource: RingtoneSource.systemAlarm,
-                              ringtoneLabel: '系统闹钟铃声',
-                              ringtoneValue: null,
-                            ),
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('已安排 10 秒后自测')),
-                            );
-                          }
-                        },
-                        child: const Text('10秒自测'),
-                      ),
-                      FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const VendorGuidePage(),
-                            ),
-                          );
-                        },
-                        child: const Text('厂商指引'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           ..._buildGroupedTaskSections(context),
@@ -1079,7 +1126,11 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListTile(
               title: const Text('将当前全部任务保存为模板'),
               subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
-              trailing: FilledButton(
+              trailing: FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  backgroundColor: mintFill,
+                  foregroundColor: mintText,
+                ),
                 onPressed: _showSaveTemplateGroupDialog,
                 child: const Text('保存'),
               ),
@@ -1194,6 +1245,15 @@ class _SettingsPageState extends State<SettingsPage> {
                           ],
                         ),
                       ),
+                      _MiniIconButton(
+                        onPressed: () => _moveTask(task.id, -1),
+                        icon: Icons.keyboard_arrow_up_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _MiniIconButton(
+                        onPressed: () => _moveTask(task.id, 1),
+                        icon: Icons.keyboard_arrow_down_rounded,
+                      ),
                       PopupMenuButton<String>(
                         onSelected: (value) {
                           switch (value) {
@@ -1213,35 +1273,23 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _ToggleChip(
-                        label: '今日启用',
-                        value: enabled,
-                        icon: Icons.notifications_active_outlined,
-                        onChanged: (value) => _toggleTaskEnabled(task.id, value),
-                      ),
-                      _ToggleChip(
-                        label: '首页显示',
-                        value: homeVisible,
-                        icon: Icons.home_outlined,
-                        onChanged: (value) => _toggleHomeVisible(task.id, value),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, -1),
-                        icon: Icons.keyboard_arrow_up,
+                      Expanded(
+                        child: _ToggleChip(
+                          label: '今日启用',
+                          value: enabled,
+                          onChanged: (value) => _toggleTaskEnabled(task.id, value),
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, 1),
-                        icon: Icons.keyboard_arrow_down,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ToggleChip(
+                          label: '首页显示',
+                          value: homeVisible,
+                          onChanged: (value) =>
+                              _toggleHomeVisible(task.id, value),
+                        ),
                       ),
                     ],
                   ),
@@ -1370,6 +1418,13 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   Widget build(BuildContext context) {
     final isCounter = _kind == AssistantTaskKind.adCooldown;
     final isWindow = _kind == AssistantTaskKind.feedWindow;
+    final theme = Theme.of(context);
+    final mintFill = theme.brightness == Brightness.dark
+        ? const Color(0xFF1F3D39)
+        : const Color(0xFFDDF5EC);
+    final mintText = theme.brightness == Brightness.dark
+        ? const Color(0xFF94DFC9)
+        : const Color(0xFF2F7D6B);
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -1433,11 +1488,27 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
             ],
             const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _showQuickLaunch,
-              onChanged: (value) => setState(() => _showQuickLaunch = value),
-              title: const Text('显示快捷打开应用'),
+            SwitchTheme(
+              data: SwitchThemeData(
+                thumbColor: const WidgetStatePropertyAll(Colors.white),
+                trackColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const Color(0xFF83D8BD);
+                  }
+                  return theme.brightness == Brightness.dark
+                      ? const Color(0xFF384A46)
+                      : const Color(0xFFD7E3DE);
+                }),
+                trackOutlineColor: const WidgetStatePropertyAll(
+                  Colors.transparent,
+                ),
+              ),
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _showQuickLaunch,
+                onChanged: (value) => setState(() => _showQuickLaunch = value),
+                title: const Text('显示快捷打开应用'),
+              ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<RingtoneSource>(
@@ -1485,7 +1556,11 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton(
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                backgroundColor: mintFill,
+                foregroundColor: mintText,
+              ),
               onPressed: () {
                 final title = _titleController.text.trim();
                 if (title.isEmpty) {
@@ -1729,114 +1804,151 @@ class _TaskDeckCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Icon(icon, color: accent, size: 28),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  task.title,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _StatusBadge(label: status, accent: accent),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-                      _InfoPanel(
-                        title: '任务时间',
-                        value: headline,
-                        accent: accent,
-                      ),
-                      const SizedBox(height: 12),
-                      _InfoPanel(
-                        title: progressLabel,
-                        value: progressValue,
-                        accent: accent,
-                      ),
-                      const SizedBox(height: 14),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface.withValues(alpha: 0.56),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-                          ),
-                        ),
-                        child: Text(
-                          detail,
-                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: primaryButtonFill,
-                                foregroundColor: primaryButtonText,
-                              ),
-                              onPressed: primaryEnabled ? onPrimary : null,
-                              child: Text(primaryLabel),
-                            ),
-                          ),
-                          if (showQuickLaunch) ...[
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: FilledButton.tonal(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: secondaryButtonFill,
-                                  foregroundColor: secondaryButtonText,
-                                  side: BorderSide.none,
-                                ),
-                                onPressed: onOpenApp,
-                                child: Text('打开$appLabel'),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(icon, color: accent, size: 28),
                   ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _StatusBadge(label: status, accent: accent),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useTwoColumns = constraints.maxWidth >= 520;
+                    if (useTwoColumns) {
+                      return Column(
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _InfoPanel(
+                                  title: '任务时间',
+                                  value: headline,
+                                  accent: accent,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _InfoPanel(
+                                  title: progressLabel,
+                                  value: progressValue,
+                                  accent: accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Expanded(
+                            child: _DetailPanel(
+                              detail: detail,
+                              accent: accent,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _InfoPanel(
+                            title: '任务时间',
+                            value: headline,
+                            accent: accent,
+                          ),
+                          const SizedBox(height: 12),
+                          _InfoPanel(
+                            title: progressLabel,
+                            value: progressValue,
+                            accent: accent,
+                          ),
+                          const SizedBox(height: 14),
+                          _DetailPanel(
+                            detail: detail,
+                            accent: accent,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
+              const SizedBox(height: 14),
+              if (showQuickLaunch)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: primaryButtonFill,
+                          foregroundColor: primaryButtonText,
+                        ),
+                        onPressed: primaryEnabled ? onPrimary : null,
+                        child: Text(primaryLabel),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: secondaryButtonFill,
+                          foregroundColor: secondaryButtonText,
+                          side: BorderSide.none,
+                        ),
+                        onPressed: onOpenApp,
+                        child: Text('打开$appLabel'),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryButtonFill,
+                      foregroundColor: primaryButtonText,
+                    ),
+                    onPressed: primaryEnabled ? onPrimary : null,
+                    child: Text(primaryLabel),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -1936,43 +2048,103 @@ class _InfoPanel extends StatelessWidget {
   }
 }
 
-class _ToggleChip extends StatelessWidget {
-  const _ToggleChip({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onChanged,
-  });
+class _DetailPanel extends StatelessWidget {
+  const _DetailPanel({required this.detail, required this.accent});
 
-  final String label;
-  final bool value;
-  final IconData icon;
-  final ValueChanged<bool> onChanged;
+  final String detail;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: value
-            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.82)
-            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(18),
+        color: theme.colorScheme.surface.withValues(alpha: 0.56),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+          Container(
+            width: 8,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              detail,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fill = theme.brightness == Brightness.dark
+        ? (value ? const Color(0xFF1E3B35) : const Color(0xFF1A2526))
+        : (value ? const Color(0xFFE0F5EC) : const Color(0xFFF2F7F4));
+    final text = theme.brightness == Brightness.dark
+        ? (value ? const Color(0xFF96E1CC) : const Color(0xFFBCD1CA))
+        : (value ? const Color(0xFF2D7A67) : const Color(0xFF5E7F75));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: value
+              ? const Color(0xFF86D7BF).withValues(alpha: 0.8)
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: text,
+              ),
             ),
           ),
           const SizedBox(width: 6),
-          Switch(value: value, onChanged: onChanged),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: Colors.white,
+            activeTrackColor: const Color(0xFF83D8BD),
+            inactiveThumbColor: Colors.white,
+            inactiveTrackColor: theme.brightness == Brightness.dark
+                ? const Color(0xFF384A46)
+                : const Color(0xFFD7E3DE),
+            trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+          ),
         ],
       ),
     );
@@ -1980,24 +2152,149 @@ class _ToggleChip extends StatelessWidget {
 }
 
 class _MiniIconButton extends StatelessWidget {
-  const _MiniIconButton({required this.onPressed, required this.icon});
+  const _MiniIconButton({required this.icon, required this.onPressed});
 
-  final VoidCallback onPressed;
   final IconData icon;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(14),
       child: Ink(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF213033)
+              : const Color(0xFFEAF4F0),
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(icon, size: 18),
+        child: Icon(
+          icon,
+          size: 18,
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFFC7DDD7)
+              : const Color(0xFF55776E),
+        ),
       ),
+    );
+  }
+}
+
+class _SettingsSectionCard extends StatelessWidget {
+  const _SettingsSectionCard({
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.helper,
+    required this.child,
+  });
+
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final String helper;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              accent.withValues(alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12),
+              theme.cardTheme.color ?? theme.colorScheme.surface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          helper,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PastelButton extends StatelessWidget {
+  const _PastelButton({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonal(
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 }
