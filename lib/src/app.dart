@@ -1436,130 +1436,207 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: '任务名称'),
+            _EditorHeroCard(kindLabel: _kindLabel(_kind)),
+            const SizedBox(height: 14),
+            _EditorSectionCard(
+              accent: const Color(0xFF76C7AE),
+              title: '基础信息',
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(labelText: '任务名称'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<AssistantTaskKind>(
+                    initialValue: _kind,
+                    items: AssistantTaskKind.values
+                        .map(
+                          (kind) => DropdownMenuItem(
+                            value: kind,
+                            child: Text(_kindLabel(kind)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _kind = value!),
+                    decoration: const InputDecoration(labelText: '任务类型'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<AssistantTaskKind>(
-              initialValue: _kind,
-              items: AssistantTaskKind.values
-                  .map(
-                    (kind) => DropdownMenuItem(
-                      value: kind,
-                      child: Text(_kindLabel(kind)),
+            _EditorSectionCard(
+              accent: const Color(0xFF82A7F7),
+              title: '时间安排',
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _EditorPickerTile(
+                          label: '开始时间',
+                          value: _start.format(context),
+                          onTap: _pickStart,
+                        ),
+                      ),
+                      if (isWindow) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _EditorPickerTile(
+                            label: '结束时间',
+                            value: _end?.format(context) ?? '未选择',
+                            onTap: _pickEnd,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (isCounter) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _targetController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: '循环次数'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _cooldownController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: '间隔分钟'),
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _kind = value!),
-              decoration: const InputDecoration(labelText: '任务类型'),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('开始时间'),
-              subtitle: Text(_start.format(context)),
-              trailing: TextButton(
-                onPressed: _pickStart,
-                child: const Text('选择'),
-              ),
-            ),
-            if (isWindow)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('结束时间'),
-                subtitle: Text(_end?.format(context) ?? '未选择'),
-                trailing: TextButton(
-                  onPressed: _pickEnd,
-                  child: const Text('选择'),
-                ),
-              ),
-            if (isCounter) ...[
-              TextField(
-                controller: _targetController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '循环次数'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _cooldownController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '间隔分钟'),
-              ),
-            ],
-            const SizedBox(height: 12),
-            SwitchTheme(
-              data: SwitchThemeData(
-                thumbColor: const WidgetStatePropertyAll(Colors.white),
-                trackColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return const Color(0xFF83D8BD);
-                  }
-                  return theme.brightness == Brightness.dark
-                      ? const Color(0xFF384A46)
-                      : const Color(0xFFD7E3DE);
-                }),
-                trackOutlineColor: const WidgetStatePropertyAll(
-                  Colors.transparent,
-                ),
-              ),
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _showQuickLaunch,
-                onChanged: (value) => setState(() => _showQuickLaunch = value),
-                title: const Text('显示快捷打开应用'),
+                  ],
+                ],
               ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<RingtoneSource>(
-              initialValue: _ringtoneSource,
-              items: const [
-                DropdownMenuItem(
-                  value: RingtoneSource.systemDefault,
-                  child: Text('系统默认铃声'),
+            _EditorSectionCard(
+              accent: const Color(0xFFFFB17E),
+              title: '快捷行为',
+              child: SwitchTheme(
+                data: SwitchThemeData(
+                  thumbColor: const WidgetStatePropertyAll(Colors.white),
+                  trackColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return const Color(0xFF83D8BD);
+                    }
+                    return theme.brightness == Brightness.dark
+                        ? const Color(0xFF384A46)
+                        : const Color(0xFFD7E3DE);
+                  }),
+                  trackOutlineColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: RingtoneSource.systemAlarm,
-                  child: Text('选择系统铃声'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? const Color(0xFF172425)
+                        : const Color(0xFFF4F8F6),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '显示快捷打开应用',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '任务卡片底部显示一键打开目标应用',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _showQuickLaunch,
+                        onChanged: (value) =>
+                            setState(() => _showQuickLaunch = value),
+                      ),
+                    ],
+                  ),
                 ),
-                DropdownMenuItem(
-                  value: RingtoneSource.filePath,
-                  child: Text('选择本地文件'),
-                ),
-              ],
-              onChanged: (value) async {
-                if (value == null) {
-                  return;
-                }
-                if (value == RingtoneSource.filePath) {
-                  await _pickRingtoneFile();
-                  return;
-                }
-                if (value == RingtoneSource.systemAlarm) {
-                  await _pickSystemRingtone();
-                  return;
-                }
-                setState(() {
-                  _ringtoneSource = value;
-                  _ringtoneFilePath = null;
-                  _ringtoneController.text = '系统默认铃声';
-                });
-              },
-              decoration: const InputDecoration(labelText: '提醒铃声'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _ringtoneController,
-              decoration: InputDecoration(
-                labelText: '铃声显示名称',
-                helperText: _ringtoneFilePath ?? '可用系统铃声，或选本地文件',
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            _EditorSectionCard(
+              accent: const Color(0xFFD69AF1),
+              title: '提醒铃声',
+              child: Column(
+                children: [
+                  DropdownButtonFormField<RingtoneSource>(
+                    initialValue: _ringtoneSource,
+                    items: const [
+                      DropdownMenuItem(
+                        value: RingtoneSource.systemDefault,
+                        child: Text('系统默认铃声'),
+                      ),
+                      DropdownMenuItem(
+                        value: RingtoneSource.systemAlarm,
+                        child: Text('选择系统铃声'),
+                      ),
+                      DropdownMenuItem(
+                        value: RingtoneSource.filePath,
+                        child: Text('选择本地文件'),
+                      ),
+                    ],
+                    onChanged: (value) async {
+                      if (value == null) {
+                        return;
+                      }
+                      if (value == RingtoneSource.filePath) {
+                        await _pickRingtoneFile();
+                        return;
+                      }
+                      if (value == RingtoneSource.systemAlarm) {
+                        await _pickSystemRingtone();
+                        return;
+                      }
+                      setState(() {
+                        _ringtoneSource = value;
+                        _ringtoneFilePath = null;
+                        _ringtoneController.text = '系统默认铃声';
+                      });
+                    },
+                    decoration: const InputDecoration(labelText: '提醒铃声'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _ringtoneController,
+                    decoration: InputDecoration(
+                      labelText: '铃声显示名称',
+                      helperText: _ringtoneFilePath ?? '可用系统铃声，或选本地文件',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
             FilledButton.tonal(
               style: FilledButton.styleFrom(
                 backgroundColor: mintFill,
                 foregroundColor: mintText,
+                minimumSize: const Size.fromHeight(52),
               ),
               onPressed: () {
                 final title = _titleController.text.trim();
@@ -1606,6 +1683,175 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       AssistantTaskKind.adCooldown => '循环计次任务',
       AssistantTaskKind.fixedPoint => '固定时间任务',
     };
+  }
+}
+
+class _EditorHeroCard extends StatelessWidget {
+  const _EditorHeroCard({required this.kindLabel});
+
+  final String kindLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: theme.brightness == Brightness.dark
+              ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
+              : const [Color(0xFFE7F7F1), Color(0xFFE8F0FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(Icons.tune_rounded),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '编辑任务',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  kindLabel,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditorSectionCard extends StatelessWidget {
+  const _EditorSectionCard({
+    required this.accent,
+    required this.title,
+    required this.child,
+  });
+
+  final Color accent;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              accent.withValues(alpha: theme.brightness == Brightness.dark ? 0.12 : 0.1),
+              theme.cardTheme.color ?? theme.colorScheme.surface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorPickerTile extends StatelessWidget {
+  const _EditorPickerTile({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF172425)
+              : const Color(0xFFF4F8F6),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
