@@ -22,7 +22,7 @@ class ScriptAssistantApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Task Sprite',
+      title: '自律时钟',
       themeMode: ThemeMode.system,
       theme: ThemeData(
         useMaterial3: true,
@@ -210,7 +210,11 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     final next = await Navigator.of(context).push<DailyTaskState>(
       MaterialPageRoute(
-        builder: (_) => SettingsPage(initialState: state, launcher: _launcher),
+        builder: (_) => SettingsPage(
+          initialState: state,
+          launcher: _launcher,
+          alarmBridge: _alarmBridge,
+        ),
       ),
     );
 
@@ -434,11 +438,13 @@ class SettingsPage extends StatefulWidget {
   const SettingsPage({
     required this.initialState,
     required this.launcher,
+    required this.alarmBridge,
     super.key,
   });
 
   final DailyTaskState initialState;
   final DouyinLauncher launcher;
+  final AlarmBridge alarmBridge;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -760,6 +766,97 @@ class _SettingsPageState extends State<SettingsPage> {
                         onPressed: _loadingApps ? null : _pickApp,
                         icon: const Icon(Icons.apps),
                         label: const Text('选择应用'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '提醒权限与系统设置',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '全屏提醒本身不依赖悬浮窗或辅助功能。核心是：精确闹钟、通知、忽略电池优化。悬浮窗与辅助功能仅给后续悬浮工具或自动辅助预留。',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed:
+                            widget.alarmBridge.openFullScreenIntentSettings,
+                        child: const Text('全屏通知'),
+                      ),
+                      OutlinedButton(
+                        onPressed: widget.alarmBridge.openExactAlarmSettings,
+                        child: const Text('精确闹钟'),
+                      ),
+                      OutlinedButton(
+                        onPressed: widget.alarmBridge.openNotificationSettings,
+                        child: const Text('通知权限'),
+                      ),
+                      OutlinedButton(
+                        onPressed: widget
+                            .alarmBridge
+                            .requestIgnoreBatteryOptimizations,
+                        child: const Text('电池白名单'),
+                      ),
+                      OutlinedButton(
+                        onPressed: widget.alarmBridge.openOverlaySettings,
+                        child: const Text('悬浮窗设置'),
+                      ),
+                      OutlinedButton(
+                        onPressed: widget.alarmBridge.openAccessibilitySettings,
+                        child: const Text('辅助功能设置'),
+                      ),
+                      FilledButton(
+                        onPressed: () async {
+                          final now = DateTime.now().add(
+                            const Duration(seconds: 10),
+                          );
+                          await widget.alarmBridge.scheduleSelfTest(
+                            AlarmReminder(
+                              id: 'self_test',
+                              taskId: 'self_test',
+                              title: '10秒自测提醒',
+                              body: '若正常，10秒后应直接弹出全屏提醒。',
+                              whenEpochMillis: now.millisecondsSinceEpoch,
+                              ringtoneSource: RingtoneSource.systemAlarm,
+                              ringtoneLabel: '系统闹钟铃声',
+                              ringtoneValue: null,
+                            ),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('已安排 10 秒后自测')),
+                            );
+                          }
+                        },
+                        child: const Text('10秒自测'),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const VendorGuidePage(),
+                            ),
+                          );
+                        },
+                        child: const Text('厂商指引'),
                       ),
                     ],
                   ),
@@ -1395,6 +1492,36 @@ class TemplateTasksPage extends StatefulWidget {
 
   @override
   State<TemplateTasksPage> createState() => _TemplateTasksPageState();
+}
+
+class VendorGuidePage extends StatelessWidget {
+  const VendorGuidePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final guides = const [
+      ('小米 / Redmi', '开启自启动、无限制省电、锁屏显示、允许全屏通知。'),
+      ('OPPO / 一加 / realme', '允许后台运行、关闭自动优化、通知设为高优先、允许锁屏弹出。'),
+      ('vivo / iQOO', '后台高耗电允许、消息通知管理里开悬浮/锁屏、允许自启动。'),
+      ('华为 / 荣耀', '应用启动管理改手动管理、允许后台活动、允许锁屏通知。'),
+      ('三星', '关闭睡眠应用、允许精确闹钟、通知频道设为弹出与声音。'),
+    ];
+    return Scaffold(
+      appBar: AppBar(title: const Text('厂商权限指引')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: guides
+            .map(
+              (item) => Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(title: Text(item.$1), subtitle: Text(item.$2)),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
 }
 
 class _TemplateTasksPageState extends State<TemplateTasksPage> {
