@@ -1610,7 +1610,14 @@ class _HeaderCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: stats
-                        .map((label) => _StatPill(label: label))
+                        .asMap()
+                        .entries
+                        .map(
+                          (entry) => _StatPill(
+                            label: entry.value,
+                            tone: entry.key,
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -1625,26 +1632,35 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _StatPill extends StatelessWidget {
-  const _StatPill({required this.label});
+  const _StatPill({required this.label, required this.tone});
 
   final String label;
+  final int tone;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palettes = theme.brightness == Brightness.dark
+        ? const [
+            (Color(0xFF1F3D39), Color(0xFF8ED8C8)),
+            (Color(0xFF23364A), Color(0xFF9BC2FF)),
+          ]
+        : const [
+            (Color(0xFFDFF5EE), Color(0xFF2F7D6B)),
+            (Color(0xFFE4F0FF), Color(0xFF436EAF)),
+          ];
+    final palette = palettes[tone % palettes.length];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.78),
+        color: palette.$1,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
-        ),
       ),
       child: Text(
         label,
         style: theme.textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w700,
+          color: palette.$2,
         ),
       ),
     );
@@ -1687,6 +1703,18 @@ class _TaskDeckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final primaryButtonFill = theme.brightness == Brightness.dark
+        ? accent.withValues(alpha: 0.88)
+        : Color.lerp(accent, Colors.white, 0.2)!;
+    final primaryButtonText = theme.brightness == Brightness.dark
+        ? Colors.white
+        : _idealTextColor(primaryButtonFill);
+    final secondaryButtonFill = theme.brightness == Brightness.dark
+        ? accent.withValues(alpha: 0.18)
+        : accent.withValues(alpha: 0.14);
+    final secondaryButtonText = theme.brightness == Brightness.dark
+        ? accent.withValues(alpha: 0.98)
+        : accent.withValues(alpha: 0.95);
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -1780,6 +1808,10 @@ class _TaskDeckCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: primaryButtonFill,
+                                foregroundColor: primaryButtonText,
+                              ),
                               onPressed: primaryEnabled ? onPrimary : null,
                               child: Text(primaryLabel),
                             ),
@@ -1787,10 +1819,14 @@ class _TaskDeckCard extends StatelessWidget {
                           if (showQuickLaunch) ...[
                             const SizedBox(width: 10),
                             Expanded(
-                              child: OutlinedButton.icon(
+                              child: FilledButton.tonal(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: secondaryButtonFill,
+                                  foregroundColor: secondaryButtonText,
+                                  side: BorderSide.none,
+                                ),
                                 onPressed: onOpenApp,
-                                icon: const Icon(Icons.open_in_new, size: 18),
-                                label: Text('打开$appLabel'),
+                                child: Text('打开$appLabel'),
                               ),
                             ),
                           ],
@@ -1805,6 +1841,12 @@ class _TaskDeckCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _idealTextColor(Color background) {
+    return background.computeLuminance() > 0.55
+        ? const Color(0xFF12322B)
+        : Colors.white;
   }
 }
 
