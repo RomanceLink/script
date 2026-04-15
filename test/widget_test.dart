@@ -11,9 +11,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('半自动任务精灵'), findsOneWidget);
+    expect(find.text('今日箴言'), findsOneWidget);
     expect(find.text('上午刷视频'), findsOneWidget);
-    expect(find.text('打开抖音极速版'), findsOneWidget);
+    expect(find.text('首页显示 9 项'), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
   });
 }
