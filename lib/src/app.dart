@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'logic/task_definitions.dart';
@@ -82,7 +83,11 @@ class _DashboardPageState extends State<DashboardPage> {
       if (widget.enablePlatformServices) {
         await _notifications.initialize();
       }
-      final state = await _repository.loadOrCreateToday(defaultTaskDefinitions);
+      var state = await _repository.loadOrCreateToday(defaultTaskDefinitions);
+      if (state.templateGroups.isEmpty) {
+        state = state.copyWith(templateGroups: defaultTemplateGroups);
+        await _repository.save(state);
+      }
       if (widget.enablePlatformServices) {
         await _notifications.scheduleForState(state, state.taskDefinitions);
       }
@@ -145,7 +150,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final next = DailyTaskState.freshFor(
       DateTime.now(),
       current.taskDefinitions,
-      templates: current.templateDefinitions,
+      templateGroups: current.templateGroups,
       selectedAppPackage: current.selectedAppPackage,
       selectedAppLabel: current.selectedAppLabel,
       homeVisibleTaskIds: current.homeVisibleTaskIds,
@@ -287,12 +292,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 elevation: 0,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _StatPill(label: '首页显示 ${tasks.length} 项'),
-                      const SizedBox(width: 8),
                       _StatPill(label: '已完成 $doneCount 项'),
-                      const Spacer(),
                       FilledButton.icon(
                         onPressed: _openSelectedApp,
                         icon: const Icon(Icons.open_in_new),
@@ -515,24 +521,62 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _saveAsTemplate(AssistantTaskDefinition task) {
+  void _applyTemplateGroup(TaskTemplateGroup group) {
+    final base = DateTime.now().millisecondsSinceEpoch;
+    final copiedTasks = group.tasks
+        .asMap()
+        .entries
+        .map((entry) => entry.value.copyWith(id: 'task_${base}_${entry.key}'))
+        .toList();
+    final ids = copiedTasks.map((item) => item.id).toSet();
     setState(() {
       _draft = _draft.copyWith(
-        templateDefinitions: [..._draft.templateDefinitions, task.copyWith()],
+        taskDefinitions: copiedTasks,
+        enabledTaskIds: ids,
+        homeVisibleTaskIds: ids,
+        completedTaskIds: const {},
+        intervalCompletedCounts: const {},
+        intervalNextAvailableAt: const {},
       );
     });
   }
 
-  void _applyTemplate(AssistantTaskDefinition template) {
-    final copy = template.copyWith(
-      id: 'task_${DateTime.now().millisecondsSinceEpoch}',
-      title: '${template.title} 副本',
+  Future<void> _showSaveTemplateGroupDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('保存为模板'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: '模板名称'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
     );
+    controller.dispose();
+    if (name == null || name.isEmpty) {
+      return;
+    }
     setState(() {
       _draft = _draft.copyWith(
-        taskDefinitions: [..._draft.taskDefinitions, copy],
-        enabledTaskIds: {..._draft.enabledTaskIds, copy.id},
-        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds, copy.id},
+        templateGroups: [
+          ..._draft.templateGroups,
+          TaskTemplateGroup(
+            id: 'group_${DateTime.now().millisecondsSinceEpoch}',
+            name: name,
+            tasks: _draft.taskDefinitions,
+          ),
+        ],
       );
     });
   }
@@ -626,9 +670,7 @@ class _SettingsPageState extends State<SettingsPage> {
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
                 title: Text(task.title),
-                subtitle: Text(
-                  '${task.kind.name} · ${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
-                ),
+                subtitle: Text(_taskSummary(task)),
                 leading: Switch(
                   value: _draft.isHomeVisible(task.id),
                   onChanged: (value) => _toggleHomeVisible(task.id, value),
@@ -639,9 +681,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       case 'edit':
                         _editTask(task: task);
                         break;
-                      case 'template':
-                        _saveAsTemplate(task);
-                        break;
                       case 'delete':
                         _deleteTask(task.id);
                         break;
@@ -649,7 +688,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'edit', child: Text('编辑')),
-                    PopupMenuItem(value: 'template', child: Text('存为模板')),
                     PopupMenuItem(value: 'delete', child: Text('删除')),
                   ],
                 ),
@@ -664,20 +702,28 @@ class _SettingsPageState extends State<SettingsPage> {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          ...[...defaultTaskDefinitions, ..._draft.templateDefinitions].map((
-            template,
-          ) {
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              title: const Text('将当前全部任务保存为模板'),
+              subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
+              trailing: FilledButton(
+                onPressed: _showSaveTemplateGroupDialog,
+                child: const Text('保存'),
+              ),
+            ),
+          ),
+          ..._draft.templateGroups.map((group) {
             return Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 10),
               child: ListTile(
-                title: Text(template.title),
-                subtitle: Text(
-                  '${template.kind.name} · ${template.timeLabel} · 铃声 ${template.ringtoneLabel}',
-                ),
+                title: Text(group.name),
+                subtitle: Text('含 ${group.tasks.length} 个任务'),
                 trailing: FilledButton(
-                  onPressed: () => _applyTemplate(template),
-                  child: const Text('使用'),
+                  onPressed: () => _applyTemplateGroup(group),
+                  child: const Text('整组使用'),
                 ),
               ),
             );
@@ -685,6 +731,18 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  String _taskSummary(AssistantTaskDefinition task) {
+    final type = switch (task.kind) {
+      AssistantTaskKind.feedWindow => '时间段',
+      AssistantTaskKind.adCooldown => '循环次数',
+      AssistantTaskKind.fixedPoint => '固定时间',
+    };
+    final suffix = task.kind == AssistantTaskKind.adCooldown
+        ? ' · ${task.targetCount}次 / 间隔${task.cooldownMinutes}分'
+        : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}';
   }
 }
 
@@ -705,6 +763,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   TimeOfDay? _end;
   late TextEditingController _targetController;
   late TextEditingController _cooldownController;
+  late RingtoneSource _ringtoneSource;
+  String? _ringtoneFilePath;
 
   @override
   void initState() {
@@ -714,6 +774,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _ringtoneController = TextEditingController(
       text: task?.ringtoneLabel ?? '默认铃声',
     );
+    _ringtoneSource = task?.ringtoneSource ?? RingtoneSource.systemDefault;
+    _ringtoneFilePath = task?.ringtoneValue;
     _kind = task?.kind ?? AssistantTaskKind.fixedPoint;
     _start = TimeOfDay(
       hour: task?.startHour ?? 9,
@@ -756,6 +818,22 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     }
   }
 
+  Future<void> _pickRingtoneFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['mp3', 'wav', 'ogg', 'm4a'],
+    );
+    final file = result?.files.single;
+    if (file == null) {
+      return;
+    }
+    setState(() {
+      _ringtoneSource = RingtoneSource.filePath;
+      _ringtoneFilePath = file.path;
+      _ringtoneController.text = file.name;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isCounter = _kind == AssistantTaskKind.adCooldown;
@@ -780,8 +858,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               initialValue: _kind,
               items: AssistantTaskKind.values
                   .map(
-                    (kind) =>
-                        DropdownMenuItem(value: kind, child: Text(kind.name)),
+                    (kind) => DropdownMenuItem(
+                      value: kind,
+                      child: Text(_kindLabel(kind)),
+                    ),
                   )
                   .toList(),
               onChanged: (value) => setState(() => _kind = value!),
@@ -821,11 +901,46 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
             ],
             const SizedBox(height: 12),
+            DropdownButtonFormField<RingtoneSource>(
+              initialValue: _ringtoneSource,
+              items: const [
+                DropdownMenuItem(
+                  value: RingtoneSource.systemDefault,
+                  child: Text('系统默认铃声'),
+                ),
+                DropdownMenuItem(
+                  value: RingtoneSource.systemAlarm,
+                  child: Text('系统闹钟铃声'),
+                ),
+                DropdownMenuItem(
+                  value: RingtoneSource.filePath,
+                  child: Text('选择本地文件'),
+                ),
+              ],
+              onChanged: (value) async {
+                if (value == null) {
+                  return;
+                }
+                if (value == RingtoneSource.filePath) {
+                  await _pickRingtoneFile();
+                  return;
+                }
+                setState(() {
+                  _ringtoneSource = value;
+                  _ringtoneFilePath = null;
+                  _ringtoneController.text = value == RingtoneSource.systemAlarm
+                      ? '系统闹钟铃声'
+                      : '系统默认铃声';
+                });
+              },
+              decoration: const InputDecoration(labelText: '提醒铃声'),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _ringtoneController,
-              decoration: const InputDecoration(
-                labelText: '提醒铃声名称',
-                helperText: '先存标签，后续可接真实铃声文件',
+              decoration: InputDecoration(
+                labelText: '铃声显示名称',
+                helperText: _ringtoneFilePath ?? '可用系统铃声，或选本地文件',
               ),
             ),
             const SizedBox(height: 16),
@@ -855,6 +970,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     ringtoneLabel: _ringtoneController.text.trim().isEmpty
                         ? '默认铃声'
                         : _ringtoneController.text.trim(),
+                    ringtoneSource: _ringtoneSource,
+                    ringtoneValue: _ringtoneFilePath,
                   ),
                 );
               },
@@ -864,6 +981,14 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
         ),
       ),
     );
+  }
+
+  String _kindLabel(AssistantTaskKind kind) {
+    return switch (kind) {
+      AssistantTaskKind.feedWindow => '时间段任务',
+      AssistantTaskKind.adCooldown => '循环计次任务',
+      AssistantTaskKind.fixedPoint => '固定时间任务',
+    };
   }
 }
 

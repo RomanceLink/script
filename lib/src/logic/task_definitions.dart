@@ -71,3 +71,12 @@ const List<AssistantTaskDefinition> defaultTaskDefinitions = [
     startMinute: 0,
   ),
 ];
+
+const List<TaskTemplateGroup> defaultTemplateGroups = [
+  TaskTemplateGroup(
+    id: 'douyin_lite_builtin',
+    name: '抖音极速版模板',
+    builtIn: true,
+    tasks: defaultTaskDefinitions,
+  ),
+];

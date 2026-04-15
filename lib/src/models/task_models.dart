@@ -1,5 +1,7 @@
 enum AssistantTaskKind { feedWindow, adCooldown, fixedPoint }
 
+enum RingtoneSource { systemDefault, systemAlarm, filePath }
+
 class AssistantTaskDefinition {
   const AssistantTaskDefinition({
     required this.id,
@@ -12,6 +14,8 @@ class AssistantTaskDefinition {
     this.targetCount = 0,
     this.cooldownMinutes = 0,
     this.ringtoneLabel = '默认铃声',
+    this.ringtoneSource = RingtoneSource.systemDefault,
+    this.ringtoneValue,
   });
 
   final String id;
@@ -24,6 +28,8 @@ class AssistantTaskDefinition {
   final int targetCount;
   final int cooldownMinutes;
   final String ringtoneLabel;
+  final RingtoneSource ringtoneSource;
+  final String? ringtoneValue;
 
   String get timeLabel {
     if (endHour != null && endMinute != null) {
@@ -43,6 +49,8 @@ class AssistantTaskDefinition {
     int? targetCount,
     int? cooldownMinutes,
     String? ringtoneLabel,
+    RingtoneSource? ringtoneSource,
+    String? ringtoneValue,
     bool clearEnd = false,
   }) {
     return AssistantTaskDefinition(
@@ -56,6 +64,8 @@ class AssistantTaskDefinition {
       targetCount: targetCount ?? this.targetCount,
       cooldownMinutes: cooldownMinutes ?? this.cooldownMinutes,
       ringtoneLabel: ringtoneLabel ?? this.ringtoneLabel,
+      ringtoneSource: ringtoneSource ?? this.ringtoneSource,
+      ringtoneValue: ringtoneValue ?? this.ringtoneValue,
     );
   }
 
@@ -71,6 +81,8 @@ class AssistantTaskDefinition {
       'targetCount': targetCount,
       'cooldownMinutes': cooldownMinutes,
       'ringtoneLabel': ringtoneLabel,
+      'ringtoneSource': ringtoneSource.name,
+      'ringtoneValue': ringtoneValue,
     };
   }
 
@@ -86,17 +98,56 @@ class AssistantTaskDefinition {
       targetCount: json['targetCount'] as int? ?? 0,
       cooldownMinutes: json['cooldownMinutes'] as int? ?? 0,
       ringtoneLabel: json['ringtoneLabel'] as String? ?? '默认铃声',
+      ringtoneSource: json['ringtoneSource'] == null
+          ? RingtoneSource.systemDefault
+          : RingtoneSource.values.byName(json['ringtoneSource'] as String),
+      ringtoneValue: json['ringtoneValue'] as String?,
     );
   }
 
   String _two(int value) => value.toString().padLeft(2, '0');
 }
 
+class TaskTemplateGroup {
+  const TaskTemplateGroup({
+    required this.id,
+    required this.name,
+    required this.tasks,
+    this.builtIn = false,
+  });
+
+  final String id;
+  final String name;
+  final List<AssistantTaskDefinition> tasks;
+  final bool builtIn;
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'builtIn': builtIn,
+      'tasks': tasks.map((task) => task.toJson()).toList(),
+    };
+  }
+
+  factory TaskTemplateGroup.fromJson(Map<String, Object?> json) {
+    return TaskTemplateGroup(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      builtIn: json['builtIn'] as bool? ?? false,
+      tasks: ((json['tasks'] as List<Object?>?) ?? const <Object?>[])
+          .whereType<Map<String, Object?>>()
+          .map(AssistantTaskDefinition.fromJson)
+          .toList(),
+    );
+  }
+}
+
 class DailyTaskState {
   const DailyTaskState({
     required this.dateKey,
     required this.taskDefinitions,
-    required this.templateDefinitions,
+    required this.templateGroups,
     required this.enabledTaskIds,
     required this.homeVisibleTaskIds,
     required this.completedTaskIds,
@@ -108,7 +159,7 @@ class DailyTaskState {
 
   final String dateKey;
   final List<AssistantTaskDefinition> taskDefinitions;
-  final List<AssistantTaskDefinition> templateDefinitions;
+  final List<TaskTemplateGroup> templateGroups;
   final Set<String> enabledTaskIds;
   final Set<String> homeVisibleTaskIds;
   final Set<String> completedTaskIds;
@@ -120,7 +171,7 @@ class DailyTaskState {
   factory DailyTaskState.freshFor(
     DateTime now,
     List<AssistantTaskDefinition> definitions, {
-    List<AssistantTaskDefinition> templates = const [],
+    List<TaskTemplateGroup> templateGroups = const [],
     String selectedAppPackage = 'com.ss.android.ugc.aweme.lite',
     String selectedAppLabel = '抖音极速版',
     Set<String>? homeVisibleTaskIds,
@@ -131,7 +182,7 @@ class DailyTaskState {
     return DailyTaskState(
       dateKey: dateKey,
       taskDefinitions: definitions,
-      templateDefinitions: templates,
+      templateGroups: templateGroups,
       enabledTaskIds: taskIds,
       homeVisibleTaskIds: homeVisibleTaskIds ?? taskIds,
       completedTaskIds: const {},
@@ -155,7 +206,7 @@ class DailyTaskState {
   DailyTaskState copyWith({
     String? dateKey,
     List<AssistantTaskDefinition>? taskDefinitions,
-    List<AssistantTaskDefinition>? templateDefinitions,
+    List<TaskTemplateGroup>? templateGroups,
     Set<String>? enabledTaskIds,
     Set<String>? homeVisibleTaskIds,
     Set<String>? completedTaskIds,
@@ -167,7 +218,7 @@ class DailyTaskState {
     return DailyTaskState(
       dateKey: dateKey ?? this.dateKey,
       taskDefinitions: taskDefinitions ?? this.taskDefinitions,
-      templateDefinitions: templateDefinitions ?? this.templateDefinitions,
+      templateGroups: templateGroups ?? this.templateGroups,
       enabledTaskIds: enabledTaskIds ?? this.enabledTaskIds,
       homeVisibleTaskIds: homeVisibleTaskIds ?? this.homeVisibleTaskIds,
       completedTaskIds: completedTaskIds ?? this.completedTaskIds,
@@ -184,9 +235,7 @@ class DailyTaskState {
     return {
       'dateKey': dateKey,
       'taskDefinitions': taskDefinitions.map((item) => item.toJson()).toList(),
-      'templateDefinitions': templateDefinitions
-          .map((item) => item.toJson())
-          .toList(),
+      'templateGroups': templateGroups.map((item) => item.toJson()).toList(),
       'enabledTaskIds': enabledTaskIds.toList(),
       'homeVisibleTaskIds': homeVisibleTaskIds.toList(),
       'completedTaskIds': completedTaskIds.toList(),
@@ -211,7 +260,12 @@ class DailyTaskState {
     final effectiveDefinitions = taskDefinitions.isEmpty
         ? fallbackDefinitions
         : taskDefinitions;
-    final templateDefinitions =
+    final templateGroups =
+        ((json['templateGroups'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<Map<String, Object?>>()
+            .map(TaskTemplateGroup.fromJson)
+            .toList();
+    final legacyTemplateDefinitions =
         ((json['templateDefinitions'] as List<Object?>?) ?? const <Object?>[])
             .whereType<Map<String, Object?>>()
             .map(AssistantTaskDefinition.fromJson)
@@ -252,7 +306,17 @@ class DailyTaskState {
     return DailyTaskState(
       dateKey: json['dateKey'] as String,
       taskDefinitions: effectiveDefinitions,
-      templateDefinitions: templateDefinitions,
+      templateGroups: templateGroups.isNotEmpty
+          ? templateGroups
+          : (legacyTemplateDefinitions.isNotEmpty
+                ? [
+                    TaskTemplateGroup(
+                      id: 'legacy_group',
+                      name: '旧模板',
+                      tasks: legacyTemplateDefinitions,
+                    ),
+                  ]
+                : const []),
       enabledTaskIds: enabled.isEmpty ? taskIds : enabled,
       homeVisibleTaskIds: visible.isEmpty ? taskIds : visible,
       completedTaskIds: completed,

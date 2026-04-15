@@ -29,7 +29,7 @@ class TaskRepository {
       final reset = DailyTaskState.freshFor(
         DateTime.now(),
         state.taskDefinitions,
-        templates: state.templateDefinitions,
+        templateGroups: state.templateGroups,
         selectedAppPackage: state.selectedAppPackage,
         selectedAppLabel: state.selectedAppLabel,
         homeVisibleTaskIds: state.homeVisibleTaskIds,

@@ -40,6 +40,7 @@ dependencies:
   android_intent_plus: ^6.0.0
   flutter_timezone: ^5.0.2
   device_apps: ^2.2.0
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:
