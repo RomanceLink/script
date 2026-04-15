@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'logic/task_definitions.dart';
 import 'logic/task_engine.dart';
 import 'models/task_models.dart';
+import 'services/alarm_bridge.dart';
 import 'services/douyin_launcher.dart';
 import 'services/notification_service.dart';
 import 'services/task_repository.dart';
@@ -57,11 +58,13 @@ class _DashboardPageState extends State<DashboardPage> {
   final TaskRepository _repository = TaskRepository();
   final NotificationService _notifications = NotificationService();
   final DouyinLauncher _launcher = DouyinLauncher();
+  final AlarmBridge _alarmBridge = AlarmBridge();
 
   late Timer _ticker;
   DailyTaskState? _state;
   String? _error;
   bool _loading = true;
+  String? _focusTaskId;
 
   @override
   void initState() {
@@ -90,6 +93,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
       if (widget.enablePlatformServices) {
         await _notifications.scheduleForState(state, state.taskDefinitions);
+        _focusTaskId = await _alarmBridge.consumeLaunchTaskId();
       }
       if (!mounted) {
         return;
@@ -248,6 +252,15 @@ class _DashboardPageState extends State<DashboardPage> {
     final tasks = state.taskDefinitions
         .where((task) => state.isHomeVisible(task.id))
         .toList();
+    tasks.sort((a, b) {
+      if (a.id == _focusTaskId) {
+        return -1;
+      }
+      if (b.id == _focusTaskId) {
+        return 1;
+      }
+      return 0;
+    });
     final nextReminder = TaskEngine.nextReminder(
       now,
       state,
@@ -325,6 +338,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   case AssistantTaskKind.feedWindow:
                     return _TaskCard(
                       task: task,
+                      initiallyExpanded: task.id == _focusTaskId,
                       status: state.isCompleted(task.id)
                           ? '已完成'
                           : (TaskEngine.isFeedWindowActive(now, task)
@@ -343,11 +357,15 @@ class _DashboardPageState extends State<DashboardPage> {
                             TaskEngine.isFeedWindowActive(now, task),
                         buttonLabel: '标记完成',
                         onDone: () => _markSingleTaskDone(task.id),
+                        showQuickLaunch: task.showQuickLaunch,
+                        appLabel: state.selectedAppLabel,
+                        onOpenApp: _openSelectedApp,
                       ),
                     );
                   case AssistantTaskKind.fixedPoint:
                     return _TaskCard(
                       task: task,
+                      initiallyExpanded: task.id == _focusTaskId,
                       status: state.isCompleted(task.id)
                           ? '已完成'
                           : (TaskEngine.isFixedTaskDue(now, task)
@@ -365,12 +383,16 @@ class _DashboardPageState extends State<DashboardPage> {
                             !state.isCompleted(task.id),
                         buttonLabel: '标记完成',
                         onDone: () => _markSingleTaskDone(task.id),
+                        showQuickLaunch: task.showQuickLaunch,
+                        appLabel: state.selectedAppLabel,
+                        onOpenApp: _openSelectedApp,
                       ),
                     );
                   case AssistantTaskKind.adCooldown:
                     final count = state.intervalCompleted(task.id);
                     return _TaskCard(
                       task: task,
+                      initiallyExpanded: task.id == _focusTaskId,
                       status: '$count/${task.targetCount}',
                       child: _CounterTaskBody(
                         description: TaskEngine.counterTaskLabel(
@@ -393,6 +415,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   ? '本次已完成'
                                   : '倒计时中'),
                         onDone: () => _markCounterTaskDone(task),
+                        showQuickLaunch: task.showQuickLaunch,
+                        appLabel: state.selectedAppLabel,
+                        onOpenApp: _openSelectedApp,
                       ),
                     );
                 }
@@ -521,6 +546,19 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  void _moveTask(String taskId, int delta) {
+    final list = [..._draft.taskDefinitions];
+    final index = list.indexWhere((item) => item.id == taskId);
+    if (index < 0) return;
+    final nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    final item = list.removeAt(index);
+    list.insert(nextIndex, item);
+    setState(() {
+      _draft = _draft.copyWith(taskDefinitions: list);
+    });
+  }
+
   void _applyTemplateGroup(TaskTemplateGroup group) {
     final base = DateTime.now().millisecondsSinceEpoch;
     final copiedTasks = group.tasks
@@ -577,6 +615,79 @@ class _SettingsPageState extends State<SettingsPage> {
             tasks: _draft.taskDefinitions,
           ),
         ],
+      );
+    });
+  }
+
+  Future<void> _renameTemplateGroup(TaskTemplateGroup group) async {
+    final controller = TextEditingController(text: group.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重命名模板'),
+        content: TextField(controller: controller),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) return;
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .map(
+              (item) => item.id == group.id
+                  ? TaskTemplateGroup(
+                      id: item.id,
+                      name: name,
+                      tasks: item.tasks,
+                      builtIn: item.builtIn,
+                    )
+                  : item,
+            )
+            .toList(),
+      );
+    });
+  }
+
+  Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
+    final result = await Navigator.of(context)
+        .push<List<AssistantTaskDefinition>>(
+          MaterialPageRoute(builder: (_) => TemplateTasksPage(group: group)),
+        );
+    if (result == null) return;
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .map(
+              (item) => item.id == group.id
+                  ? TaskTemplateGroup(
+                      id: item.id,
+                      name: item.name,
+                      tasks: result,
+                      builtIn: item.builtIn,
+                    )
+                  : item,
+            )
+            .toList(),
+      );
+    });
+  }
+
+  void _deleteTemplateGroup(String groupId) {
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .where((item) => item.id != groupId)
+            .toList(),
       );
     });
   }
@@ -656,44 +767,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            '首页任务',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          ..._draft.taskDefinitions.map((task) {
-            return Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                title: Text(task.title),
-                subtitle: Text(_taskSummary(task)),
-                leading: Switch(
-                  value: _draft.isHomeVisible(task.id),
-                  onChanged: (value) => _toggleHomeVisible(task.id, value),
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'edit':
-                        _editTask(task: task);
-                        break;
-                      case 'delete':
-                        _deleteTask(task.id);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('编辑')),
-                    PopupMenuItem(value: 'delete', child: Text('删除')),
-                  ],
-                ),
-              ),
-            );
-          }),
+          ..._buildGroupedTaskSections(context),
           const SizedBox(height: 12),
           Text(
             '模板库',
@@ -721,9 +795,32 @@ class _SettingsPageState extends State<SettingsPage> {
               child: ListTile(
                 title: Text(group.name),
                 subtitle: Text('含 ${group.tasks.length} 个任务'),
-                trailing: FilledButton(
-                  onPressed: () => _applyTemplateGroup(group),
-                  child: const Text('整组使用'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'use':
+                        _applyTemplateGroup(group);
+                        break;
+                      case 'rename':
+                        _renameTemplateGroup(group);
+                        break;
+                      case 'edit':
+                        _editTemplateGroup(group);
+                        break;
+                      case 'delete':
+                        _deleteTemplateGroup(group.id);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'use', child: Text('整组使用')),
+                    if (!group.builtIn)
+                      const PopupMenuItem(value: 'rename', child: Text('重命名')),
+                    if (!group.builtIn)
+                      const PopupMenuItem(value: 'edit', child: Text('修改模板任务')),
+                    if (!group.builtIn)
+                      const PopupMenuItem(value: 'delete', child: Text('删除')),
+                  ],
                 ),
               ),
             );
@@ -742,7 +839,88 @@ class _SettingsPageState extends State<SettingsPage> {
     final suffix = task.kind == AssistantTaskKind.adCooldown
         ? ' · ${task.targetCount}次 / 间隔${task.cooldownMinutes}分'
         : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}';
+    final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+  }
+
+  List<Widget> _buildGroupedTaskSections(BuildContext context) {
+    final groups = <AssistantTaskKind, List<AssistantTaskDefinition>>{};
+    for (final task in _draft.taskDefinitions) {
+      groups.putIfAbsent(task.kind, () => []).add(task);
+    }
+    final order = [
+      AssistantTaskKind.feedWindow,
+      AssistantTaskKind.adCooldown,
+      AssistantTaskKind.fixedPoint,
+    ];
+    final out = <Widget>[const SizedBox(height: 12)];
+    for (final kind in order) {
+      final items = groups[kind];
+      if (items == null || items.isEmpty) continue;
+      out.add(
+        Text(
+          _kindGroupLabel(kind),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      );
+      out.add(const SizedBox(height: 8));
+      for (final task in items) {
+        out.add(
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              title: Text(task.title),
+              subtitle: Text(_taskSummary(task)),
+              leading: Switch(
+                value: _draft.isHomeVisible(task.id),
+                onChanged: (value) => _toggleHomeVisible(task.id, value),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => _moveTask(task.id, -1),
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                  ),
+                  IconButton(
+                    onPressed: () => _moveTask(task.id, 1),
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'edit':
+                          _editTask(task: task);
+                          break;
+                        case 'delete':
+                          _deleteTask(task.id);
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit', child: Text('编辑')),
+                      PopupMenuItem(value: 'delete', child: Text('删除')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
+  String _kindGroupLabel(AssistantTaskKind kind) {
+    return switch (kind) {
+      AssistantTaskKind.feedWindow => '时间段任务',
+      AssistantTaskKind.adCooldown => '循环计次任务',
+      AssistantTaskKind.fixedPoint => '固定时间任务',
+    };
   }
 }
 
@@ -765,6 +943,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late TextEditingController _cooldownController;
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
+  late bool _showQuickLaunch;
 
   @override
   void initState() {
@@ -790,6 +969,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _cooldownController = TextEditingController(
       text: '${task?.cooldownMinutes ?? 10}',
     );
+    _showQuickLaunch = task?.showQuickLaunch ?? false;
   }
 
   @override
@@ -831,6 +1011,18 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       _ringtoneSource = RingtoneSource.filePath;
       _ringtoneFilePath = file.path;
       _ringtoneController.text = file.name;
+    });
+  }
+
+  Future<void> _pickSystemRingtone() async {
+    final picked = await AlarmBridge().pickSystemRingtone();
+    if (picked == null) {
+      return;
+    }
+    setState(() {
+      _ringtoneSource = RingtoneSource.systemAlarm;
+      _ringtoneFilePath = picked.uri;
+      _ringtoneController.text = picked.label;
     });
   }
 
@@ -901,6 +1093,13 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
             ],
             const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showQuickLaunch,
+              onChanged: (value) => setState(() => _showQuickLaunch = value),
+              title: const Text('显示快捷打开应用'),
+            ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<RingtoneSource>(
               initialValue: _ringtoneSource,
               items: const [
@@ -910,7 +1109,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ),
                 DropdownMenuItem(
                   value: RingtoneSource.systemAlarm,
-                  child: Text('系统闹钟铃声'),
+                  child: Text('选择系统铃声'),
                 ),
                 DropdownMenuItem(
                   value: RingtoneSource.filePath,
@@ -925,12 +1124,14 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                   await _pickRingtoneFile();
                   return;
                 }
+                if (value == RingtoneSource.systemAlarm) {
+                  await _pickSystemRingtone();
+                  return;
+                }
                 setState(() {
                   _ringtoneSource = value;
                   _ringtoneFilePath = null;
-                  _ringtoneController.text = value == RingtoneSource.systemAlarm
-                      ? '系统闹钟铃声'
-                      : '系统默认铃声';
+                  _ringtoneController.text = '系统默认铃声';
                 });
               },
               decoration: const InputDecoration(labelText: '提醒铃声'),
@@ -972,6 +1173,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                         : _ringtoneController.text.trim(),
                     ringtoneSource: _ringtoneSource,
                     ringtoneValue: _ringtoneFilePath,
+                    showQuickLaunch: _showQuickLaunch,
                   ),
                 );
               },
@@ -1061,11 +1263,13 @@ class _TaskCard extends StatelessWidget {
     required this.task,
     required this.status,
     required this.child,
+    this.initiallyExpanded = false,
   });
 
   final AssistantTaskDefinition task;
   final String status;
   final Widget child;
+  final bool initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -1073,6 +1277,7 @@ class _TaskCard extends StatelessWidget {
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
         title: Text(task.title),
         subtitle: Text('${task.timeLabel} · 铃声 ${task.ringtoneLabel}'),
         trailing: Chip(label: Text(status)),
@@ -1090,6 +1295,9 @@ class _SingleTaskBody extends StatelessWidget {
     required this.canComplete,
     required this.buttonLabel,
     required this.onDone,
+    required this.showQuickLaunch,
+    required this.appLabel,
+    required this.onOpenApp,
   });
 
   final String description;
@@ -1097,6 +1305,9 @@ class _SingleTaskBody extends StatelessWidget {
   final bool canComplete;
   final String buttonLabel;
   final Future<void> Function() onDone;
+  final bool showQuickLaunch;
+  final String appLabel;
+  final Future<void> Function() onOpenApp;
 
   @override
   Widget build(BuildContext context) {
@@ -1112,6 +1323,16 @@ class _SingleTaskBody extends StatelessWidget {
             child: Text(buttonLabel),
           ),
         ),
+        if (showQuickLaunch) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: onOpenApp,
+              child: Text('打开$appLabel'),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1124,6 +1345,9 @@ class _CounterTaskBody extends StatelessWidget {
     required this.canComplete,
     required this.buttonLabel,
     required this.onDone,
+    required this.showQuickLaunch,
+    required this.appLabel,
+    required this.onOpenApp,
   });
 
   final String description;
@@ -1131,6 +1355,9 @@ class _CounterTaskBody extends StatelessWidget {
   final bool canComplete;
   final String buttonLabel;
   final Future<void> Function() onDone;
+  final bool showQuickLaunch;
+  final String appLabel;
+  final Future<void> Function() onOpenApp;
 
   @override
   Widget build(BuildContext context) {
@@ -1146,7 +1373,75 @@ class _CounterTaskBody extends StatelessWidget {
             child: Text(buttonLabel),
           ),
         ),
+        if (showQuickLaunch) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: onOpenApp,
+              child: Text('打开$appLabel'),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class TemplateTasksPage extends StatefulWidget {
+  const TemplateTasksPage({required this.group, super.key});
+
+  final TaskTemplateGroup group;
+
+  @override
+  State<TemplateTasksPage> createState() => _TemplateTasksPageState();
+}
+
+class _TemplateTasksPageState extends State<TemplateTasksPage> {
+  late List<AssistantTaskDefinition> _tasks;
+
+  @override
+  void initState() {
+    super.initState();
+    _tasks = [...widget.group.tasks];
+  }
+
+  void _removeTask(String taskId) {
+    setState(() {
+      _tasks = _tasks.where((item) => item.id != taskId).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.group.name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_tasks),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: _tasks
+            .map(
+              (task) => Card(
+                elevation: 0,
+                child: ListTile(
+                  title: Text(task.title),
+                  subtitle: Text('${task.timeLabel} · ${task.ringtoneLabel}'),
+                  trailing: IconButton(
+                    onPressed: () => _removeTask(task.id),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 }

@@ -4,11 +4,14 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+
 import '../models/task_models.dart';
+import 'alarm_bridge.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  final AlarmBridge _alarmBridge = AlarmBridge();
 
   static const int summaryNotificationId = 10;
 
@@ -43,6 +46,7 @@ class NotificationService {
 
     final now = DateTime.now();
     var id = 100;
+    final reminders = <AlarmReminder>[];
 
     for (final definition in definitions) {
       if (!state.isEnabled(definition.id)) {
@@ -59,11 +63,17 @@ class NotificationService {
             definition.startMinute,
           );
           if (start.isAfter(now)) {
-            await _scheduleReminder(
-              id: id++,
-              when: start,
-              title: definition.title,
-              body: '时窗开始，可进入应用并手动记次。',
+            reminders.add(
+              AlarmReminder(
+                id: 'alarm_${id++}',
+                taskId: definition.id,
+                title: definition.title,
+                body: '时窗开始，可进入应用并手动记次。',
+                whenEpochMillis: start.millisecondsSinceEpoch,
+                ringtoneSource: definition.ringtoneSource,
+                ringtoneLabel: definition.ringtoneLabel,
+                ringtoneValue: definition.ringtoneValue,
+              ),
             );
           }
           break;
@@ -77,11 +87,17 @@ class NotificationService {
                   definition.startMinute,
                 );
             if (next.isAfter(now)) {
-              await _scheduleReminder(
-                id: id++,
-                when: next,
-                title: definition.title,
-                body: '广告倒计时结束，可开始下一次。',
+              reminders.add(
+                AlarmReminder(
+                  id: 'alarm_${id++}',
+                  taskId: definition.id,
+                  title: definition.title,
+                  body: '倒计时结束，可开始下一次。',
+                  whenEpochMillis: next.millisecondsSinceEpoch,
+                  ringtoneSource: definition.ringtoneSource,
+                  ringtoneLabel: definition.ringtoneLabel,
+                  ringtoneValue: definition.ringtoneValue,
+                ),
               );
             }
           }
@@ -94,16 +110,26 @@ class NotificationService {
               definition.startMinute,
             );
             if (due.isAfter(now)) {
-              await _scheduleReminder(
-                id: id++,
-                when: due,
-                title: definition.title,
-                body: '到点了，点通知后去完成。',
+              reminders.add(
+                AlarmReminder(
+                  id: 'alarm_${id++}',
+                  taskId: definition.id,
+                  title: definition.title,
+                  body: '到点了，点通知后去完成。',
+                  whenEpochMillis: due.millisecondsSinceEpoch,
+                  ringtoneSource: definition.ringtoneSource,
+                  ringtoneLabel: definition.ringtoneLabel,
+                  ringtoneValue: definition.ringtoneValue,
+                ),
               );
             }
           }
           break;
       }
+    }
+
+    if (Platform.isAndroid) {
+      await _alarmBridge.replaceAlarms(reminders);
     }
   }
 
@@ -138,36 +164,6 @@ class NotificationService {
           visibility: NotificationVisibility.public,
         ),
       ),
-    );
-  }
-
-  Future<void> _scheduleReminder({
-    required int id,
-    required DateTime when,
-    required String title,
-    required String body,
-  }) async {
-    await _plugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(when, tz.local),
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'task_alarm',
-          'Task Alarm',
-          channelDescription: 'Task alarms and lock-screen reminders',
-          importance: Importance.max,
-          priority: Priority.max,
-          fullScreenIntent: true,
-          category: AndroidNotificationCategory.alarm,
-          visibility: NotificationVisibility.public,
-          playSound: true,
-          enableVibration: true,
-          audioAttributesUsage: AudioAttributesUsage.alarm,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 

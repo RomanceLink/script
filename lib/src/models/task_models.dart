@@ -16,6 +16,7 @@ class AssistantTaskDefinition {
     this.ringtoneLabel = '默认铃声',
     this.ringtoneSource = RingtoneSource.systemDefault,
     this.ringtoneValue,
+    this.showQuickLaunch = false,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class AssistantTaskDefinition {
   final String ringtoneLabel;
   final RingtoneSource ringtoneSource;
   final String? ringtoneValue;
+  final bool showQuickLaunch;
 
   String get timeLabel {
     if (endHour != null && endMinute != null) {
@@ -51,6 +53,7 @@ class AssistantTaskDefinition {
     String? ringtoneLabel,
     RingtoneSource? ringtoneSource,
     String? ringtoneValue,
+    bool? showQuickLaunch,
     bool clearEnd = false,
   }) {
     return AssistantTaskDefinition(
@@ -66,6 +69,7 @@ class AssistantTaskDefinition {
       ringtoneLabel: ringtoneLabel ?? this.ringtoneLabel,
       ringtoneSource: ringtoneSource ?? this.ringtoneSource,
       ringtoneValue: ringtoneValue ?? this.ringtoneValue,
+      showQuickLaunch: showQuickLaunch ?? this.showQuickLaunch,
     );
   }
 
@@ -83,6 +87,7 @@ class AssistantTaskDefinition {
       'ringtoneLabel': ringtoneLabel,
       'ringtoneSource': ringtoneSource.name,
       'ringtoneValue': ringtoneValue,
+      'showQuickLaunch': showQuickLaunch,
     };
   }
 
@@ -102,6 +107,7 @@ class AssistantTaskDefinition {
           ? RingtoneSource.systemDefault
           : RingtoneSource.values.byName(json['ringtoneSource'] as String),
       ringtoneValue: json['ringtoneValue'] as String?,
+      showQuickLaunch: json['showQuickLaunch'] as bool? ?? false,
     );
   }
 
