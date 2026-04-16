@@ -3621,8 +3621,53 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
     });
   }
 
+  Future<void> _editTask({AssistantTaskDefinition? task}) async {
+    final edited = await showModalBottomSheet<AssistantTaskDefinition>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => TaskEditorSheet(task: task),
+    );
+    if (edited == null) {
+      return;
+    }
+    setState(() {
+      final exists = _tasks.any((item) => item.id == edited.id);
+      _tasks = exists
+          ? _tasks.map((item) => item.id == edited.id ? edited : item).toList()
+          : [..._tasks, edited];
+    });
+  }
+
+  void _moveTask(String taskId, int delta) {
+    final list = [..._tasks];
+    final index = list.indexWhere((item) => item.id == taskId);
+    if (index < 0) return;
+    final nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    final item = list.removeAt(index);
+    list.insert(nextIndex, item);
+    setState(() {
+      _tasks = list;
+    });
+  }
+
+  String _taskSummary(AssistantTaskDefinition task) {
+    final type = switch (task.kind) {
+      AssistantTaskKind.feedWindow => '时间段',
+      AssistantTaskKind.adCooldown => '循环次数',
+      AssistantTaskKind.fixedPoint => '固定时间',
+    };
+    final suffix = task.kind == AssistantTaskKind.adCooldown
+        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
+        : '';
+    final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.group.name),
@@ -3633,23 +3678,80 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _editTask(),
+        label: const Text('新增任务'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: _tasks
-            .map(
-              (task) => Card(
-                elevation: 0,
-                child: ListTile(
-                  title: Text(task.title),
-                  subtitle: Text('${task.timeLabel} · ${task.ringtoneLabel}'),
-                  trailing: IconButton(
-                    onPressed: () => _removeTask(task.id),
-                    icon: const Icon(Icons.delete_outline),
-                  ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        children: [
+          if (_tasks.isEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  '这个模板还没有任务。点击右下角“新增任务”添加。',
+                  style: theme.textTheme.bodyLarge,
                 ),
               ),
-            )
-            .toList(),
+            ),
+          ..._tasks.map((task) {
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                task.title,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _taskSummary(task),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _MiniIconButton(
+                          onPressed: () => _moveTask(task.id, -1),
+                          icon: Icons.keyboard_arrow_up_rounded,
+                        ),
+                        const SizedBox(width: 6),
+                        _MiniIconButton(
+                          onPressed: () => _moveTask(task.id, 1),
+                          icon: Icons.keyboard_arrow_down_rounded,
+                        ),
+                        const SizedBox(width: 6),
+                        _MiniIconButton(
+                          onPressed: () => _editTask(task: task),
+                          icon: Icons.edit_note_rounded,
+                        ),
+                        const SizedBox(width: 6),
+                        _MiniIconButton(
+                          onPressed: () => _removeTask(task.id),
+                          icon: Icons.delete_outline_rounded,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
