@@ -2917,42 +2917,20 @@ class _HeaderCard extends StatelessWidget {
                     ),
                     if (onReset != null) ...[
                       const SizedBox(width: 8),
-                      InkWell(
-                        onTap: onReset,
-                        borderRadius: BorderRadius.circular(999),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: colors.onSurfaceVariant.withValues(
-                                alpha: 0.2,
-                              ),
-                            ),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.refresh_rounded,
-                                size: 14,
-                                color: colors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '重置',
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      _HeaderMiniAction(
+                        label: '重置',
+                        onTap: onReset!,
+                        foreground:
+                            Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFFFD7BA)
+                            : const Color(0xFFAD6A3A),
+                        background:
+                            Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF3A2923)
+                            : const Color(0xFFFFF1E5),
+                        border: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF6F4934)
+                            : const Color(0xFFFFCBA9),
                       ),
                     ],
                   ],
@@ -2987,6 +2965,49 @@ class _HeaderCard extends StatelessWidget {
           ),
           action,
         ],
+      ),
+    );
+  }
+}
+
+class _HeaderMiniAction extends StatelessWidget {
+  const _HeaderMiniAction({
+    required this.label,
+    required this.onTap,
+    required this.foreground,
+    required this.background,
+    required this.border,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final Color foreground;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
       ),
     );
   }
