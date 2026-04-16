@@ -92,7 +92,7 @@ class NotificationService {
                   id: 'alarm_${id++}',
                   taskId: definition.id,
                   title: definition.title,
-                  body: '倒计时结束，可开始下一次。',
+                  body: '间隔结束，可开始下一次。',
                   whenEpochMillis: next.millisecondsSinceEpoch,
                   ringtoneSource: definition.ringtoneSource,
                   ringtoneLabel: definition.ringtoneLabel,

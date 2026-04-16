@@ -284,7 +284,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (nextCount >= task.targetCount) {
         nextTimes.remove(task.id);
       } else {
-        nextTimes[task.id] = now.add(Duration(minutes: task.cooldownMinutes));
+        nextTimes[task.id] = now.add(task.cooldownDuration);
       }
       return state.copyWith(
         intervalCompletedCounts: nextCounts,
@@ -559,7 +559,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               accent: const Color(0xFFDA8C63),
                               icon: Icons.hourglass_bottom_rounded,
                               status: '$count/${task.targetCount}',
-                              headline: '间隔 ${task.cooldownMinutes} 分钟',
+                              headline: '间隔 ${task.intervalLabel}',
                               detail: TaskEngine.counterTaskLabel(
                                 now,
                                 state,
@@ -1184,7 +1184,7 @@ class _SettingsPageState extends State<SettingsPage> {
       AssistantTaskKind.fixedPoint => '固定时间',
     };
     final suffix = task.kind == AssistantTaskKind.adCooldown
-        ? ' · ${task.targetCount}次 / 间隔${task.cooldownMinutes}分'
+        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
     return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
@@ -1329,6 +1329,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   TimeOfDay? _end;
   late TextEditingController _targetController;
   late TextEditingController _cooldownController;
+  late IntervalUnit _intervalUnit;
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
@@ -1355,8 +1356,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       text: '${task?.targetCount ?? 1}',
     );
     _cooldownController = TextEditingController(
-      text: '${task?.cooldownMinutes ?? 10}',
+      text: '${task?.cooldownValue ?? 10}',
     );
+    _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
   }
 
@@ -1498,7 +1500,15 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                           child: TextField(
                             controller: _cooldownController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: '间隔分钟'),
+                            decoration: const InputDecoration(labelText: '间隔值'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _IntervalUnitSelector(
+                            value: _intervalUnit,
+                            onChanged: (value) =>
+                                setState(() => _intervalUnit = value),
                           ),
                         ),
                       ],
@@ -1575,26 +1585,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               title: '提醒铃声',
               child: Column(
                 children: [
-                  DropdownButtonFormField<RingtoneSource>(
-                    initialValue: _ringtoneSource,
-                    items: const [
-                      DropdownMenuItem(
-                        value: RingtoneSource.systemDefault,
-                        child: Text('系统默认铃声'),
-                      ),
-                      DropdownMenuItem(
-                        value: RingtoneSource.systemAlarm,
-                        child: Text('选择系统铃声'),
-                      ),
-                      DropdownMenuItem(
-                        value: RingtoneSource.filePath,
-                        child: Text('选择本地文件'),
-                      ),
-                    ],
+                  _RingtoneSourceSelector(
+                    value: _ringtoneSource,
                     onChanged: (value) async {
-                      if (value == null) {
-                        return;
-                      }
                       if (value == RingtoneSource.filePath) {
                         await _pickRingtoneFile();
                         return;
@@ -1609,7 +1602,6 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                         _ringtoneController.text = '系统默认铃声';
                       });
                     },
-                    decoration: const InputDecoration(labelText: '提醒铃声'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -1648,9 +1640,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     targetCount: isCounter
                         ? int.tryParse(_targetController.text) ?? 1
                         : 0,
-                    cooldownMinutes: isCounter
+                    cooldownValue: isCounter
                         ? int.tryParse(_cooldownController.text) ?? 10
                         : 0,
+                    intervalUnit: _intervalUnit,
                     ringtoneLabel: _ringtoneController.text.trim().isEmpty
                         ? '默认铃声'
                         : _ringtoneController.text.trim(),
@@ -1942,6 +1935,165 @@ class _TaskKindSelector extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          Text(
+                            item.$2,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: selected
+                                  ? accent
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.$3,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IntervalUnitSelector extends StatelessWidget {
+  const _IntervalUnitSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IntervalUnit value;
+  final ValueChanged<IntervalUnit> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = const [
+      (IntervalUnit.seconds, '秒'),
+      (IntervalUnit.minutes, '分'),
+      (IntervalUnit.hours, '时'),
+      (IntervalUnit.days, '天'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF172425)
+            : const Color(0xFFF4F8F6),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: items.map((item) {
+          final selected = value == item.$1;
+          return ChoiceChip(
+            label: Text(item.$2),
+            selected: selected,
+            onSelected: (_) => onChanged(item.$1),
+            selectedColor: const Color(0xFFDDF5EC),
+            backgroundColor: theme.colorScheme.surface,
+            side: BorderSide(
+              color: selected
+                  ? const Color(0xFF83D8BD)
+                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+            ),
+            labelStyle: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: selected
+                  ? const Color(0xFF2F7D6B)
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _RingtoneSourceSelector extends StatelessWidget {
+  const _RingtoneSourceSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final RingtoneSource value;
+  final ValueChanged<RingtoneSource> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = const [
+      (RingtoneSource.systemDefault, '系统默认', '直接使用默认提醒'),
+      (RingtoneSource.systemAlarm, '系统铃声', '从系统铃声里选择'),
+      (RingtoneSource.filePath, '本地文件', '从文件里选择音乐'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF172425)
+            : const Color(0xFFF4F8F6),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '提醒铃声来源',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: items.map((item) {
+              final selected = value == item.$1;
+              final accent = switch (item.$1) {
+                RingtoneSource.systemDefault => const Color(0xFF69C5AF),
+                RingtoneSource.systemAlarm => const Color(0xFF7FA7F8),
+                RingtoneSource.filePath => const Color(0xFFD38FF2),
+              };
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: item == items.last ? 0 : 8,
+                  ),
+                  child: InkWell(
+                    onTap: () => onChanged(item.$1),
+                    borderRadius: BorderRadius.circular(18),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? accent.withValues(
+                                alpha: theme.brightness == Brightness.dark
+                                    ? 0.22
+                                    : 0.14,
+                              )
+                            : theme.colorScheme.surface.withValues(alpha: 0.62),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected
+                              ? accent.withValues(alpha: 0.75)
+                              : theme.colorScheme.outlineVariant.withValues(
+                                  alpha: 0.45,
+                                ),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
                             item.$2,
                             style: theme.textTheme.titleSmall?.copyWith(

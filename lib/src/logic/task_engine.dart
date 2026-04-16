@@ -57,6 +57,16 @@ class TaskEngine {
       return '现在可执行下一次。';
     }
     final remaining = next.difference(now);
+    if (remaining.inDays >= 1) {
+      final days = remaining.inDays;
+      final hours = remaining.inHours % 24;
+      return '距下次 $days天 $hours小时';
+    }
+    if (remaining.inHours >= 1) {
+      final hours = remaining.inHours;
+      final minutes = remaining.inMinutes % 60;
+      return '距下次 $hours小时 $minutes分钟';
+    }
     final minutes = remaining.inMinutes;
     final seconds = remaining.inSeconds % 60;
     return '距下次 ${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';

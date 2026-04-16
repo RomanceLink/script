@@ -2,6 +2,8 @@ enum AssistantTaskKind { feedWindow, adCooldown, fixedPoint }
 
 enum RingtoneSource { systemDefault, systemAlarm, filePath }
 
+enum IntervalUnit { seconds, minutes, hours, days }
+
 class AssistantTaskDefinition {
   const AssistantTaskDefinition({
     required this.id,
@@ -12,7 +14,8 @@ class AssistantTaskDefinition {
     this.endHour,
     this.endMinute,
     this.targetCount = 0,
-    this.cooldownMinutes = 0,
+    this.cooldownValue = 0,
+    this.intervalUnit = IntervalUnit.minutes,
     this.ringtoneLabel = '默认铃声',
     this.ringtoneSource = RingtoneSource.systemDefault,
     this.ringtoneValue,
@@ -27,7 +30,8 @@ class AssistantTaskDefinition {
   final int? endHour;
   final int? endMinute;
   final int targetCount;
-  final int cooldownMinutes;
+  final int cooldownValue;
+  final IntervalUnit intervalUnit;
   final String ringtoneLabel;
   final RingtoneSource ringtoneSource;
   final String? ringtoneValue;
@@ -40,6 +44,25 @@ class AssistantTaskDefinition {
     return '${_two(startHour)}:${_two(startMinute)}';
   }
 
+  Duration get cooldownDuration {
+    return switch (intervalUnit) {
+      IntervalUnit.seconds => Duration(seconds: cooldownValue),
+      IntervalUnit.minutes => Duration(minutes: cooldownValue),
+      IntervalUnit.hours => Duration(hours: cooldownValue),
+      IntervalUnit.days => Duration(days: cooldownValue),
+    };
+  }
+
+  String get intervalLabel {
+    final unit = switch (intervalUnit) {
+      IntervalUnit.seconds => '秒',
+      IntervalUnit.minutes => '分钟',
+      IntervalUnit.hours => '小时',
+      IntervalUnit.days => '天',
+    };
+    return '$cooldownValue $unit';
+  }
+
   AssistantTaskDefinition copyWith({
     String? id,
     AssistantTaskKind? kind,
@@ -49,7 +72,8 @@ class AssistantTaskDefinition {
     int? endHour,
     int? endMinute,
     int? targetCount,
-    int? cooldownMinutes,
+    int? cooldownValue,
+    IntervalUnit? intervalUnit,
     String? ringtoneLabel,
     RingtoneSource? ringtoneSource,
     String? ringtoneValue,
@@ -65,7 +89,8 @@ class AssistantTaskDefinition {
       endHour: clearEnd ? null : (endHour ?? this.endHour),
       endMinute: clearEnd ? null : (endMinute ?? this.endMinute),
       targetCount: targetCount ?? this.targetCount,
-      cooldownMinutes: cooldownMinutes ?? this.cooldownMinutes,
+      cooldownValue: cooldownValue ?? this.cooldownValue,
+      intervalUnit: intervalUnit ?? this.intervalUnit,
       ringtoneLabel: ringtoneLabel ?? this.ringtoneLabel,
       ringtoneSource: ringtoneSource ?? this.ringtoneSource,
       ringtoneValue: ringtoneValue ?? this.ringtoneValue,
@@ -83,7 +108,8 @@ class AssistantTaskDefinition {
       'endHour': endHour,
       'endMinute': endMinute,
       'targetCount': targetCount,
-      'cooldownMinutes': cooldownMinutes,
+      'cooldownValue': cooldownValue,
+      'intervalUnit': intervalUnit.name,
       'ringtoneLabel': ringtoneLabel,
       'ringtoneSource': ringtoneSource.name,
       'ringtoneValue': ringtoneValue,
@@ -101,7 +127,11 @@ class AssistantTaskDefinition {
       endHour: json['endHour'] as int?,
       endMinute: json['endMinute'] as int?,
       targetCount: json['targetCount'] as int? ?? 0,
-      cooldownMinutes: json['cooldownMinutes'] as int? ?? 0,
+      cooldownValue:
+          json['cooldownValue'] as int? ?? json['cooldownMinutes'] as int? ?? 0,
+      intervalUnit: json['intervalUnit'] == null
+          ? IntervalUnit.minutes
+          : IntervalUnit.values.byName(json['intervalUnit'] as String),
       ringtoneLabel: json['ringtoneLabel'] as String? ?? '默认铃声',
       ringtoneSource: json['ringtoneSource'] == null
           ? RingtoneSource.systemDefault
