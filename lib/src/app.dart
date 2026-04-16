@@ -458,6 +458,31 @@ class _DashboardPageState extends State<DashboardPage> {
                     '首页显示 ${tasks.length} 项',
                     '已完成 $doneCount 项',
                   ],
+                  onReset: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('重置今日记录'),
+                        content: const Text('确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('取消'),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: theme.colorScheme.error,
+                            ),
+                            child: const Text('确定重置'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await _resetForNewDay();
+                    }
+                  },
                   action: IconButton.filledTonal(
                     onPressed: _openSettings,
                     icon: const Icon(Icons.settings),
@@ -2309,12 +2334,14 @@ class _HeaderCard extends StatelessWidget {
     required this.subtitle,
     required this.stats,
     required this.action,
+    this.onReset,
   });
 
   final String title;
   final String subtitle;
   final List<String> stats;
   final Widget action;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -2347,21 +2374,65 @@ class _HeaderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surface.withValues(alpha: 0.42),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '今日箴言',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surface.withValues(alpha: 0.42),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '今日箴言',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (onReset != null) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: onReset,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.refresh_rounded,
+                                size: 14,
+                                color: colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '重置',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Text(
