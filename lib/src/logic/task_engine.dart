@@ -139,6 +139,21 @@ class TaskEngine {
     return candidates.first;
   }
 
+  static bool isTaskExpired(DateTime now, AssistantTaskDefinition definition) {
+    if (definition.kind == AssistantTaskKind.feedWindow &&
+        definition.endHour != null) {
+      final end =
+          _timeForToday(now, definition.endHour!, definition.endMinute!);
+      return now.isAfter(end);
+    }
+    if (definition.kind == AssistantTaskKind.fixedPoint) {
+      final due =
+          _timeForToday(now, definition.startHour, definition.startMinute);
+      return now.isAfter(due);
+    }
+    return false;
+  }
+
   static DateTime _timeForToday(DateTime now, int hour, int minute) {
     return DateTime(now.year, now.month, now.day, hour, minute);
   }

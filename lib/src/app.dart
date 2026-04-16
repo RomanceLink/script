@@ -518,62 +518,78 @@ class _DashboardPageState extends State<DashboardPage> {
                         final task = tasks[index];
                         switch (task.kind) {
                           case AssistantTaskKind.feedWindow:
+                            final isExpired =
+                                TaskEngine.isTaskExpired(now, task);
+                            final isActive =
+                                TaskEngine.isFeedWindowActive(now, task);
                             return _TaskDeckCard(
                               task: task,
                               accent: const Color(0xFF5EA98D),
                               icon: Icons.play_circle_outline_rounded,
                               status: state.isCompleted(task.id)
                                   ? '已完成'
-                                  : (TaskEngine.isFeedWindowActive(now, task)
+                                  : (isActive
                                         ? '进行中'
-                                        : '等待中'),
+                                        : (isExpired ? '任务已过期' : '未开始')),
                               headline: task.timeLabel,
                               detail: state.isEnabled(task.id)
                                   ? (state.isCompleted(task.id)
                                         ? '本时段已完成，今日无需再记录。'
-                                        : '进入时间段后，再点完成即可。')
+                                        : (isExpired
+                                              ? '任务时间已过，没关系，补上吧！'
+                                              : (isActive
+                                                    ? '现在正是执行时间，加油！'
+                                                    : '还没到开始时间，请耐心等待。')))
                                   : '今日未启用，不会提醒。',
                               progressLabel: state.isCompleted(task.id)
                                   ? '完成状态'
                                   : '当前状态',
                               progressValue: state.isCompleted(task.id)
                                   ? '已完成'
-                                  : (TaskEngine.isFeedWindowActive(now, task)
+                                  : (isActive
                                         ? '可执行'
-                                        : '未到时'),
-                              primaryLabel: '标记完成',
+                                        : (isExpired ? '已逾期' : '未开始')),
+                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
                               onPrimary: () => _markSingleTaskDone(task.id),
                               primaryEnabled:
                                   state.isEnabled(task.id) &&
                                   !state.isCompleted(task.id) &&
-                                  TaskEngine.isFeedWindowActive(now, task),
+                                  (isActive || isExpired),
                               showQuickLaunch: task.showQuickLaunch,
                               appLabel: state.selectedAppLabel,
                               onOpenApp: _openSelectedApp,
                             );
                           case AssistantTaskKind.fixedPoint:
+                            final isExpired =
+                                TaskEngine.isTaskExpired(now, task);
+                            final isDue = TaskEngine.isFixedTaskDue(now, task);
                             return _TaskDeckCard(
                               task: task,
                               accent: const Color(0xFF6B8FD6),
                               icon: Icons.alarm_rounded,
                               status: state.isCompleted(task.id)
                                   ? '已完成'
-                                  : (TaskEngine.isFixedTaskDue(now, task)
-                                        ? '到点'
-                                        : '未到时'),
+                                  : (isDue
+                                        ? (isExpired ? '任务已过期' : '到点')
+                                        : '未开始'),
                               headline: task.timeLabel,
                               detail: state.isEnabled(task.id)
                                   ? (state.isCompleted(task.id)
                                         ? '该提醒已完成。'
-                                        : '到 ${task.timeLabel} 会提醒一次。')
+                                        : (isExpired
+                                              ? '任务已过，现在标记补卡吧。'
+                                              : (isDue
+                                                    ? '到点了，赶紧去执行吧！'
+                                                    : '还没到提醒时间。')))
                                   : '今日未启用，不会提醒。',
                               progressLabel: '提醒时间',
                               progressValue: task.timeLabel,
-                              primaryLabel: '标记完成',
+                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
                               onPrimary: () => _markSingleTaskDone(task.id),
                               primaryEnabled:
                                   state.isEnabled(task.id) &&
-                                  !state.isCompleted(task.id),
+                                  !state.isCompleted(task.id) &&
+                                  isDue,
                               showQuickLaunch: task.showQuickLaunch,
                               appLabel: state.selectedAppLabel,
                               onOpenApp: _openSelectedApp,
