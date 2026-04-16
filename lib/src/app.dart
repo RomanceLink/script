@@ -1254,35 +1254,80 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           ..._draft.templateGroups.map((group) {
             return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                title: Text(group.name),
-                subtitle: Text('含 ${group.tasks.length} 个任务'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'use':
-                        _applyTemplateGroup(group);
-                        break;
-                      case 'rename':
-                        _renameTemplateGroup(group);
-                        break;
-                      case 'edit':
-                        _editTemplateGroup(group);
-                        break;
-                      case 'delete':
-                        _deleteTemplateGroup(group.id);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'use', child: Text('整组使用')),
-                    if (!group.builtIn)
-                      const PopupMenuItem(value: 'rename', child: Text('重命名')),
-                    if (!group.builtIn)
-                      const PopupMenuItem(value: 'edit', child: Text('修改模板任务')),
-                    if (!group.builtIn)
-                      const PopupMenuItem(value: 'delete', child: Text('删除')),
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            group.name,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (!group.builtIn) ...[
+                          _MiniIconButton(
+                            onPressed: () => _editTemplateGroup(group),
+                            icon: Icons.edit_note_rounded,
+                          ),
+                          const SizedBox(width: 8),
+                          _MiniIconButton(
+                            onPressed: () => _deleteTemplateGroup(group.id),
+                            icon: Icons.delete_outline_rounded,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceVariant
+                                .withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '含 ${group.tasks.length} 个任务',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        FilledButton.tonal(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: theme.brightness == Brightness.dark
+                                ? const Color(0xFF1F3D39)
+                                : const Color(0xFFDDF5EC),
+                            foregroundColor: theme.brightness == Brightness.dark
+                                ? const Color(0xFF94DFC9)
+                                : const Color(0xFF2F7D6B),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            minimumSize: Size.zero,
+                          ),
+                          onPressed: () => _applyTemplateGroup(group),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome_motion_rounded, size: 16),
+                              const SizedBox(width: 6),
+                              Text('整组使用',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1398,26 +1443,48 @@ class _SettingsPageState extends State<SettingsPage> {
                         onPressed: () => _moveTask(task.id, -1),
                         icon: Icons.keyboard_arrow_up_rounded,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 10),
                       _MiniIconButton(
                         onPressed: () => _moveTask(task.id, 1),
                         icon: Icons.keyboard_arrow_down_rounded,
                       ),
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'edit':
-                              _editTask(task: task);
-                              break;
-                            case 'delete':
-                              _deleteTask(task.id);
-                              break;
+                      const SizedBox(width: 10),
+                      _MiniIconButton(
+                        onPressed: () async {
+                          final action = await showModalBottomSheet<String>(
+                            context: context,
+                            showDragHandle: true,
+                            builder: (context) => SafeArea(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ListTile(
+                                    leading: const Icon(Icons.edit_rounded,
+                                        color: Color(0xFF436EAF)),
+                                    title: const Text('编辑任务'),
+                                    onTap: () =>
+                                        Navigator.of(context).pop('edit'),
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Color(0xFFD32F2F)),
+                                    title: const Text('删除任务'),
+                                    onTap: () =>
+                                        Navigator.of(context).pop('delete'),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                          );
+                          if (action == 'edit') {
+                            _editTask(task: task);
+                          } else if (action == 'delete') {
+                            _deleteTask(task.id);
                           }
                         },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(value: 'edit', child: Text('编辑')),
-                          PopupMenuItem(value: 'delete', child: Text('删除')),
-                        ],
+                        icon: Icons.more_vert_rounded,
                       ),
                     ],
                   ),
