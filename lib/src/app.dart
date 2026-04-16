@@ -11,6 +11,28 @@ import 'services/douyin_launcher.dart';
 import 'services/notification_service.dart';
 import 'services/task_repository.dart';
 
+enum ToastType { success, error, info, warning }
+
+class VibrantHUD {
+  static void show(
+    BuildContext context,
+    String message, {
+    ToastType type = ToastType.info,
+  }) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => _CenteredToast(message: message, type: type),
+    );
+
+    overlay.insert(entry);
+    Future.delayed(const Duration(milliseconds: 2600), () {
+      if (entry.mounted) {
+        entry.remove();
+      }
+    });
+  }
+}
+
 class ScriptAssistantApp extends StatelessWidget {
   const ScriptAssistantApp({super.key, this.enablePlatformServices = true});
 
@@ -221,7 +243,11 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  Future<void> _persistState(DailyTaskState next, {String? message}) async {
+  Future<void> _persistState(
+    DailyTaskState next, {
+    String? message,
+    ToastType type = ToastType.info,
+  }) async {
     await _repository.save(next);
     if (widget.enablePlatformServices) {
       await _notifications.scheduleForState(next, next.taskDefinitions);
@@ -233,19 +259,20 @@ class _DashboardPageState extends State<DashboardPage> {
       _state = next;
     });
     if (message != null) {
-      _showMessage(message);
+      _showMessage(message, type: type);
     }
   }
 
   Future<void> _mutateState(
     DailyTaskState Function(DailyTaskState state) transform, {
     String? message,
+    ToastType type = ToastType.info,
   }) async {
     final current = _state;
     if (current == null) {
       return;
     }
-    await _persistState(transform(current), message: message);
+    await _persistState(transform(current), message: message, type: type);
   }
 
   Future<void> _resetForNewDay({bool showMessage = true}) async {
@@ -262,7 +289,11 @@ class _DashboardPageState extends State<DashboardPage> {
       homeVisibleTaskIds: current.homeVisibleTaskIds,
       enabledTaskIds: current.enabledTaskIds,
     );
-    await _persistState(next, message: showMessage ? '今日记录已重置' : null);
+    await _persistState(
+      next,
+      message: showMessage ? '今日记录已重置' : null,
+      type: ToastType.success,
+    );
   }
 
   Future<void> _markSingleTaskDone(String taskId) async {
@@ -270,7 +301,7 @@ class _DashboardPageState extends State<DashboardPage> {
       return state.copyWith(
         completedTaskIds: {...state.completedTaskIds, taskId},
       );
-    }, message: '已标记完成');
+    }, message: '太棒了，任务已完成！', type: ToastType.success);
   }
 
   Future<void> _markCounterTaskDone(AssistantTaskDefinition task) async {
@@ -291,7 +322,7 @@ class _DashboardPageState extends State<DashboardPage> {
         intervalCompletedCounts: nextCounts,
         intervalNextAvailableAt: nextTimes,
       );
-    }, message: '已记录一次，倒计时开始');
+    }, message: '记录成功，计时开始！', type: ToastType.success);
   }
 
   Future<void> _openSelectedApp() async {
@@ -303,7 +334,10 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) {
       return;
     }
-    _showMessage(ok ? '已尝试打开 ${state.selectedAppLabel}' : '打开失败，请到设置重新选择');
+    _showMessage(
+      ok ? '已尝试打开 ${state.selectedAppLabel}' : '应用打开失败，请检查设置',
+      type: ok ? ToastType.info : ToastType.error,
+    );
   }
 
   Future<void> _openSettings() async {
@@ -322,14 +356,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
 
     if (next != null) {
-      await _persistState(next, message: '设置已保存');
+      await _persistState(next, message: '设置已保存', type: ToastType.success);
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(String message, {ToastType type = ToastType.info}) {
+    VibrantHUD.show(context, message, type: type);
   }
 
   String _todayKey(DateTime now) {
@@ -1169,12 +1201,13 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         );
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('已安排 10 秒后自测')),
+                          VibrantHUD.show(
+                            context,
+                            '已安排 10 秒后自测',
+                            type: ToastType.success,
                           );
                         }
-                      },
-                    ),
+                      },                    ),
                     _PastelButton(
                       label: '厂商指引',
                       icon: Icons.help_outline_rounded,
@@ -2426,6 +2459,141 @@ class _RingtoneSourceSelector extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
         ),
+      ),
+    );
+  }
+}
+
+class _CenteredToast extends StatefulWidget {
+  const _CenteredToast({required this.message, required this.type});
+
+  final String message;
+  final ToastType type;
+
+  @override
+  State<_CenteredToast> createState() => _CenteredToastState();
+}
+
+class _CenteredToastState extends State<_CenteredToast>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+  late Animation<double> _scale;
+  late Animation<double> _iconBounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _opacity = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
+    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.7, curve: Curves.elasticOut),
+      ),
+    );
+    _iconBounce = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.3, 1.0, curve: Curves.elasticOut),
+      ),
+    );
+    _controller.forward();
+
+    Future.delayed(const Duration(milliseconds: 2100), () {
+      if (mounted) {
+        _controller.reverse();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (iconColor, icon) = switch (widget.type) {
+      ToastType.success => (const Color(0xFF4CAF50), Icons.thumb_up_rounded),
+      ToastType.error => (const Color(0xFFF44336), Icons.error_rounded),
+      ToastType.warning => (const Color(0xFFFF9800), Icons.warning_rounded),
+      ToastType.info => (const Color(0xFF2196F3), Icons.info_rounded),
+    };
+
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          FadeTransition(
+            opacity: _opacity,
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.32),
+            ),
+          ),
+          Center(
+            child: FadeTransition(
+              opacity: _opacity,
+              child: ScaleTransition(
+                scale: _scale,
+                child: Container(
+                  width: 260, // 固定宽度，确保视觉稳定
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF252525) : Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.18),
+                        blurRadius: 36,
+                        offset: const Offset(0, 16),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ScaleTransition(
+                        scale: _iconBounce,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: iconColor.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, color: iconColor, size: 52),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        widget.message,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color:
+                              isDark ? Colors.white : const Color(0xFF1D1D1F),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
