@@ -33,6 +33,7 @@ class TaskRepository {
         selectedAppPackage: state.selectedAppPackage,
         selectedAppLabel: state.selectedAppLabel,
         homeVisibleTaskIds: state.homeVisibleTaskIds,
+        enabledTaskIds: state.enabledTaskIds,
       );
       await save(reset);
       return reset;

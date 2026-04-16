@@ -260,6 +260,7 @@ class _DashboardPageState extends State<DashboardPage> {
       selectedAppPackage: current.selectedAppPackage,
       selectedAppLabel: current.selectedAppLabel,
       homeVisibleTaskIds: current.homeVisibleTaskIds,
+      enabledTaskIds: current.enabledTaskIds,
     );
     await _persistState(next, message: showMessage ? '今日记录已重置' : null);
   }
@@ -1848,118 +1849,154 @@ class _TaskKindSelector extends StatelessWidget {
   final AssistantTaskKind value;
   final ValueChanged<AssistantTaskKind> onChanged;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final items = const [
-      (
-        AssistantTaskKind.fixedPoint,
-        '固定时间',
-        '到点提醒',
-        Color(0xFF7FA7F8),
-      ),
-      (
-        AssistantTaskKind.feedWindow,
-        '时间段',
-        '时段完成',
-        Color(0xFF69C5AF),
-      ),
-      (
-        AssistantTaskKind.adCooldown,
-        '循环计次',
-        '次数倒计时',
-        Color(0xFFFFA977),
-      ),
-    ];
+  static const _items = [
+    (
+      AssistantTaskKind.fixedPoint,
+      '固定时间',
+      '到点即响，适合单次或循环任务',
+      Color(0xFF7FA7F8),
+      Icons.alarm_rounded,
+    ),
+    (
+      AssistantTaskKind.feedWindow,
+      '时间段',
+      '在设定的时间段内手动完成',
+      Color(0xFF69C5AF),
+      Icons.play_circle_outline_rounded,
+    ),
+    (
+      AssistantTaskKind.adCooldown,
+      '循环计次',
+      '多次任务，带自动冷却倒计时',
+      Color(0xFFFFA977),
+      Icons.hourglass_bottom_rounded,
+    ),
+  ];
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF172425)
-            : const Color(0xFFF4F8F6),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '任务类型',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+  String _labelFor(AssistantTaskKind kind) {
+    return _items.firstWhere((item) => item.$1 == kind).$2;
+  }
+
+  Future<void> _showPicker(BuildContext context) async {
+    final theme = Theme.of(context);
+    final selected = await showModalBottomSheet<AssistantTaskKind>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: items.map((item) {
-              final selected = value == item.$1;
-              final accent = item.$4;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: item == items.last ? 0 : 8,
-                  ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            children: [
+              Text(
+                '选择任务类型',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._items.map((item) {
+                final isSelected = value == item.$1;
+                final accent = item.$4;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: InkWell(
-                    onTap: () => onChanged(item.$1),
-                    borderRadius: BorderRadius.circular(18),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
+                    onTap: () => Navigator.of(context).pop(item.$1),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 16,
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
-                        color: selected
+                        color: isSelected
                             ? (theme.brightness == Brightness.dark
-                                  ? accent.withValues(alpha: 0.2)
-                                  : accent.withValues(alpha: 0.14))
-                            : theme.colorScheme.surface.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(18),
+                                ? accent.withValues(alpha: 0.15)
+                                : accent.withValues(alpha: 0.1))
+                            : (theme.brightness == Brightness.dark
+                                ? const Color(0xFF172425)
+                                : const Color(0xFFF4F8F6)),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: selected
-                              ? accent.withValues(alpha: 0.75)
-                              : theme.colorScheme.outlineVariant.withValues(
-                                  alpha: 0.45,
-                                ),
+                          color: isSelected
+                              ? accent
+                              : theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.45),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
                           Container(
-                            width: 10,
-                            height: 10,
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: accent,
-                              borderRadius: BorderRadius.circular(999),
+                              color: accent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(item.$5, color: accent),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.$2,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: isSelected
+                                        ? accent
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.$3,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            item.$2,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: selected
-                                  ? accent
-                                  : theme.colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.$3,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                          if (isSelected)
+                            Icon(Icons.check_rounded, color: accent),
                         ],
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+    if (selected != null) {
+      onChanged(selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _showPicker(context),
+      borderRadius: BorderRadius.circular(18),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: '任务类型',
+        ),
+        child: Text(
+          _labelFor(value),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
       ),
     );
   }
@@ -2086,40 +2123,18 @@ class _IntervalUnitSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return InkWell(
       onTap: () => _showPicker(context),
       borderRadius: BorderRadius.circular(18),
-      child: Container(
-        height: 64,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF1F3D39)
-              : const Color(0xFFDDF5EC),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFF83D8BD)),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: '单位',
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _labelFor(value),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: theme.brightness == Brightness.dark
-                      ? const Color(0xFF94DFC9)
-                      : const Color(0xFF2F7D6B),
-                ),
+        child: Text(
+          _labelFor(value),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-            ),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: theme.brightness == Brightness.dark
-                  ? const Color(0xFF94DFC9)
-                  : const Color(0xFF2F7D6B),
-            ),
-          ],
         ),
       ),
     );
@@ -2135,96 +2150,154 @@ class _RingtoneSourceSelector extends StatelessWidget {
   final RingtoneSource value;
   final ValueChanged<RingtoneSource> onChanged;
 
-  @override
-  Widget build(BuildContext context) {
+  static const _items = [
+    (
+      RingtoneSource.systemDefault,
+      '系统默认',
+      '直接使用应用自带的提醒音',
+      Color(0xFF69C5AF),
+      Icons.music_note_rounded,
+    ),
+    (
+      RingtoneSource.systemAlarm,
+      '系统铃声',
+      '从手机系统闹钟铃声库中选择',
+      Color(0xFF7FA7F8),
+      Icons.library_music_rounded,
+    ),
+    (
+      RingtoneSource.filePath,
+      '本地文件',
+      '从手机存储空间选择 MP3/WAV 等',
+      Color(0xFFD38FF2),
+      Icons.folder_open_rounded,
+    ),
+  ];
+
+  String _labelFor(RingtoneSource source) {
+    return _items.firstWhere((item) => item.$1 == source).$2;
+  }
+
+  Future<void> _showPicker(BuildContext context) async {
     final theme = Theme.of(context);
-    final items = const [
-      (RingtoneSource.systemDefault, '系统默认', '直接使用默认提醒'),
-      (RingtoneSource.systemAlarm, '系统铃声', '从系统铃声里选择'),
-      (RingtoneSource.filePath, '本地文件', '从文件里选择音乐'),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF172425)
-            : const Color(0xFFF4F8F6),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '提醒铃声来源',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+    final selected = await showModalBottomSheet<RingtoneSource>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: items.map((item) {
-              final selected = value == item.$1;
-              final accent = switch (item.$1) {
-                RingtoneSource.systemDefault => const Color(0xFF69C5AF),
-                RingtoneSource.systemAlarm => const Color(0xFF7FA7F8),
-                RingtoneSource.filePath => const Color(0xFFD38FF2),
-              };
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: item == items.last ? 0 : 8,
-                  ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            children: [
+              Text(
+                '选择铃声来源',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._items.map((item) {
+                final isSelected = value == item.$1;
+                final accent = item.$4;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: InkWell(
-                    onTap: () => onChanged(item.$1),
-                    borderRadius: BorderRadius.circular(18),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.all(12),
+                    onTap: () => Navigator.of(context).pop(item.$1),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
-                        color: selected
-                            ? accent.withValues(
-                                alpha: theme.brightness == Brightness.dark
-                                    ? 0.22
-                                    : 0.14,
-                              )
-                            : theme.colorScheme.surface.withValues(alpha: 0.62),
-                        borderRadius: BorderRadius.circular(18),
+                        color: isSelected
+                            ? (theme.brightness == Brightness.dark
+                                ? accent.withValues(alpha: 0.15)
+                                : accent.withValues(alpha: 0.1))
+                            : (theme.brightness == Brightness.dark
+                                ? const Color(0xFF172425)
+                                : const Color(0xFFF4F8F6)),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: selected
-                              ? accent.withValues(alpha: 0.75)
-                              : theme.colorScheme.outlineVariant.withValues(
-                                  alpha: 0.45,
-                                ),
+                          color: isSelected
+                              ? accent
+                              : theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.45),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text(
-                            item.$2,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: selected
-                                  ? accent
-                                  : theme.colorScheme.onSurface,
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(item.$5, color: accent),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.$2,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: isSelected
+                                        ? accent
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.$3,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.$3,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                          if (isSelected)
+                            Icon(Icons.check_rounded, color: accent),
                         ],
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+    if (selected != null) {
+      onChanged(selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _showPicker(context),
+      borderRadius: BorderRadius.circular(18),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: '铃声来源',
+        ),
+        child: Text(
+          _labelFor(value),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
       ),
     );
   }

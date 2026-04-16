@@ -211,6 +211,7 @@ class DailyTaskState {
     String selectedAppPackage = 'com.ss.android.ugc.aweme.lite',
     String selectedAppLabel = '抖音极速版',
     Set<String>? homeVisibleTaskIds,
+    Set<String>? enabledTaskIds,
   }) {
     final dateKey =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -219,7 +220,7 @@ class DailyTaskState {
       dateKey: dateKey,
       taskDefinitions: definitions,
       templateGroups: templateGroups,
-      enabledTaskIds: taskIds,
+      enabledTaskIds: enabledTaskIds ?? taskIds,
       homeVisibleTaskIds: homeVisibleTaskIds ?? taskIds,
       completedTaskIds: const {},
       intervalCompletedCounts: const {},
