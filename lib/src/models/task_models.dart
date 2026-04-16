@@ -149,13 +149,29 @@ class TaskTemplateGroup {
     required this.id,
     required this.name,
     required this.tasks,
+    this.enabledTaskIds = const {},
+    this.homeVisibleTaskIds = const {},
     this.builtIn = false,
   });
 
   final String id;
   final String name;
   final List<AssistantTaskDefinition> tasks;
+  final Set<String> enabledTaskIds;
+  final Set<String> homeVisibleTaskIds;
   final bool builtIn;
+
+  Set<String> get effectiveEnabledTaskIds {
+    return enabledTaskIds.isEmpty
+        ? tasks.map((task) => task.id).toSet()
+        : enabledTaskIds;
+  }
+
+  Set<String> get effectiveHomeVisibleTaskIds {
+    return homeVisibleTaskIds.isEmpty
+        ? tasks.map((task) => task.id).toSet()
+        : homeVisibleTaskIds;
+  }
 
   Map<String, Object?> toJson() {
     return {
@@ -163,18 +179,34 @@ class TaskTemplateGroup {
       'name': name,
       'builtIn': builtIn,
       'tasks': tasks.map((task) => task.toJson()).toList(),
+      'enabledTaskIds': effectiveEnabledTaskIds.toList(),
+      'homeVisibleTaskIds': effectiveHomeVisibleTaskIds.toList(),
     };
   }
 
   factory TaskTemplateGroup.fromJson(Map<String, Object?> json) {
+    final tasks = ((json['tasks'] as List<Object?>?) ?? const <Object?>[])
+        .whereType<Map<String, Object?>>()
+        .map(AssistantTaskDefinition.fromJson)
+        .toList();
+    final taskIds = tasks.map((task) => task.id).toSet();
+    final enabled =
+        ((json['enabledTaskIds'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<String>()
+            .where(taskIds.contains)
+            .toSet();
+    final visible =
+        ((json['homeVisibleTaskIds'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<String>()
+            .where(taskIds.contains)
+            .toSet();
     return TaskTemplateGroup(
       id: json['id'] as String,
       name: json['name'] as String,
       builtIn: json['builtIn'] as bool? ?? false,
-      tasks: ((json['tasks'] as List<Object?>?) ?? const <Object?>[])
-          .whereType<Map<String, Object?>>()
-          .map(AssistantTaskDefinition.fromJson)
-          .toList(),
+      tasks: tasks,
+      enabledTaskIds: enabled.isEmpty ? taskIds : enabled,
+      homeVisibleTaskIds: visible.isEmpty ? taskIds : visible,
     );
   }
 }

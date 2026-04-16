@@ -303,32 +303,43 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _markSingleTaskDone(String taskId) async {
-    await _mutateState((state) {
-      return state.copyWith(
-        completedTaskIds: {...state.completedTaskIds, taskId},
-      );
-    }, message: '太棒了，任务已完成！', type: ToastType.success);
+    await _mutateState(
+      (state) {
+        return state.copyWith(
+          completedTaskIds: {...state.completedTaskIds, taskId},
+        );
+      },
+      message: '太棒了，任务已完成！',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _markCounterTaskDone(AssistantTaskDefinition task) async {
     final now = DateTime.now();
-    await _mutateState((state) {
-      final nextCount = (state.intervalCompleted(task.id) + 1).clamp(
-        0,
-        task.targetCount,
-      );
-      final nextCounts = {...state.intervalCompletedCounts, task.id: nextCount};
-      final nextTimes = {...state.intervalNextAvailableAt};
-      if (nextCount >= task.targetCount) {
-        nextTimes.remove(task.id);
-      } else {
-        nextTimes[task.id] = now.add(task.cooldownDuration);
-      }
-      return state.copyWith(
-        intervalCompletedCounts: nextCounts,
-        intervalNextAvailableAt: nextTimes,
-      );
-    }, message: '记录成功，计时开始！', type: ToastType.success);
+    await _mutateState(
+      (state) {
+        final nextCount = (state.intervalCompleted(task.id) + 1).clamp(
+          0,
+          task.targetCount,
+        );
+        final nextCounts = {
+          ...state.intervalCompletedCounts,
+          task.id: nextCount,
+        };
+        final nextTimes = {...state.intervalNextAvailableAt};
+        if (nextCount >= task.targetCount) {
+          nextTimes.remove(task.id);
+        } else {
+          nextTimes[task.id] = now.add(task.cooldownDuration);
+        }
+        return state.copyWith(
+          intervalCompletedCounts: nextCounts,
+          intervalNextAvailableAt: nextTimes,
+        );
+      },
+      message: '记录成功，计时开始！',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _openSelectedApp() async {
@@ -504,10 +515,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   subtitle: nextReminder == null
                       ? '今天无后续提醒'
                       : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
-                  stats: [
-                    '首页显示 ${tasks.length} 项',
-                    '已完成 $doneCount 项',
-                  ],
+                  stats: ['首页显示 ${tasks.length} 项', '已完成 $doneCount 项'],
                   onReset: () async {
                     final confirm = await showDialog<bool>(
                       context: context,
@@ -568,10 +576,14 @@ class _DashboardPageState extends State<DashboardPage> {
                         final task = tasks[index];
                         switch (task.kind) {
                           case AssistantTaskKind.feedWindow:
-                            final isExpired =
-                                TaskEngine.isTaskExpired(now, task);
-                            final isActive =
-                                TaskEngine.isFeedWindowActive(now, task);
+                            final isExpired = TaskEngine.isTaskExpired(
+                              now,
+                              task,
+                            );
+                            final isActive = TaskEngine.isFeedWindowActive(
+                              now,
+                              task,
+                            );
                             return _TaskDeckCard(
                               task: task,
                               accent: const Color(0xFF5EA98D),
@@ -610,8 +622,10 @@ class _DashboardPageState extends State<DashboardPage> {
                               onOpenApp: _openSelectedApp,
                             );
                           case AssistantTaskKind.fixedPoint:
-                            final isExpired =
-                                TaskEngine.isTaskExpired(now, task);
+                            final isExpired = TaskEngine.isTaskExpired(
+                              now,
+                              task,
+                            );
                             final isDue = TaskEngine.isFixedTaskDue(now, task);
                             return _TaskDeckCard(
                               task: task,
@@ -689,24 +703,21 @@ class _DashboardPageState extends State<DashboardPage> {
                   Center(
                     child: Wrap(
                       spacing: 8,
-                      children: List.generate(
-                        tasks.length,
-                        (index) {
-                          final palette = _indicatorPalette(theme.brightness);
-                          final dotColor = palette[index % palette.length];
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            width: _currentTaskPage == index ? 24 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _currentTaskPage == index
-                                  ? dotColor
-                                  : dotColor.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          );
-                        },
-                      ),
+                      children: List.generate(tasks.length, (index) {
+                        final palette = _indicatorPalette(theme.brightness);
+                        final dotColor = palette[index % palette.length];
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: _currentTaskPage == index ? 24 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _currentTaskPage == index
+                                ? dotColor
+                                : dotColor.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        );
+                      }),
                     ),
                   ),
                 ],
@@ -880,12 +891,24 @@ class _SettingsPageState extends State<SettingsPage> {
         .entries
         .map((entry) => entry.value.copyWith(id: 'task_${base}_${entry.key}'))
         .toList();
+    final idMap = {
+      for (final entry in group.tasks.asMap().entries)
+        entry.value.id: copiedTasks[entry.key].id,
+    };
     final ids = copiedTasks.map((item) => item.id).toSet();
+    final enabledIds = group.effectiveEnabledTaskIds
+        .map((id) => idMap[id])
+        .whereType<String>()
+        .toSet();
+    final visibleIds = group.effectiveHomeVisibleTaskIds
+        .map((id) => idMap[id])
+        .whereType<String>()
+        .toSet();
     setState(() {
       _draft = _draft.copyWith(
         taskDefinitions: copiedTasks,
-        enabledTaskIds: ids,
-        homeVisibleTaskIds: ids,
+        enabledTaskIds: enabledIds.isEmpty ? ids : enabledIds,
+        homeVisibleTaskIds: visibleIds.isEmpty ? ids : visibleIds,
         completedTaskIds: const {},
         intervalCompletedCounts: const {},
         intervalNextAvailableAt: const {},
@@ -918,6 +941,22 @@ class _SettingsPageState extends State<SettingsPage> {
             id: 'group_${DateTime.now().millisecondsSinceEpoch}',
             name: name,
             tasks: _draft.taskDefinitions.map((t) => t.copyWith()).toList(),
+            enabledTaskIds: _draft.enabledTaskIds
+                .where(
+                  _draft.taskDefinitions
+                      .map((task) => task.id)
+                      .toSet()
+                      .contains,
+                )
+                .toSet(),
+            homeVisibleTaskIds: _draft.homeVisibleTaskIds
+                .where(
+                  _draft.taskDefinitions
+                      .map((task) => task.id)
+                      .toSet()
+                      .contains,
+                )
+                .toSet(),
           ),
         ],
       );
@@ -959,6 +998,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       id: item.id,
                       name: name,
                       tasks: item.tasks,
+                      enabledTaskIds: item.effectiveEnabledTaskIds,
+                      homeVisibleTaskIds: item.effectiveHomeVisibleTaskIds,
                       builtIn: item.builtIn,
                     )
                   : item,
@@ -969,24 +1010,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
-    final result = await Navigator.of(context)
-        .push<List<AssistantTaskDefinition>>(
-          MaterialPageRoute(builder: (_) => TemplateTasksPage(group: group)),
-        );
+    final result = await Navigator.of(context).push<TaskTemplateGroup>(
+      MaterialPageRoute(builder: (_) => TemplateTasksPage(group: group)),
+    );
     if (result == null) return;
     setState(() {
       _draft = _draft.copyWith(
         templateGroups: _draft.templateGroups
-            .map(
-              (item) => item.id == group.id
-                  ? TaskTemplateGroup(
-                      id: item.id,
-                      name: item.name,
-                      tasks: result,
-                      builtIn: item.builtIn,
-                    )
-                  : item,
-            )
+            .map((item) => item.id == group.id ? result : item)
             .toList(),
       );
     });
@@ -1062,9 +1093,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 _PastelButton(
                   label: _loadingApps
                       ? '加载中...'
-                      : (_draft.selectedAppPackage == 'com.ss.android.ugc.aweme.lite'
-                          ? '选择更多'
-                          : _draft.selectedAppLabel),
+                      : (_draft.selectedAppPackage ==
+                                'com.ss.android.ugc.aweme.lite'
+                            ? '选择更多'
+                            : _draft.selectedAppLabel),
                   icon: Icons.apps_rounded,
                   background: theme.brightness == Brightness.dark
                       ? const Color(0xFF3F3022)
@@ -1104,7 +1136,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFA7C5FF)
                           : const Color(0xFF456DAA),
-                      onPressed: widget.alarmBridge.openFullScreenIntentSettings,
+                      onPressed:
+                          widget.alarmBridge.openFullScreenIntentSettings,
                     ),
                     _PastelButton(
                       label: '精确闹钟',
@@ -1196,8 +1229,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           ? const Color(0xFF94DFC9)
                           : const Color(0xFF2F7D6B),
                       onPressed: () async {
-                        final now =
-                            DateTime.now().add(const Duration(seconds: 10));
+                        final now = DateTime.now().add(
+                          const Duration(seconds: 10),
+                        );
                         await widget.alarmBridge.scheduleSelfTest(
                           AlarmReminder(
                             id: 'self_test',
@@ -1245,7 +1279,9 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           Text(
             '模板库',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           Card(
@@ -1306,7 +1342,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surfaceContainerHighest
                                 .withValues(alpha: 0.5),
@@ -1328,7 +1366,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ? const Color(0xFF94DFC9)
                                 : const Color(0xFF2F7D6B),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             minimumSize: Size.zero,
                           ),
                           onPressed: () => _applyTemplateGroup(group),
@@ -1337,9 +1377,10 @@ class _SettingsPageState extends State<SettingsPage> {
                             children: [
                               Icon(Icons.auto_awesome_motion_rounded, size: 16),
                               SizedBox(width: 6),
-                              Text('整组使用',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w800)),
+                              Text(
+                                '整组使用',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
                             ],
                           ),
                         ),
@@ -1419,7 +1460,9 @@ class _SettingsPageState extends State<SettingsPage> {
       out.add(
         Text(
           _kindGroupLabel(kind),
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
         ),
       );
       out.add(const SizedBox(height: 8));
@@ -1476,16 +1519,19 @@ class _SettingsPageState extends State<SettingsPage> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   ListTile(
-                                    leading: const Icon(Icons.edit_rounded,
-                                        color: Color(0xFF436EAF)),
+                                    leading: const Icon(
+                                      Icons.edit_rounded,
+                                      color: Color(0xFF436EAF),
+                                    ),
                                     title: const Text('编辑任务'),
                                     onTap: () =>
                                         Navigator.of(context).pop('edit'),
                                   ),
                                   ListTile(
                                     leading: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        color: Color(0xFFD32F2F)),
+                                      Icons.delete_outline_rounded,
+                                      color: Color(0xFFD32F2F),
+                                    ),
                                     title: const Text('删除任务'),
                                     onTap: () =>
                                         Navigator.of(context).pop('delete'),
@@ -1512,7 +1558,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: _ToggleChip(
                           label: '今日启用',
                           value: enabled,
-                          onChanged: (value) => _toggleTaskEnabled(task.id, value),
+                          onChanged: (value) =>
+                              _toggleTaskEnabled(task.id, value),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1734,7 +1781,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                           child: TextField(
                             controller: _targetController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: '循环次数'),
+                            decoration: const InputDecoration(
+                              labelText: '循环次数',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1867,9 +1916,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 final title = _titleController.text.trim();
                 if (title.isEmpty) {
                   setState(() => _showError = true);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请填写任务名称')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('请填写任务名称')));
                   return;
                 }
                 Navigator.of(context).pop(
@@ -2113,7 +2162,9 @@ class _EditorSectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              accent.withValues(alpha: theme.brightness == Brightness.dark ? 0.12 : 0.1),
+              accent.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.12 : 0.1,
+              ),
               theme.cardTheme.color ?? theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -2204,10 +2255,7 @@ class _EditorPickerTile extends StatelessWidget {
 }
 
 class _TaskKindSelector extends StatelessWidget {
-  const _TaskKindSelector({
-    required this.value,
-    required this.onChanged,
-  });
+  const _TaskKindSelector({required this.value, required this.onChanged});
 
   final AssistantTaskKind value;
   final ValueChanged<AssistantTaskKind> onChanged;
@@ -2280,17 +2328,18 @@ class _TaskKindSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? (theme.brightness == Brightness.dark
-                                ? accent.withValues(alpha: 0.15)
-                                : accent.withValues(alpha: 0.1))
+                                  ? accent.withValues(alpha: 0.15)
+                                  : accent.withValues(alpha: 0.1))
                             : (theme.brightness == Brightness.dark
-                                ? const Color(0xFF172425)
-                                : const Color(0xFFF4F8F6)),
+                                  ? const Color(0xFF172425)
+                                  : const Color(0xFFF4F8F6)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
                               ? accent
-                              : theme.colorScheme.outlineVariant
-                                  .withValues(alpha: 0.45),
+                              : theme.colorScheme.outlineVariant.withValues(
+                                  alpha: 0.45,
+                                ),
                         ),
                       ),
                       child: Row(
@@ -2351,14 +2400,12 @@ class _TaskKindSelector extends StatelessWidget {
       onTap: () => _showPicker(context),
       borderRadius: BorderRadius.circular(18),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: '任务类型',
-        ),
+        decoration: const InputDecoration(labelText: '任务类型'),
         child: Text(
           _labelFor(value),
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -2366,10 +2413,7 @@ class _TaskKindSelector extends StatelessWidget {
 }
 
 class _IntervalUnitSelector extends StatelessWidget {
-  const _IntervalUnitSelector({
-    required this.value,
-    required this.onChanged,
-  });
+  const _IntervalUnitSelector({required this.value, required this.onChanged});
 
   final IntervalUnit value;
   final ValueChanged<IntervalUnit> onChanged;
@@ -2490,14 +2534,12 @@ class _IntervalUnitSelector extends StatelessWidget {
       onTap: () => _showPicker(context),
       borderRadius: BorderRadius.circular(18),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: '单位',
-        ),
+        decoration: const InputDecoration(labelText: '单位'),
         child: Text(
           _labelFor(value),
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -2505,10 +2547,7 @@ class _IntervalUnitSelector extends StatelessWidget {
 }
 
 class _RingtoneSourceSelector extends StatelessWidget {
-  const _RingtoneSourceSelector({
-    required this.value,
-    required this.onChanged,
-  });
+  const _RingtoneSourceSelector({required this.value, required this.onChanged});
 
   final RingtoneSource value;
   final ValueChanged<RingtoneSource> onChanged;
@@ -2581,17 +2620,18 @@ class _RingtoneSourceSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? (theme.brightness == Brightness.dark
-                                ? accent.withValues(alpha: 0.15)
-                                : accent.withValues(alpha: 0.1))
+                                  ? accent.withValues(alpha: 0.15)
+                                  : accent.withValues(alpha: 0.1))
                             : (theme.brightness == Brightness.dark
-                                ? const Color(0xFF172425)
-                                : const Color(0xFFF4F8F6)),
+                                  ? const Color(0xFF172425)
+                                  : const Color(0xFFF4F8F6)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
                               ? accent
-                              : theme.colorScheme.outlineVariant
-                                  .withValues(alpha: 0.45),
+                              : theme.colorScheme.outlineVariant.withValues(
+                                  alpha: 0.45,
+                                ),
                         ),
                       ),
                       child: Row(
@@ -2652,14 +2692,12 @@ class _RingtoneSourceSelector extends StatelessWidget {
       onTap: () => _showPicker(context),
       borderRadius: BorderRadius.circular(18),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: '铃声来源',
-        ),
+        decoration: const InputDecoration(labelText: '铃声来源'),
         child: Text(
           _labelFor(value),
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -2751,9 +2789,7 @@ class _CenteredToastState extends State<_CenteredToast>
         children: [
           FadeTransition(
             opacity: _opacity,
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.32),
-            ),
+            child: Container(color: Colors.black.withValues(alpha: 0.32)),
           ),
           Center(
             child: FadeTransition(
@@ -2762,8 +2798,10 @@ class _CenteredToastState extends State<_CenteredToast>
                 scale: _scale,
                 child: Container(
                   width: 260, // 固定宽度，确保视觉稳定
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF252525) : Colors.white,
                     borderRadius: BorderRadius.circular(32),
@@ -2794,8 +2832,9 @@ class _CenteredToastState extends State<_CenteredToast>
                         widget.message,
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          color:
-                              isDark ? Colors.white : const Color(0xFF1D1D1F),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1D1D1F),
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.2,
                           height: 1.4,
@@ -2872,9 +2911,8 @@ class _HeaderCard extends StatelessWidget {
                       ),
                       child: Text(
                         '今日箴言',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                     if (onReset != null) ...[
@@ -2889,7 +2927,9 @@ class _HeaderCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.2),
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.2,
+                              ),
                             ),
                             borderRadius: BorderRadius.circular(999),
                           ),
@@ -2904,9 +2944,7 @@ class _HeaderCard extends StatelessWidget {
                               const SizedBox(width: 4),
                               Text(
                                 '重置',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
+                                style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
                                       color: colors.onSurfaceVariant,
                                       fontWeight: FontWeight.w600,
@@ -2938,10 +2976,8 @@ class _HeaderCard extends StatelessWidget {
                         .asMap()
                         .entries
                         .map(
-                          (entry) => _StatPill(
-                            label: entry.value,
-                            tone: entry.key,
-                          ),
+                          (entry) =>
+                              _StatPill(label: entry.value, tone: entry.key),
                         )
                         .toList(),
                   ),
@@ -3047,7 +3083,9 @@ class _TaskDeckCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              accent.withValues(alpha: theme.brightness == Brightness.dark ? 0.18 : 0.15),
+              accent.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.18 : 0.15,
+              ),
               theme.cardTheme.color ?? theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -3125,10 +3163,7 @@ class _TaskDeckCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 14),
                           Expanded(
-                            child: _DetailPanel(
-                              detail: detail,
-                              accent: accent,
-                            ),
+                            child: _DetailPanel(detail: detail, accent: accent),
                           ),
                         ],
                       );
@@ -3148,10 +3183,7 @@ class _TaskDeckCard extends StatelessWidget {
                             accent: accent,
                           ),
                           const SizedBox(height: 14),
-                          _DetailPanel(
-                            detail: detail,
-                            accent: accent,
-                          ),
+                          _DetailPanel(detail: detail, accent: accent),
                         ],
                       ),
                     );
@@ -3456,7 +3488,9 @@ class _SettingsSectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              accent.withValues(alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12),
+              accent.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12,
+              ),
               theme.cardTheme.color ?? theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -3549,10 +3583,7 @@ class _PastelButton extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 16),
-            const SizedBox(width: 6),
-          ],
+          if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 6)],
           Flexible(
             child: Text(
               label,
@@ -3608,16 +3639,22 @@ class VendorGuidePage extends StatelessWidget {
 
 class _TemplateTasksPageState extends State<TemplateTasksPage> {
   late List<AssistantTaskDefinition> _tasks;
+  late Set<String> _enabledTaskIds;
+  late Set<String> _homeVisibleTaskIds;
 
   @override
   void initState() {
     super.initState();
     _tasks = [...widget.group.tasks];
+    _enabledTaskIds = widget.group.effectiveEnabledTaskIds;
+    _homeVisibleTaskIds = widget.group.effectiveHomeVisibleTaskIds;
   }
 
   void _removeTask(String taskId) {
     setState(() {
       _tasks = _tasks.where((item) => item.id != taskId).toList();
+      _enabledTaskIds = {..._enabledTaskIds}..remove(taskId);
+      _homeVisibleTaskIds = {..._homeVisibleTaskIds}..remove(taskId);
     });
   }
 
@@ -3636,7 +3673,45 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
       _tasks = exists
           ? _tasks.map((item) => item.id == edited.id ? edited : item).toList()
           : [..._tasks, edited];
+      _enabledTaskIds = {..._enabledTaskIds, edited.id};
+      _homeVisibleTaskIds = {..._homeVisibleTaskIds, edited.id};
     });
+  }
+
+  void _toggleTaskEnabled(String taskId, bool enabled) {
+    final next = {..._enabledTaskIds};
+    if (enabled) {
+      next.add(taskId);
+    } else {
+      next.remove(taskId);
+    }
+    setState(() {
+      _enabledTaskIds = next;
+    });
+  }
+
+  void _toggleHomeVisible(String taskId, bool visible) {
+    final next = {..._homeVisibleTaskIds};
+    if (visible) {
+      next.add(taskId);
+    } else {
+      next.remove(taskId);
+    }
+    setState(() {
+      _homeVisibleTaskIds = next;
+    });
+  }
+
+  TaskTemplateGroup _buildResult() {
+    final taskIds = _tasks.map((task) => task.id).toSet();
+    return TaskTemplateGroup(
+      id: widget.group.id,
+      name: widget.group.name,
+      tasks: _tasks,
+      enabledTaskIds: _enabledTaskIds.where(taskIds.contains).toSet(),
+      homeVisibleTaskIds: _homeVisibleTaskIds.where(taskIds.contains).toSet(),
+      builtIn: widget.group.builtIn,
+    );
   }
 
   void _moveTask(String taskId, int delta) {
@@ -3673,7 +3748,7 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
         title: Text(widget.group.name),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(_tasks),
+            onPressed: () => Navigator.of(context).pop(_buildResult()),
             child: const Text('保存'),
           ),
         ],
@@ -3696,6 +3771,8 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
               ),
             ),
           ..._tasks.map((task) {
+            final enabled = _enabledTaskIds.contains(task.id);
+            final homeVisible = _homeVisibleTaskIds.contains(task.id);
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: Padding(
@@ -3743,6 +3820,28 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
                         _MiniIconButton(
                           onPressed: () => _removeTask(task.id),
                           icon: Icons.delete_outline_rounded,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ToggleChip(
+                            label: '今日启用',
+                            value: enabled,
+                            onChanged: (value) =>
+                                _toggleTaskEnabled(task.id, value),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ToggleChip(
+                            label: '首页显示',
+                            value: homeVisible,
+                            onChanged: (value) =>
+                                _toggleHomeVisible(task.id, value),
+                          ),
                         ),
                       ],
                     ),
