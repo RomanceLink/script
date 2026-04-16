@@ -1448,18 +1448,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     decoration: const InputDecoration(labelText: '任务名称'),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<AssistantTaskKind>(
-                    initialValue: _kind,
-                    items: AssistantTaskKind.values
-                        .map(
-                          (kind) => DropdownMenuItem(
-                            value: kind,
-                            child: Text(_kindLabel(kind)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _kind = value!),
-                    decoration: const InputDecoration(labelText: '任务类型'),
+                  _TaskKindSelector(
+                    value: _kind,
+                    onChanged: (value) => setState(() => _kind = value),
                   ),
                 ],
               ),
@@ -1850,6 +1841,132 @@ class _EditorPickerTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TaskKindSelector extends StatelessWidget {
+  const _TaskKindSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final AssistantTaskKind value;
+  final ValueChanged<AssistantTaskKind> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = const [
+      (
+        AssistantTaskKind.fixedPoint,
+        '固定时间',
+        '到点提醒',
+        Color(0xFF7FA7F8),
+      ),
+      (
+        AssistantTaskKind.feedWindow,
+        '时间段',
+        '时段完成',
+        Color(0xFF69C5AF),
+      ),
+      (
+        AssistantTaskKind.adCooldown,
+        '循环计次',
+        '次数倒计时',
+        Color(0xFFFFA977),
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF172425)
+            : const Color(0xFFF4F8F6),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '任务类型',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: items.map((item) {
+              final selected = value == item.$1;
+              final accent = item.$4;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: item == items.last ? 0 : 8,
+                  ),
+                  child: InkWell(
+                    onTap: () => onChanged(item.$1),
+                    borderRadius: BorderRadius.circular(18),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? (theme.brightness == Brightness.dark
+                                  ? accent.withValues(alpha: 0.2)
+                                  : accent.withValues(alpha: 0.14))
+                            : theme.colorScheme.surface.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected
+                              ? accent.withValues(alpha: 0.75)
+                              : theme.colorScheme.outlineVariant.withValues(
+                                  alpha: 0.45,
+                                ),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            item.$2,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: selected
+                                  ? accent
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.$3,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
