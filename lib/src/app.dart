@@ -397,7 +397,11 @@ class _DashboardPageState extends State<DashboardPage> {
       if (b.id == _focusTaskId) {
         return 1;
       }
-      return 0;
+      // 按照开始时间排序
+      if (a.startHour != b.startHour) {
+        return a.startHour.compareTo(b.startHour);
+      }
+      return a.startMinute.compareTo(b.startMinute);
     });
     final nextReminder = TaskEngine.nextReminder(
       now,
@@ -985,14 +989,19 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsSectionCard(
             accent: const Color(0xFF78BEA8),
             title: '启动应用',
-            subtitle: _draft.selectedAppLabel,
-            helper: _draft.selectedAppPackage,
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            subtitle: '当前选择：${_draft.selectedAppLabel}',
+            helper: '选择任务卡片底部“一键打开”对应的目标应用。',
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.8,
               children: [
                 _PastelButton(
                   label: '抖音极速版',
+                  icon: Icons.rocket_launch_rounded,
                   background: theme.brightness == Brightness.dark
                       ? const Color(0xFF1F3D39)
                       : const Color(0xFFDDF5EC),
@@ -1009,24 +1018,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 _PastelButton(
-                  label: '抖音',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF243649)
-                      : const Color(0xFFE5F0FF),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFA7C5FF)
-                      : const Color(0xFF456DAA),
-                  onPressed: () {
-                    setState(() {
-                      _draft = _draft.copyWith(
-                        selectedAppPackage: 'com.ss.android.ugc.aweme',
-                        selectedAppLabel: '抖音',
-                      );
-                    });
-                  },
-                ),
-                _PastelButton(
-                  label: _loadingApps ? '加载中...' : '选择应用',
+                  label: _loadingApps
+                      ? '加载中...'
+                      : (_draft.selectedAppPackage == 'com.ss.android.ugc.aweme.lite'
+                          ? '选择更多'
+                          : _draft.selectedAppLabel),
+                  icon: Icons.apps_rounded,
                   background: theme.brightness == Brightness.dark
                       ? const Color(0xFF3F3022)
                       : const Color(0xFFFFEFD9),
@@ -1042,116 +1039,160 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsSectionCard(
             accent: const Color(0xFF80A7F5),
             title: '提醒权限与系统设置',
-            subtitle: '闹钟、通知、锁屏弹出',
-            helper: '全屏提醒不依赖悬浮窗或辅助功能。核心是：精确闹钟、通知、忽略电池优化。',
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            subtitle: '确保护理闹钟精准弹出',
+            helper: '请依次开启以下权限，这是提醒能正常弹出的核心保障。',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _PastelButton(
-                  label: '全屏通知',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF243649)
-                      : const Color(0xFFE5F0FF),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFA7C5FF)
-                      : const Color(0xFF456DAA),
-                  onPressed: widget.alarmBridge.openFullScreenIntentSettings,
+                _buildSubCategory(theme, '核心权限', '保证提醒必达'),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.8,
+                  children: [
+                    _PastelButton(
+                      label: '全屏通知',
+                      icon: Icons.notification_important_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF243649)
+                          : const Color(0xFFE5F0FF),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFA7C5FF)
+                          : const Color(0xFF456DAA),
+                      onPressed: widget.alarmBridge.openFullScreenIntentSettings,
+                    ),
+                    _PastelButton(
+                      label: '精确闹钟',
+                      icon: Icons.alarm_on_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF1F3D39)
+                          : const Color(0xFFDDF5EC),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFF94DFC9)
+                          : const Color(0xFF2F7D6B),
+                      onPressed: widget.alarmBridge.openExactAlarmSettings,
+                    ),
+                    _PastelButton(
+                      label: '通知权限',
+                      icon: Icons.notifications_active_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF3A2F44)
+                          : const Color(0xFFF2E4FF),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFE0BAFF)
+                          : const Color(0xFF8A53B5),
+                      onPressed: widget.alarmBridge.openNotificationSettings,
+                    ),
+                    _PastelButton(
+                      label: '电池白名单',
+                      icon: Icons.battery_charging_full_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF3F3022)
+                          : const Color(0xFFFFEFD9),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFFFCF8D)
+                          : const Color(0xFFB06C22),
+                      onPressed:
+                          widget.alarmBridge.requestIgnoreBatteryOptimizations,
+                    ),
+                  ],
                 ),
-                _PastelButton(
-                  label: '精确闹钟',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1F3D39)
-                      : const Color(0xFFDDF5EC),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFF94DFC9)
-                      : const Color(0xFF2F7D6B),
-                  onPressed: widget.alarmBridge.openExactAlarmSettings,
+                const SizedBox(height: 16),
+                _buildSubCategory(theme, '进阶优化', '提升运行稳定性'),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.8,
+                  children: [
+                    _PastelButton(
+                      label: '悬浮窗设置',
+                      icon: Icons.layers_outlined,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF353A21)
+                          : const Color(0xFFF4F6D9),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFDBE28F)
+                          : const Color(0xFF7B8128),
+                      onPressed: widget.alarmBridge.openOverlaySettings,
+                    ),
+                    _PastelButton(
+                      label: '辅助功能',
+                      icon: Icons.accessibility_new_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF3A3040)
+                          : const Color(0xFFFFE5F2),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFFFB5D7)
+                          : const Color(0xFFB85082),
+                      onPressed: widget.alarmBridge.openAccessibilitySettings,
+                    ),
+                  ],
                 ),
-                _PastelButton(
-                  label: '通知权限',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF3A2F44)
-                      : const Color(0xFFF2E4FF),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFE0BAFF)
-                      : const Color(0xFF8A53B5),
-                  onPressed: widget.alarmBridge.openNotificationSettings,
-                ),
-                _PastelButton(
-                  label: '电池白名单',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF3F3022)
-                      : const Color(0xFFFFEFD9),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFFFCF8D)
-                      : const Color(0xFFB06C22),
-                  onPressed: widget.alarmBridge.requestIgnoreBatteryOptimizations,
-                ),
-                _PastelButton(
-                  label: '悬浮窗设置',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF353A21)
-                      : const Color(0xFFF4F6D9),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFDBE28F)
-                      : const Color(0xFF7B8128),
-                  onPressed: widget.alarmBridge.openOverlaySettings,
-                ),
-                _PastelButton(
-                  label: '辅助功能设置',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF3A3040)
-                      : const Color(0xFFFFE5F2),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFFFB5D7)
-                      : const Color(0xFFB85082),
-                  onPressed: widget.alarmBridge.openAccessibilitySettings,
-                ),
-                _PastelButton(
-                  label: '10秒自测',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1F3D39)
-                      : const Color(0xFFDDF5EC),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFF94DFC9)
-                      : const Color(0xFF2F7D6B),
-                  onPressed: () async {
-                    final now = DateTime.now().add(const Duration(seconds: 10));
-                    await widget.alarmBridge.scheduleSelfTest(
-                      AlarmReminder(
-                        id: 'self_test',
-                        taskId: 'self_test',
-                        title: '10秒自测提醒',
-                        body: '若正常，10秒后应直接弹出全屏提醒。',
-                        whenEpochMillis: now.millisecondsSinceEpoch,
-                        ringtoneSource: RingtoneSource.systemAlarm,
-                        ringtoneLabel: '系统闹钟铃声',
-                        ringtoneValue: null,
-                      ),
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('已安排 10 秒后自测')),
-                      );
-                    }
-                  },
-                ),
-                _PastelButton(
-                  label: '厂商指引',
-                  background: theme.brightness == Brightness.dark
-                      ? const Color(0xFF243649)
-                      : const Color(0xFFE5F0FF),
-                  foreground: theme.brightness == Brightness.dark
-                      ? const Color(0xFFA7C5FF)
-                      : const Color(0xFF456DAA),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const VendorGuidePage(),
-                      ),
-                    );
-                  },
+                const SizedBox(height: 16),
+                _buildSubCategory(theme, '调试与指引', '遇到问题点这里'),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.8,
+                  children: [
+                    _PastelButton(
+                      label: '10秒自测',
+                      icon: Icons.timer_outlined,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF1F3D39)
+                          : const Color(0xFFDDF5EC),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFF94DFC9)
+                          : const Color(0xFF2F7D6B),
+                      onPressed: () async {
+                        final now =
+                            DateTime.now().add(const Duration(seconds: 10));
+                        await widget.alarmBridge.scheduleSelfTest(
+                          AlarmReminder(
+                            id: 'self_test',
+                            taskId: 'self_test',
+                            title: '10秒自测提醒',
+                            body: '若正常，10秒后应直接弹出全屏提醒。',
+                            whenEpochMillis: now.millisecondsSinceEpoch,
+                            ringtoneSource: RingtoneSource.systemAlarm,
+                            ringtoneLabel: '系统闹钟铃声',
+                            ringtoneValue: null,
+                          ),
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已安排 10 秒后自测')),
+                          );
+                        }
+                      },
+                    ),
+                    _PastelButton(
+                      label: '厂商指引',
+                      icon: Icons.help_outline_rounded,
+                      background: theme.brightness == Brightness.dark
+                          ? const Color(0xFF243649)
+                          : const Color(0xFFE5F0FF),
+                      foreground: theme.brightness == Brightness.dark
+                          ? const Color(0xFFA7C5FF)
+                          : const Color(0xFF456DAA),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const VendorGuidePage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1230,6 +1271,39 @@ class _SettingsPageState extends State<SettingsPage> {
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
     return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+  }
+
+  Widget _buildSubCategory(ThemeData theme, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 16,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            desc,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _buildGroupedTaskSections(BuildContext context) {
@@ -3071,12 +3145,14 @@ class _PastelButton extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.onPressed,
+    this.icon,
   });
 
   final String label;
   final Color background;
   final Color foreground;
   final VoidCallback? onPressed;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -3084,11 +3160,27 @@ class _PastelButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: background,
         foregroundColor: foreground,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       onPressed: onPressed,
-      child: Text(label),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
