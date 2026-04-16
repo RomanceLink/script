@@ -538,7 +538,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         : (isExpired
                                               ? '任务时间已过，没关系，补上吧！'
                                               : (isActive
-                                                    ? '现在正是执行时间，加油！'
+                                                    ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
                                                     : '还没到开始时间，请耐心等待。')))
                                   : '今日未启用，不会提醒。',
                               progressLabel: state.isCompleted(task.id)
@@ -579,7 +579,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         : (isExpired
                                               ? '任务已过，现在标记补卡吧。'
                                               : (isDue
-                                                    ? '到点了，赶紧去执行吧！'
+                                                    ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
                                                     : '还没到提醒时间。')))
                                   : '今日未启用，不会提醒。',
                               progressLabel: '提醒时间',
@@ -1375,6 +1375,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
+  bool _showError = false;
 
   @override
   void initState() {
@@ -1402,6 +1403,11 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
+    _titleController.addListener(() {
+      if (_showError && _titleController.text.trim().isNotEmpty) {
+        setState(() => _showError = false);
+      }
+    });
   }
 
   @override
@@ -1489,7 +1495,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 children: [
                   TextField(
                     controller: _titleController,
-                    decoration: const InputDecoration(labelText: '任务名称'),
+                    decoration: InputDecoration(
+                      labelText: '任务名称',
+                      errorText: _showError ? '任务名称不能为空' : null,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _TaskKindSelector(
@@ -1666,6 +1675,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               onPressed: () {
                 final title = _titleController.text.trim();
                 if (title.isEmpty) {
+                  setState(() => _showError = true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请填写任务名称')),
+                  );
                   return;
                 }
                 Navigator.of(context).pop(

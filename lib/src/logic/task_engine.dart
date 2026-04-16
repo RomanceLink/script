@@ -140,16 +140,19 @@ class TaskEngine {
   }
 
   static bool isTaskExpired(DateTime now, AssistantTaskDefinition definition) {
+    // 统一给 5 分钟的打卡缓冲时间
+    const gracePeriod = Duration(minutes: 5);
+
     if (definition.kind == AssistantTaskKind.feedWindow &&
         definition.endHour != null) {
       final end =
           _timeForToday(now, definition.endHour!, definition.endMinute!);
-      return now.isAfter(end);
+      return now.isAfter(end.add(gracePeriod));
     }
     if (definition.kind == AssistantTaskKind.fixedPoint) {
       final due =
           _timeForToday(now, definition.startHour, definition.startMinute);
-      return now.isAfter(due);
+      return now.isAfter(due.add(gracePeriod));
     }
     return false;
   }
