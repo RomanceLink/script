@@ -894,28 +894,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showSaveTemplateGroupDialog() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
+    final name = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('保存为模板'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: '模板名称'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('保存'),
-          ),
-        ],
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => const _TemplateNameSheet(
+        title: '保存为模板',
+        fieldLabel: '模板名称',
+        actionLabel: '保存',
       ),
     );
-    controller.dispose();
+    if (!mounted) {
+      return;
+    }
     if (name == null || name.isEmpty) {
       return;
     }
@@ -932,30 +923,32 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     });
     if (mounted) {
-      VibrantHUD.show(context, '模板已保存至库', type: ToastType.success);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('模板已保存至库')));
+      });
     }
   }
 
   Future<void> _renameTemplateGroup(TaskTemplateGroup group) async {
-    final controller = TextEditingController(text: group.name);
-    final name = await showDialog<String>(
+    final name = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('重命名模板'),
-        content: TextField(controller: controller),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('保存'),
-          ),
-        ],
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _TemplateNameSheet(
+        title: '重命名模板',
+        fieldLabel: '模板名称',
+        actionLabel: '保存',
+        initialValue: group.name,
       ),
     );
-    controller.dispose();
+    if (!mounted) {
+      return;
+    }
     if (name == null || name.isEmpty) return;
     setState(() {
       _draft = _draft.copyWith(
@@ -1261,6 +1254,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('将当前全部任务保存为模板'),
               subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
               trailing: FilledButton.tonal(
+                key: const ValueKey('save_template_group_button'),
                 style: FilledButton.styleFrom(
                   backgroundColor: mintFill,
                   foregroundColor: mintText,
@@ -1290,6 +1284,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         if (!group.builtIn) ...[
                           _MiniIconButton(
+                            onPressed: () => _renameTemplateGroup(group),
+                            icon: Icons.drive_file_rename_outline_rounded,
+                          ),
+                          const SizedBox(width: 8),
+                          _MiniIconButton(
                             onPressed: () => _editTemplateGroup(group),
                             icon: Icons.edit_note_rounded,
                           ),
@@ -1309,7 +1308,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceVariant
+                            color: theme.colorScheme.surfaceContainerHighest
                                 .withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1337,7 +1336,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.auto_awesome_motion_rounded, size: 16),
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6),
                               Text('整组使用',
                                   style:
                                       TextStyle(fontWeight: FontWeight.w800)),
@@ -1914,6 +1913,124 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       AssistantTaskKind.adCooldown => '循环计次任务',
       AssistantTaskKind.fixedPoint => '固定时间任务',
     };
+  }
+}
+
+class _TemplateNameSheet extends StatefulWidget {
+  const _TemplateNameSheet({
+    required this.title,
+    required this.fieldLabel,
+    required this.actionLabel,
+    this.initialValue = '',
+  });
+
+  final String title;
+  final String fieldLabel;
+  final String actionLabel;
+  final String initialValue;
+
+  @override
+  State<_TemplateNameSheet> createState() => _TemplateNameSheetState();
+}
+
+class _TemplateNameSheetState extends State<_TemplateNameSheet> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          4,
+          16,
+          MediaQuery.of(context).viewInsets.bottom + 18,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: theme.brightness == Brightness.dark
+                      ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
+                      : const [Color(0xFFE7F7F1), Color(0xFFE8F0FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Text(
+                widget.title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const ValueKey('template_name_field'),
+              controller: _controller,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(labelText: widget.fieldLabel),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.tonal(
+                    key: const ValueKey('template_name_submit_button'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.brightness == Brightness.dark
+                          ? const Color(0xFF1F3D39)
+                          : const Color(0xFFDDF5EC),
+                      foregroundColor: theme.brightness == Brightness.dark
+                          ? const Color(0xFF94DFC9)
+                          : const Color(0xFF2F7D6B),
+                    ),
+                    onPressed: _submit,
+                    child: Text(widget.actionLabel),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
