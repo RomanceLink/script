@@ -1974,47 +1974,153 @@ class _IntervalUnitSelector extends StatelessWidget {
   final IntervalUnit value;
   final ValueChanged<IntervalUnit> onChanged;
 
+  static const _items = [
+    (IntervalUnit.seconds, '秒', '10秒后'),
+    (IntervalUnit.minutes, '分', '1分钟后'),
+    (IntervalUnit.hours, '时', '1小时后'),
+    (IntervalUnit.days, '天', '1天后'),
+  ];
+
+  String _labelFor(IntervalUnit unit) {
+    return _items.firstWhere((item) => item.$1 == unit).$2;
+  }
+
+  Future<void> _showPicker(BuildContext context) async {
+    final theme = Theme.of(context);
+    final selected = await showModalBottomSheet<IntervalUnit>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            children: [
+              Text(
+                '选择间隔单位',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._items.map((item) {
+                final selected = value == item.$1;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).pop(item.$1),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1F3D39)
+                                  : const Color(0xFFDDF5EC))
+                            : (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF172425)
+                                  : const Color(0xFFF4F8F6)),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: selected
+                              ? const Color(0xFF83D8BD)
+                              : theme.colorScheme.outlineVariant.withValues(
+                                  alpha: 0.45,
+                                ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.$2,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: selected
+                                        ? const Color(0xFF2F7D6B)
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.$3,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (selected)
+                            const Icon(
+                              Icons.check_rounded,
+                              color: Color(0xFF2F7D6B),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null) {
+      onChanged(selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final items = const [
-      (IntervalUnit.seconds, '秒'),
-      (IntervalUnit.minutes, '分'),
-      (IntervalUnit.hours, '时'),
-      (IntervalUnit.days, '天'),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF172425)
-            : const Color(0xFFF4F8F6),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: items.map((item) {
-          final selected = value == item.$1;
-          return ChoiceChip(
-            label: Text(item.$2),
-            selected: selected,
-            onSelected: (_) => onChanged(item.$1),
-            selectedColor: const Color(0xFFDDF5EC),
-            backgroundColor: theme.colorScheme.surface,
-            side: BorderSide(
-              color: selected
-                  ? const Color(0xFF83D8BD)
-                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+    return InkWell(
+      onTap: () => _showPicker(context),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF1F3D39)
+              : const Color(0xFFDDF5EC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF83D8BD)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _labelFor(value),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: theme.brightness == Brightness.dark
+                      ? const Color(0xFF94DFC9)
+                      : const Color(0xFF2F7D6B),
+                ),
+              ),
             ),
-            labelStyle: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: selected
-                  ? const Color(0xFF2F7D6B)
-                  : theme.colorScheme.onSurfaceVariant,
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: theme.brightness == Brightness.dark
+                  ? const Color(0xFF94DFC9)
+                  : const Color(0xFF2F7D6B),
             ),
-          );
-        }).toList(),
+          ],
+        ),
       ),
     );
   }
