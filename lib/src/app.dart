@@ -19,17 +19,23 @@ class VibrantHUD {
     String message, {
     ToastType type = ToastType.info,
   }) {
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => _CenteredToast(message: message, type: type),
+    final overlay = Navigator.of(context).overlay;
+    if (overlay == null) return;
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) => _CenteredToast(
+        message: message,
+        type: type,
+        onDismiss: () {
+          try {
+            entry.remove();
+          } catch (_) {}
+        },
+      ),
     );
 
     overlay.insert(entry);
-    Future.delayed(const Duration(milliseconds: 2600), () {
-      if (entry.mounted) {
-        entry.remove();
-      }
-    });
   }
 }
 
@@ -445,7 +451,7 @@ class _DashboardPageState extends State<DashboardPage> {
         : tasks.indexWhere((task) => task.id == _focusTaskId);
     if (focusIndex >= 0 && focusIndex != _currentTaskPage) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_pageController.hasClients) {
+        if (!mounted || !_pageController.hasClients) {
           return;
         }
         _pageController.animateToPage(
@@ -453,12 +459,20 @@ class _DashboardPageState extends State<DashboardPage> {
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
         );
+        setState(() {
+          _currentTaskPage = focusIndex;
+          _focusTaskId = null;
+        });
       });
-      _currentTaskPage = focusIndex;
-      _focusTaskId = null;
     }
     if (_currentTaskPage >= tasks.length && tasks.isNotEmpty) {
-      _currentTaskPage = tasks.length - 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _currentTaskPage = tasks.length - 1;
+          });
+        }
+      });
     }
     final doneCount = tasks.where((task) {
       if (!state.isEnabled(task.id)) {
@@ -912,11 +926,14 @@ class _SettingsPageState extends State<SettingsPage> {
           TaskTemplateGroup(
             id: 'group_${DateTime.now().millisecondsSinceEpoch}',
             name: name,
-            tasks: _draft.taskDefinitions,
+            tasks: _draft.taskDefinitions.map((t) => t.copyWith()).toList(),
           ),
         ],
       );
     });
+    if (mounted) {
+      VibrantHUD.show(context, '模板已保存至库', type: ToastType.success);
+    }
   }
 
   Future<void> _renameTemplateGroup(TaskTemplateGroup group) async {
@@ -1207,7 +1224,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             type: ToastType.success,
                           );
                         }
-                      },                    ),
+                      },
+                    ),
                     _PastelButton(
                       label: '厂商指引',
                       icon: Icons.help_outline_rounded,
@@ -2532,10 +2550,15 @@ class _RingtoneSourceSelector extends StatelessWidget {
 }
 
 class _CenteredToast extends StatefulWidget {
-  const _CenteredToast({required this.message, required this.type});
+  const _CenteredToast({
+    required this.message,
+    required this.type,
+    required this.onDismiss,
+  });
 
   final String message;
   final ToastType type;
+  final VoidCallback onDismiss;
 
   @override
   State<_CenteredToast> createState() => _CenteredToastState();
@@ -2571,6 +2594,13 @@ class _CenteredToastState extends State<_CenteredToast>
         curve: const Interval(0.3, 1.0, curve: Curves.elasticOut),
       ),
     );
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed) {
+        widget.onDismiss();
+      }
+    });
+
     _controller.forward();
 
     Future.delayed(const Duration(milliseconds: 2100), () {

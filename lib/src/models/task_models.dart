@@ -324,7 +324,7 @@ class DailyTaskState {
 
     final intervalCounts =
         (json['intervalCompletedCounts'] as Map<Object?, Object?>?)?.map(
-          (key, value) => MapEntry('$key', value as int),
+          (key, value) => MapEntry('$key', (value as num).toInt()),
         ) ??
         (oldAdCompleted > 0 ? {'ads': oldAdCompleted} : <String, int>{});
 
@@ -332,7 +332,7 @@ class DailyTaskState {
         (json['intervalNextAvailableAt'] as Map<Object?, Object?>?)?.map(
           (key, value) => MapEntry(
             '$key',
-            DateTime.fromMillisecondsSinceEpoch(value as int),
+            DateTime.fromMillisecondsSinceEpoch((value as num).toInt()),
           ),
         ) ??
         (oldAdNext != null
