@@ -194,6 +194,10 @@ class _DashboardPageState extends State<DashboardPage> {
   String? _focusTaskId;
   int _currentTaskPage = 0;
 
+  // 自动滑屏控制
+  int _swipeIntervalSeconds = 30;
+  bool _useRandomInterval = false;
+
   @override
   void initState() {
     super.initState();
@@ -354,6 +358,176 @@ class _DashboardPageState extends State<DashboardPage> {
     _showMessage(
       ok ? '已尝试打开 ${state.selectedAppLabel}' : '应用打开失败，请检查设置',
       type: ok ? ToastType.info : ToastType.error,
+    );
+  }
+
+  Future<void> _syncSwipeConfig() async {
+    await _alarmBridge.performAutoSwipe(
+      interval: _swipeIntervalSeconds,
+      useRandom: _useRandomInterval,
+    );
+  }
+
+  Future<void> _openSwipeControl() async {
+    final theme = Theme.of(context);
+    await showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('自动滑屏助手', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                          Text('常驻悬浮球 · 刷剧神器', style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildControlSection(
+                  theme,
+                  '第一步：开启必要权限',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PastelButton(
+                          label: '悬浮窗权限',
+                          icon: Icons.layers_outlined,
+                          background: theme.colorScheme.secondaryContainer,
+                          foreground: theme.colorScheme.onSecondaryContainer,
+                          onPressed: _alarmBridge.openOverlaySettings,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _PastelButton(
+                          label: '辅助功能',
+                          icon: Icons.accessibility_new_rounded,
+                          background: theme.colorScheme.primaryContainer,
+                          foreground: theme.colorScheme.onPrimaryContainer,
+                          onPressed: _alarmBridge.openAccessibilitySettings,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildControlSection(
+                  theme,
+                  '第二步：配置滑动参数',
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Slider(
+                              value: _swipeIntervalSeconds.toDouble(),
+                              min: 5,
+                              max: 120,
+                              divisions: 23,
+                              label: '$_swipeIntervalSeconds秒',
+                              onChanged: (val) {
+                                setState(() => _swipeIntervalSeconds = val.toInt());
+                                setModalState(() {});
+                                _syncSwipeConfig();
+                              },
+                            ),
+                          ),
+                          Text('$_swipeIntervalSeconds秒', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ModeChip(
+                              label: '固定时长',
+                              isSelected: !_useRandomInterval,
+                              onTap: () {
+                                setState(() => _useRandomInterval = false);
+                                setModalState(() {});
+                                _syncSwipeConfig();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ModeChip(
+                              label: '随机区间',
+                              isSelected: _useRandomInterval,
+                              onTap: () {
+                                setState(() => _useRandomInterval = true);
+                                setModalState(() {});
+                                _syncSwipeConfig();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.tips_and_updates_rounded, color: theme.colorScheme.primary, size: 20),
+                          const SizedBox(width: 10),
+                          const Text('使用技巧', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '1. 开启权限后，屏幕上会出现绿色小球。\\n2. 打开抖音/短剧 App，将小球拖到不碍事的地方。\\n3. 点击小球变红即开始自动滑屏，再次点击停止。',
+                        style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlSection(ThemeData theme, String title, Widget child) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+        const SizedBox(height: 8),
+        child,
+      ],
     );
   }
 
@@ -541,9 +715,18 @@ class _DashboardPageState extends State<DashboardPage> {
                       await _resetForNewDay();
                     }
                   },
-                  action: IconButton.filledTonal(
-                    onPressed: _openSettings,
-                    icon: const Icon(Icons.settings),
+                  action: Row(
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: _openSwipeControl,
+                        icon: const Icon(Icons.swipe_vertical_rounded),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: _openSettings,
+                        icon: const Icon(Icons.settings),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -3872,6 +4055,50 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
             );
           }),
         ],
+      ),
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  const _ModeChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }

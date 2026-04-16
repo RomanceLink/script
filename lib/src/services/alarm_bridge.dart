@@ -10,8 +10,8 @@ class AlarmReminder {
     required this.body,
     required this.whenEpochMillis,
     required this.ringtoneSource,
-    required this.ringtoneLabel,
-    required this.ringtoneValue,
+    this.ringtoneLabel = '默认铃声',
+    this.ringtoneValue,
   });
 
   final String id;
@@ -37,40 +37,24 @@ class AlarmReminder {
   }
 }
 
-class SystemRingtoneSelection {
-  const SystemRingtoneSelection({required this.label, required this.uri});
-
-  final String label;
-  final String uri;
-}
-
 class AlarmBridge {
-  static const MethodChannel _channel = MethodChannel('scriptapp/alarm');
+  static const _channel = MethodChannel('scriptapp/alarm');
 
   Future<void> replaceAlarms(List<AlarmReminder> reminders) async {
     await _channel.invokeMethod('replaceAlarms', {
-      'reminders': reminders.map((it) => it.toJson()).toList(),
+      'reminders': reminders.map((r) => r.toJson()).toList(),
     });
   }
 
   Future<String?> consumeLaunchTaskId() async {
-    final result = await _channel.invokeMethod<String>('consumeLaunchTaskId');
-    return result;
+    final value = await _channel.invokeMethod<String>('consumeLaunchTaskId');
+    return value;
   }
 
-  Future<SystemRingtoneSelection?> pickSystemRingtone() async {
-    final result = await _channel.invokeMapMethod<String, Object?>(
-      'pickSystemRingtone',
-    );
-    if (result == null) {
-      return null;
-    }
-    final uri = result['uri'] as String?;
-    final label = result['label'] as String?;
-    if (uri == null || label == null) {
-      return null;
-    }
-    return SystemRingtoneSelection(label: label, uri: uri);
+  Future<({String uri, String label})?> pickSystemRingtone() async {
+    final result = await _channel.invokeMapMethod<String, String>('pickSystemRingtone');
+    if (result == null) return null;
+    return (uri: result['uri']!, label: result['label']!);
   }
 
   Future<void> openExactAlarmSettings() async {
@@ -98,8 +82,13 @@ class AlarmBridge {
   }
 
   Future<void> scheduleSelfTest(AlarmReminder reminder) async {
-    await _channel.invokeMethod('scheduleSelfTest', {
-      'reminder': reminder.toJson(),
+    await _channel.invokeMethod('scheduleSelfTest', {'reminder': reminder.toJson()});
+  }
+
+  Future<void> performAutoSwipe({int interval = 30, bool useRandom = false}) async {
+    await _channel.invokeMethod('performAutoSwipe', {
+      'interval': interval,
+      'useRandom': useRandom,
     });
   }
 }

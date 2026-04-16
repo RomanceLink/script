@@ -67,6 +67,12 @@ class MainActivity : FlutterActivity() {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)
                     }
+                    "performAutoSwipe" -> {
+                        val interval = call.argument<Int>("interval") ?: 30
+                        val useRandom = call.argument<Boolean>("useRandom") ?: false
+                        AutoSwipeService.updateConfig(interval, useRandom)
+                        result.success(null)
+                    }
                     "scheduleSelfTest" -> {
                         val reminder = call.argument<Map<String, Any?>>("reminder")
                         if (reminder != null) {

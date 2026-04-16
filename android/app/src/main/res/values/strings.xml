@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">用于实现自动滑屏功能，模拟上滑手势以解放双手。</string>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="alarm_title">#EAF8F3</color>
+    <color name="alarm_body">#BBD2CB</color>
+    <color name="alarm_hint_text">#9FE6D4</color>
+    <color name="alarm_primary_text">#052420</color>
+    <color name="alarm_secondary_text">#FFE0C4</color>
+</resources>
