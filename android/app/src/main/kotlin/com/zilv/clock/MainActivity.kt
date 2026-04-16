@@ -68,9 +68,10 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "performAutoSwipe" -> {
-                        val interval = call.argument<Int>("interval") ?: 30
-                        val useRandom = call.argument<Boolean>("useRandom") ?: false
-                        AutoSwipeService.updateConfig(interval, useRandom)
+                        val min = call.argument<Int>("min") ?: 30
+                        val max = call.argument<Int>("max") ?: 60
+                        val actions = call.argument<List<Map<String, Any>>>("actions") ?: emptyList()
+                        AutoSwipeService.updateConfig(min, max, actions)
                         result.success(null)
                     }
                     "scheduleSelfTest" -> {

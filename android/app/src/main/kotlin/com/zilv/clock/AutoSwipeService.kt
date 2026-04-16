@@ -25,8 +25,11 @@ class AutoSwipeService : AccessibilityService() {
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
     private var isRunning = false
-    private var intervalSeconds = 30
-    private var useRandom = false
+    private var minSeconds = 30
+    private var maxSeconds = 60
+    
+    // 手势动作列表：每个动作是一个 Map，包含 type (click/swipe), x1, y1, x2, y2, duration
+    private var gestureActions = mutableListOf<Map<String, Any>>()
     
     private val handler = Handler(Looper.getMainLooper())
     private val random = Random()
@@ -34,10 +37,12 @@ class AutoSwipeService : AccessibilityService() {
     companion object {
         var instance: AutoSwipeService? = null
         
-        fun updateConfig(interval: Int, randomMode: Boolean) {
+        fun updateConfig(min: Int, max: Int, actions: List<Map<String, Any>>) {
             instance?.apply {
-                intervalSeconds = interval
-                useRandom = randomMode
+                minSeconds = min
+                maxSeconds = max
+                gestureActions.clear()
+                gestureActions.addAll(actions)
             }
         }
     }
@@ -45,17 +50,87 @@ class AutoSwipeService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        // 默认初始化一个简单的向上滑动动作
+        if (gestureActions.isEmpty()) {
+            gestureActions.add(mapOf(
+                "type" to "swipe",
+                "x1" to 0.5f, "y1" to 0.8f,
+                "x2" to 0.5f, "y2" to 0.2f,
+                "duration" to 300
+            ))
+        }
         showFloatingWindow()
     }
 
-    override fun onUnbind(intent: Intent?): Boolean {
-        removeFloatingWindow()
-        instance = null
-        return super.onUnbind(intent)
+    // ... (keep removeFloatingWindow, onUnbind, onAccessibilityEvent) ...
+
+    private fun toggleRunning() {
+        isRunning = !isRunning
+        val inner = (floatingView as FrameLayout).getChildAt(0)
+        val statusText = inner.findViewById<TextView>(1001)
+        if (isRunning) {
+            inner.setBackgroundResource(android.R.drawable.presence_busy) 
+            statusText.text = "运行中"
+            startAutoSwipe()
+        } else {
+            inner.setBackgroundResource(android.R.drawable.presence_online)
+            statusText.text = "待命"
+            handler.removeCallbacksAndMessages(null)
+        }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
+    private fun startAutoSwipe() {
+        if (!isRunning) return
+
+        // 随机产生下一次执行的等待时间
+        val delay = if (maxSeconds > minSeconds) {
+            (random.nextInt(maxSeconds - minSeconds + 1) + minSeconds) * 1000L
+        } else {
+            minSeconds * 1000L
+        }
+
+        handler.postDelayed({
+            if (isRunning) {
+                executeActions()
+                startAutoSwipe()
+            }
+        }, delay)
+    }
+
+    private fun executeActions() {
+        val dm = resources.displayMetrics
+        val width = dm.widthPixels.toFloat()
+        val height = dm.heightPixels.toFloat()
+
+        val gestureBuilder = GestureDescription.Builder()
+        
+        var totalDelay = 0L
+        for (action in gestureActions) {
+            val type = action["type"] as? String ?: "swipe"
+            val duration = (action["duration"] as? Int ?: 300).toLong()
+            
+            val path = Path()
+            if (type == "click") {
+                val x = (action["x1"] as Float) * width
+                val y = (action["y1"] as Float) * height
+                path.moveTo(x, y)
+                gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, totalDelay, 50))
+            } else {
+                val x1 = (action["x1"] as Float) * width
+                val y1 = (action["y1"] as Float) * height
+                val x2 = (action["x2"] as Float) * width
+                val y2 = (action["y2"] as Float) * height
+                path.moveTo(x1, y1)
+                path.lineTo(x2, y2)
+                gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, totalDelay, duration))
+            }
+            totalDelay += duration + 100 // 动作之间留一点空隙
+        }
+        
+        try {
+            dispatchGesture(gestureBuilder.build(), null, null)
+        } catch (e: Exception) {}
+    }
 
     private fun showFloatingWindow() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -76,11 +151,11 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         floatingView = FrameLayout(this).apply {
-            // 这里我们用代码创建一个简单的圆形按钮，实际项目中建议用 XML
             val inner = FrameLayout(context)
-            inner.setBackgroundResource(android.R.drawable.presence_online) // 绿色小球
+            inner.setBackgroundResource(android.R.drawable.presence_online)
             val text = TextView(context).apply {
-                text = "自动\n滑屏"
+                id = 1001
+                text = "待命"
                 textSize = 10f
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER
@@ -109,8 +184,7 @@ class AutoSwipeService : AccessibilityService() {
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        // 如果位移很小，视为点击
-                        if (Math.abs(event.rawX - initialTouchX) < 10 && Math.abs(event.rawY - initialTouchY) < 10) {
+                        if (Math.abs(event.rawX - initialTouchX) < 15 && Math.abs(event.rawY - initialTouchY) < 15) {
                             toggleRunning()
                         }
                         true
@@ -119,52 +193,7 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
         }
-
         windowManager?.addView(floatingView, layoutParams)
-    }
-
-    private fun toggleRunning() {
-        isRunning = !isRunning
-        val inner = (floatingView as FrameLayout).getChildAt(0)
-        if (isRunning) {
-            inner.setBackgroundResource(android.R.drawable.presence_busy) // 红色小球表示运行中
-            startAutoSwipe()
-        } else {
-            inner.setBackgroundResource(android.R.drawable.presence_online)
-            handler.removeCallbacksAndMessages(null)
-        }
-    }
-
-    private fun startAutoSwipe() {
-        if (!isRunning) return
-
-        var delay = intervalSeconds * 1000L
-        if (useRandom) {
-            val factor = 0.8 + random.nextDouble() * 0.4
-            delay = (delay * factor).toLong()
-        }
-
-        handler.postDelayed({
-            if (isRunning) {
-                performSwipe()
-                startAutoSwipe() // 递归循环
-            }
-        }, delay)
-    }
-
-    private fun performSwipe() {
-        val dm = resources.displayMetrics
-        val width = dm.widthPixels
-        val height = dm.heightPixels
-
-        val path = Path().apply {
-            moveTo(width / 2f, height * 0.8f)
-            lineTo(width / 2f, height * 0.2f)
-        }
-
-        val gestureBuilder = GestureDescription.Builder()
-        gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, 0, 300))
-        dispatchGesture(gestureBuilder.build(), null, null)
     }
 
     private fun removeFloatingWindow() {
@@ -173,4 +202,13 @@ class AutoSwipeService : AccessibilityService() {
             floatingView = null
         }
     }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        removeFloatingWindow()
+        instance = null
+        return super.onUnbind(intent)
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onInterrupt() {}
 }

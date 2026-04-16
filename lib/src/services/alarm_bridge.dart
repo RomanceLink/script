@@ -85,10 +85,15 @@ class AlarmBridge {
     await _channel.invokeMethod('scheduleSelfTest', {'reminder': reminder.toJson()});
   }
 
-  Future<void> performAutoSwipe({int interval = 30, bool useRandom = false}) async {
+  Future<void> performAutoSwipe({
+    required int min,
+    required int max,
+    required List<Map<String, Object>> actions,
+  }) async {
     await _channel.invokeMethod('performAutoSwipe', {
-      'interval': interval,
-      'useRandom': useRandom,
+      'min': min,
+      'max': max,
+      'actions': actions,
     });
   }
 }

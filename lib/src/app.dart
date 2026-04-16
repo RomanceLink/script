@@ -194,9 +194,7 @@ class _DashboardPageState extends State<DashboardPage> {
   String? _focusTaskId;
   int _currentTaskPage = 0;
 
-  // 自动滑屏控制
-  int _swipeIntervalSeconds = 30;
-  bool _useRandomInterval = false;
+  // 自动滑屏控制相关已移至独立页面
 
   @override
   void initState() {
@@ -361,173 +359,11 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _syncSwipeConfig() async {
-    await _alarmBridge.performAutoSwipe(
-      interval: _swipeIntervalSeconds,
-      useRandom: _useRandomInterval,
-    );
-  }
-
   Future<void> _openSwipeControl() async {
-    final theme = Theme.of(context);
-    await showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.primary),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('自动滑屏助手', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                          Text('常驻悬浮球 · 刷剧神器', style: theme.textTheme.bodySmall),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _buildControlSection(
-                  theme,
-                  '第一步：开启必要权限',
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PastelButton(
-                          label: '悬浮窗权限',
-                          icon: Icons.layers_outlined,
-                          background: theme.colorScheme.secondaryContainer,
-                          foreground: theme.colorScheme.onSecondaryContainer,
-                          onPressed: _alarmBridge.openOverlaySettings,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _PastelButton(
-                          label: '辅助功能',
-                          icon: Icons.accessibility_new_rounded,
-                          background: theme.colorScheme.primaryContainer,
-                          foreground: theme.colorScheme.onPrimaryContainer,
-                          onPressed: _alarmBridge.openAccessibilitySettings,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _buildControlSection(
-                  theme,
-                  '第二步：配置滑动参数',
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Slider(
-                              value: _swipeIntervalSeconds.toDouble(),
-                              min: 5,
-                              max: 120,
-                              divisions: 23,
-                              label: '$_swipeIntervalSeconds秒',
-                              onChanged: (val) {
-                                setState(() => _swipeIntervalSeconds = val.toInt());
-                                setModalState(() {});
-                                _syncSwipeConfig();
-                              },
-                            ),
-                          ),
-                          Text('$_swipeIntervalSeconds秒', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ModeChip(
-                              label: '固定时长',
-                              isSelected: !_useRandomInterval,
-                              onTap: () {
-                                setState(() => _useRandomInterval = false);
-                                setModalState(() {});
-                                _syncSwipeConfig();
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _ModeChip(
-                              label: '随机区间',
-                              isSelected: _useRandomInterval,
-                              onTap: () {
-                                setState(() => _useRandomInterval = true);
-                                setModalState(() {});
-                                _syncSwipeConfig();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.tips_and_updates_rounded, color: theme.colorScheme.primary, size: 20),
-                          const SizedBox(width: 10),
-                          const Text('使用技巧', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '1. 开启权限后，屏幕上会出现绿色小球。\\n2. 打开抖音/短剧 App，将小球拖到不碍事的地方。\\n3. 点击小球变红即开始自动滑屏，再次点击停止。',
-                        style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AutoSwipePage(alarmBridge: _alarmBridge),
       ),
-    );
-  }
-
-  Widget _buildControlSection(ThemeData theme, String title, Widget child) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-        const SizedBox(height: 8),
-        child,
-      ],
     );
   }
 
@@ -4100,6 +3936,326 @@ class _ModeChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class AutoSwipePage extends StatefulWidget {
+  const AutoSwipePage({required this.alarmBridge, super.key});
+  final AlarmBridge alarmBridge;
+
+  @override
+  State<AutoSwipePage> createState() => _AutoSwipePageState();
+}
+
+class _AutoSwipePageState extends State<AutoSwipePage> {
+  final _minController = TextEditingController(text: '30');
+  final _maxController = TextEditingController(text: '60');
+
+  // 默认动作：向上滑动
+  List<Map<String, Object>> _actions = [
+    {
+      'type': 'swipe',
+      'x1': 0.5,
+      'y1': 0.8,
+      'x2': 0.5,
+      'y2': 0.2,
+      'duration': 300,
+    }
+  ];
+
+  @override
+  void dispose() {
+    _minController.dispose();
+    _maxController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sync() async {
+    final min = int.tryParse(_minController.text) ?? 30;
+    final max = int.tryParse(_maxController.text) ?? 60;
+
+    await widget.alarmBridge.performAutoSwipe(
+      min: min,
+      max: max,
+      actions: _actions,
+    );
+    if (mounted) {
+      VibrantHUD.show(context, '脚本配置已同步', type: ToastType.success);
+    }
+  }
+
+  void _addAction(String type) {
+    setState(() {
+      if (type == 'click') {
+        _actions.add({
+          'type': 'click',
+          'x1': 0.5,
+          'y1': 0.5,
+          'duration': 50,
+        });
+      } else if (type == 'swipe_up') {
+        _actions.add({
+          'type': 'swipe',
+          'x1': 0.5,
+          'y1': 0.8,
+          'x2': 0.5,
+          'y2': 0.2,
+          'duration': 300,
+        });
+      } else if (type == 'swipe_down') {
+        _actions.add({
+          'type': 'swipe',
+          'x1': 0.5,
+          'y1': 0.2,
+          'x2': 0.5,
+          'y2': 0.8,
+          'duration': 300,
+        });
+      } else if (type == 'swipe_left') {
+        _actions.add({
+          'type': 'swipe',
+          'x1': 0.8,
+          'y1': 0.5,
+          'x2': 0.2,
+          'y2': 0.5,
+          'duration': 300,
+        });
+      } else if (type == 'swipe_right') {
+        _actions.add({
+          'type': 'swipe',
+          'x1': 0.2,
+          'y1': 0.5,
+          'x2': 0.8,
+          'y2': 0.5,
+          'duration': 300,
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('自动滑屏助手'),
+        actions: [
+          IconButton(
+            onPressed: _sync,
+            icon: const Icon(Icons.sync_rounded),
+            tooltip: '同步配置',
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildStepCard(
+            theme,
+            '1. 权限保障',
+            '必须开启以下权限，悬浮球才能正常模拟手势。',
+            Row(
+              children: [
+                Expanded(
+                  child: _PastelButton(
+                    label: '悬浮窗',
+                    icon: Icons.layers_outlined,
+                    background: theme.colorScheme.secondaryContainer,
+                    foreground: theme.colorScheme.onSecondaryContainer,
+                    onPressed: widget.alarmBridge.openOverlaySettings,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PastelButton(
+                    label: '辅助功能',
+                    icon: Icons.accessibility_new_rounded,
+                    background: theme.colorScheme.primaryContainer,
+                    foreground: theme.colorScheme.onPrimaryContainer,
+                    onPressed: widget.alarmBridge.openAccessibilitySettings,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildStepCard(
+            theme,
+            '2. 运行间隔',
+            '设定每次执行手势之间的等待时长（秒）。',
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _minController,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: '最短 (秒)', hintText: '30'),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('~',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _maxController,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: '最长 (秒)', hintText: '60'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildStepCard(
+            theme,
+            '3. 手势动作序列',
+            '顺序执行以下动作，点击右侧按钮添加。',
+            Column(
+              children: [
+                if (_actions.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child:
+                        Text('尚未添加任何动作', style: TextStyle(color: Colors.grey)),
+                  ),
+                ..._actions.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final action = entry.value;
+                  final isSwipe = action['type'] == 'swipe';
+                  return Card(
+                    color: theme.colorScheme.surface,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                          color: theme.colorScheme.outlineVariant
+                              .withValues(alpha: 0.5)),
+                    ),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        radius: 14,
+                        backgroundColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.1),
+                        child: Text('${idx + 1}',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      title: Text(isSwipe ? '滑动手势' : '点击动作',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: Text(
+                        isSwipe
+                            ? '从 (${action['x1']}, ${action['y1']}) 到 (${action['x2']}, ${action['y2']})'
+                            : '坐标 (${action['x1']}, ${action['y1']})',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline_rounded,
+                            color: Colors.redAccent, size: 20),
+                        onPressed: () => setState(() => _actions.removeAt(idx)),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ActionAddChip(
+                        label: '上滑',
+                        icon: Icons.arrow_upward_rounded,
+                        onTap: () => _addAction('swipe_up')),
+                    _ActionAddChip(
+                        label: '下滑',
+                        icon: Icons.arrow_downward_rounded,
+                        onTap: () => _addAction('swipe_down')),
+                    _ActionAddChip(
+                        label: '左滑',
+                        icon: Icons.arrow_back_rounded,
+                        onTap: () => _addAction('swipe_left')),
+                    _ActionAddChip(
+                        label: '右滑',
+                        icon: Icons.arrow_forward_rounded,
+                        onTap: () => _addAction('swipe_right')),
+                    _ActionAddChip(
+                        label: '点击',
+                        icon: Icons.touch_app_rounded,
+                        onTap: () => _addAction('click')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          FilledButton.icon(
+            onPressed: _sync,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
+            ),
+            icon: const Icon(Icons.play_circle_filled_rounded),
+            label: const Text('同步并保存配置',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepCard(
+      ThemeData theme, String title, String subtitle, Widget child) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(subtitle,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 20),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionAddChip extends StatelessWidget {
+  const _ActionAddChip(
+      {required this.label, required this.icon, required this.onTap});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ActionChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      onPressed: onTap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: theme.colorScheme.surface,
     );
   }
 }
