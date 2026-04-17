@@ -2142,6 +2142,9 @@ class AutoSwipeService : AccessibilityService() {
         currentWaitUntilMillis = 0L
         pausedWaitRemainingMillis = 0L
         updateStatusText()
+        if (floatingView != null) {
+            showFloatingWindow(expanded = true)
+        }
     }
 
     private fun pauseScriptRun() {
@@ -2207,10 +2210,18 @@ class AutoSwipeService : AccessibilityService() {
                 handler.postDelayed({ executeActionIndex(0) }, delay)
             } else {
                 isRunning = false
+                isPaused = false
                 playbackTicker = null
                 runtimeActions.clear()
                 remainingLoops = 0
+                currentActionIndex = -1
+                resumeActionIndex = 0
+                currentWaitUntilMillis = 0L
+                pausedWaitRemainingMillis = 0L
                 updateStatusText()
+                if (floatingView != null) {
+                    showFloatingWindow(expanded = true)
+                }
             }
             return
         }
