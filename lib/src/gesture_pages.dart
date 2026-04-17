@@ -1204,6 +1204,41 @@ class _GestureEditPageState extends State<GestureEditPage> {
     Navigator.of(context).pop(config);
   }
 
+  Future<void> _editName() async {
+    var draft = _nameController.text.trim();
+    final next = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('方案名称'),
+        content: TextFormField(
+          initialValue: draft,
+          autofocus: true,
+          onChanged: (value) => draft = value,
+          decoration: const InputDecoration(
+            labelText: '名称',
+            hintText: '例如：刷抖音专用',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(draft.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || next == null) {
+      return;
+    }
+    setState(() {
+      _nameController.text = next;
+    });
+  }
+
   Future<void> _editAction(int index) async {
     final action = _actions[index];
     if (action is ClickAction) {
@@ -1348,17 +1383,62 @@ class _GestureEditPageState extends State<GestureEditPage> {
       loopCount: _loopCount,
       loopIntervalMillis: _loopIntervalMillis,
     );
-    final header = [
+    final header = <Widget>[
       Padding(
         padding: const EdgeInsets.all(16),
-        child: TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(
-            labelText: '方案名称',
-            hintText: '例如：刷抖音专用',
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '方案名称',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _nameController.text.trim().isEmpty
+                        ? '未命名方案'
+                        : _nameController.text.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _editName,
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('编辑'),
+            ),
+          ],
         ),
       ),
+    ];
+    if (_nameController.text.trim().isEmpty) {
+      header.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '保存前请先设置方案名称',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    header.addAll([
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Align(
@@ -1403,7 +1483,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
       ),
       const SizedBox(height: 8),
       const Divider(),
-    ];
+    ]);
     final footer = Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       child: Column(

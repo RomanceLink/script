@@ -128,12 +128,6 @@ class ScriptAssistantApp extends StatelessWidget {
 class FloatingAutomationOverlayApp extends StatelessWidget {
   const FloatingAutomationOverlayApp({super.key});
 
-  String get _initialMode {
-    final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
-    final segments = route.split('/').where((part) => part.isNotEmpty);
-    return segments.isEmpty ? 'configs' : segments.last;
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -141,7 +135,7 @@ class FloatingAutomationOverlayApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       theme: _scriptAssistantTheme(Brightness.light),
       darkTheme: _scriptAssistantTheme(Brightness.dark),
-      home: _FloatingAutomationOverlayShell(initialMode: _initialMode),
+      home: const _FloatingAutomationOverlayShell(initialMode: 'configs'),
     );
   }
 }

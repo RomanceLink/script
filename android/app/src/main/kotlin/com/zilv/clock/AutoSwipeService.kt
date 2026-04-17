@@ -249,6 +249,10 @@ class AutoSwipeService : AccessibilityService() {
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         lastNightModeMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        handler.post {
+            ensureFlutterAutomationOverlay()
+            hideFlutterOverlayWindow()
+        }
     }
 
     private fun showAutomationMenuInternal(configs: List<Map<String, Any?>>): Boolean {
@@ -766,9 +770,13 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showFlutterAutomationOverlay(mode: String) {
         removeChooserOverlay()
+        ensureFlutterAutomationOverlay()
+        updateFlutterOverlayMode(mode)
+        showFlutterOverlayWindow()
+    }
+
+    private fun ensureFlutterAutomationOverlay() {
         if (flutterOverlayEngine != null && flutterOverlayRoot != null) {
-            updateFlutterOverlayMode(mode)
-            showFlutterOverlayWindow()
             return
         }
 
@@ -779,13 +787,15 @@ class AutoSwipeService : AccessibilityService() {
         val engine = FlutterEngine(this)
         GeneratedPluginRegistrant.registerWith(engine)
         engine.serviceControlSurface.attachToService(this, null, false)
-        engine.navigationChannel.setInitialRoute("/automation-overlay/$mode")
+        engine.navigationChannel.setInitialRoute("/")
         installFlutterOverlayChannel(engine)
         engine.dartExecutor.executeDartEntrypoint(
             DartExecutor.DartEntrypoint(loader.findAppBundlePath(), "overlayMain"),
         )
 
         val flutterView = FlutterView(this, RenderMode.texture).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
             addOnFirstFrameRenderedListener(
                 object : FlutterUiDisplayListener {
                     override fun onFlutterUiDisplayed() {
@@ -804,6 +814,7 @@ class AutoSwipeService : AccessibilityService() {
             setBackgroundColor(Color.TRANSPARENT)
             isClickable = true
             isFocusable = true
+            isFocusableInTouchMode = true
             addView(
                 flutterView,
                 FrameLayout.LayoutParams(
@@ -816,7 +827,8 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
             gravity = Gravity.TOP or Gravity.START
@@ -914,6 +926,8 @@ class AutoSwipeService : AccessibilityService() {
             windowManager?.addView(root, params)
             flutterOverlayAttached = true
             flutterOverlayEngine?.lifecycleChannel?.appIsResumed()
+            root.requestFocus()
+            flutterOverlayView?.requestFocus()
         } catch (_: Exception) {
             flutterOverlayAttached = false
         }
