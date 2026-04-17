@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.Display
 import android.view.MotionEvent
@@ -37,6 +38,7 @@ import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.embedding.engine.renderer.FlutterUiDisplayListener
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.GeneratedPluginRegistrant
 import org.json.JSONArray
@@ -244,6 +246,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.WRAP_CONTENT
             height = WindowManager.LayoutParams.WRAP_CONTENT
@@ -306,20 +309,21 @@ class AutoSwipeService : AccessibilityService() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(5), dp(6), dp(5))
-            background = roundedBackground(0xE6151A1E.toInt(), dp(22).toFloat(), 0x55FFFFFF)
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = roundedBackground(0xE6151A1E.toInt(), dp(20).toFloat(), 0x55FFFFFF)
         }
 
         val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
             showFlutterAutomationOverlay("configs")
         }
-        startMenuButton = iconButton("▶", "启动", 0xFF8EB8FF.toInt()) {
+        val startButton = iconButton("▶", "启动", 0xFF8EB8FF.toInt()) {
             if (isRunning) {
                 stopScriptRun()
             } else {
                 showFlutterAutomationOverlay("run")
             }
         }
+        startMenuButton = startButton
         val recordButton = iconButton("●", "录制", 0xFFFFB989.toInt()) {
             showFlutterAutomationOverlay("create")
         }
@@ -330,13 +334,11 @@ class AutoSwipeService : AccessibilityService() {
             showFloatingWindow(expanded = false)
         }
 
-        listOf(configButton, startMenuButton, recordButton, closeButton, foldButton).forEach { button ->
+        listOf(configButton, startButton, recordButton, closeButton, foldButton).forEach { button ->
+            attachDrag(button, layoutParams)
             row.addView(
                 button,
-                LinearLayout.LayoutParams(dp(38), dp(38)).apply {
-                    marginStart = dp(2)
-                    marginEnd = dp(2)
-                },
+                LinearLayout.LayoutParams(dp(32), dp(34)),
             )
         }
         attachDrag(row, layoutParams)
@@ -370,9 +372,9 @@ class AutoSwipeService : AccessibilityService() {
             text = icon
             textSize = 18f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(color)
             contentDescription = description
-            background = roundedBackground(color and 0xCCFFFFFF.toInt(), dp(16).toFloat(), 0x33FFFFFF)
+            background = null
             setOnClickListener { onClick() }
         }
     }
@@ -445,7 +447,7 @@ class AutoSwipeService : AccessibilityService() {
         view: View?,
         layoutParams: WindowManager.LayoutParams,
     ) {
-        val dm = resources.displayMetrics
+        val (screenWidth, screenHeight) = screenSize()
         val fallbackWidth = if (collapsed) dp(40) else dp(220)
         val fallbackHeight = if (collapsed) dp(48) else dp(48)
         val viewWidth = view?.width ?: 0
@@ -460,8 +462,8 @@ class AutoSwipeService : AccessibilityService() {
             layoutParams.height > 0 -> layoutParams.height
             else -> fallbackHeight
         }
-        val maxX = (dm.widthPixels - width).coerceAtLeast(0)
-        val maxY = (dm.heightPixels - height).coerceAtLeast(0)
+        val maxX = (screenWidth - width).coerceAtLeast(0)
+        val maxY = (screenHeight - height).coerceAtLeast(0)
         layoutParams.x = layoutParams.x.coerceIn(0, maxX)
         layoutParams.y = layoutParams.y.coerceIn(0, maxY)
     }
@@ -470,9 +472,9 @@ class AutoSwipeService : AccessibilityService() {
         view: View?,
         layoutParams: WindowManager.LayoutParams,
     ) {
-        val dm = resources.displayMetrics
+        val (screenWidth, _) = screenSize()
         val width = overlayWidth(view, layoutParams, if (collapsed) dp(40) else dp(220))
-        collapsedEdgeRight = layoutParams.x + width / 2 >= dm.widthPixels / 2
+        collapsedEdgeRight = layoutParams.x + width / 2 >= screenWidth / 2
         snapOverlayToHorizontalEdge(view, layoutParams, collapsedEdgeRight)
     }
 
@@ -482,20 +484,36 @@ class AutoSwipeService : AccessibilityService() {
         right: Boolean,
     ) {
         collapsedEdgeRight = right
-        val dm = resources.displayMetrics
+        val (screenWidth, screenHeight) = screenSize()
         val width = overlayWidth(view, layoutParams, if (collapsed) dp(40) else dp(220))
         val height = overlayHeight(view, layoutParams, if (collapsed) dp(48) else dp(48))
-        val maxX = (dm.widthPixels - width).coerceAtLeast(0)
-        val maxY = (dm.heightPixels - height).coerceAtLeast(0)
+        val maxX = (screenWidth - width).coerceAtLeast(0)
+        val maxY = (screenHeight - height).coerceAtLeast(0)
         layoutParams.x = if (right) maxX else 0
         layoutParams.y = layoutParams.y.coerceIn(0, maxY)
         updateCollapsedArrow()
     }
 
     private fun shouldCollapseToRight(layoutParams: WindowManager.LayoutParams): Boolean {
-        val dm = resources.displayMetrics
+        val (screenWidth, _) = screenSize()
         val estimatedWidth = dp(220)
-        return layoutParams.x + estimatedWidth / 2 >= dm.widthPixels / 2
+        return layoutParams.x + estimatedWidth / 2 >= screenWidth / 2
+    }
+
+    private fun screenSize(): Pair<Int, Int> {
+        val wm = windowManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && wm != null) {
+            val bounds = wm.currentWindowMetrics.bounds
+            return bounds.width() to bounds.height()
+        }
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        wm?.defaultDisplay?.getRealMetrics(metrics)
+        if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+            return metrics.widthPixels to metrics.heightPixels
+        }
+        val fallback = resources.displayMetrics
+        return fallback.widthPixels to fallback.heightPixels
     }
 
     private fun overlayWidth(
@@ -535,9 +553,11 @@ class AutoSwipeService : AccessibilityService() {
             width = dp(widthDp)
             this.height = height
             flags = if (focusable) {
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             } else {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             }
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
@@ -633,12 +653,22 @@ class AutoSwipeService : AccessibilityService() {
         )
 
         val flutterView = FlutterView(this, RenderMode.texture).apply {
+            addOnFirstFrameRenderedListener(
+                object : FlutterUiDisplayListener {
+                    override fun onFlutterUiDisplayed() {
+                        flutterOverlayRoot?.setBackgroundColor(0x33000000)
+                        removeOnFirstFrameRenderedListener(this)
+                    }
+
+                    override fun onFlutterUiNoLongerDisplayed() {}
+                },
+            )
             attachToFlutterEngine(engine)
         }
         flutterOverlayEngine = engine
         flutterOverlayView = flutterView
         flutterOverlayRoot = FrameLayout(this).apply {
-            setBackgroundColor(0x33000000)
+            setBackgroundColor(Color.TRANSPARENT)
             isClickable = true
             isFocusable = true
             addView(
@@ -652,7 +682,8 @@ class AutoSwipeService : AccessibilityService() {
         flutterOverlayParams = WindowManager.LayoutParams().apply {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
             gravity = Gravity.TOP or Gravity.START
@@ -670,10 +701,12 @@ class AutoSwipeService : AccessibilityService() {
                     "enterPickerMode" -> {
                         val type = call.argument<String>("type") ?: "click"
                         hideFlutterOverlayWindow()
-                        startNativePicker(type) { resultData ->
-                            showFlutterOverlayWindow()
-                            result.success(resultData)
-                        }
+                        handler.postDelayed({
+                            startNativePicker(type) { resultData ->
+                                showFlutterOverlayWindow()
+                                result.success(resultData)
+                            }
+                        }, 260)
                     }
                     "syncAutomationConfigs" -> {
                         val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
@@ -2296,6 +2329,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2389,6 +2423,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2470,6 +2505,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2540,6 +2576,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2548,8 +2585,9 @@ class AutoSwipeService : AccessibilityService() {
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x11000000)
         }
+        val (screenWidth, screenHeight) = screenSize()
         val surface = ButtonDetectSurface(this, nodes) { node ->
-            publishPickerResult(node.toResult(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels))
+            publishPickerResult(node.toResult(screenWidth, screenHeight))
             removePickerOverlay()
         }
         container.addView(surface, FrameLayout.LayoutParams(
@@ -2612,6 +2650,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2647,6 +2686,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
@@ -2654,8 +2694,9 @@ class AutoSwipeService : AccessibilityService() {
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x11000000)
         }
+        val (screenWidth, screenHeight) = screenSize()
         val surface = OcrTextDetectSurface(this, nodes) { node ->
-            publishPickerResult(node.toResult(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels))
+            publishPickerResult(node.toResult(screenWidth, screenHeight))
             removePickerOverlay()
         }
         container.addView(surface, FrameLayout.LayoutParams(
@@ -2769,13 +2810,37 @@ class AutoSwipeService : AccessibilityService() {
         val out = mutableListOf<ButtonNodeInfo>()
         val seen = mutableSetOf<String>()
 
+        fun collectNodeText(node: AccessibilityNodeInfo?, depth: Int = 0): String {
+            if (node == null || depth > 3) return ""
+            val parts = mutableListOf<String>()
+            node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(parts::add)
+            node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(parts::add)
+            for (index in 0 until node.childCount) {
+                val childText = collectNodeText(node.getChild(index), depth + 1)
+                if (childText.isNotBlank()) {
+                    parts.add(childText)
+                }
+            }
+            return parts.distinct().joinToString(" ")
+        }
+
+        fun nearestViewId(node: AccessibilityNodeInfo?): String {
+            var current = node
+            repeat(4) {
+                val id = current?.viewIdResourceName?.trim().orEmpty()
+                if (id.isNotBlank()) return id
+                current = current?.parent
+            }
+            return ""
+        }
+
         fun visit(node: AccessibilityNodeInfo?) {
             if (node == null) return
             val rect = Rect()
             node.getBoundsInScreen(rect)
-            val text = node.text?.toString().orEmpty()
+            val text = collectNodeText(node)
             val description = node.contentDescription?.toString().orEmpty()
-            val viewId = node.viewIdResourceName.orEmpty()
+            val viewId = nearestViewId(node)
             val className = node.className?.toString().orEmpty()
             val looksLikeButton = node.isClickable ||
                 className.contains("Button", ignoreCase = true) ||
@@ -3163,9 +3228,9 @@ class AutoSwipeService : AccessibilityService() {
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
-                val selected = nodes.firstOrNull {
-                    localRect(it.bounds).contains(event.x.toInt(), event.y.toInt())
-                }
+                val selected = nodes
+                    .filter { localRect(it.bounds).contains(event.x.toInt(), event.y.toInt()) }
+                    .minByOrNull { it.bounds.width() * it.bounds.height() }
                 if (selected != null) {
                     onSelect(selected)
                 }

@@ -203,7 +203,11 @@ class _FloatingAutomationOverlayShellState
                     height: height,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(26),
-                      child: content,
+                      child: Navigator(
+                        key: ValueKey(widget.initialMode),
+                        onGenerateRoute: (_) =>
+                            MaterialPageRoute<void>(builder: (_) => content),
+                      ),
                     ),
                   ),
                 ),

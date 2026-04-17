@@ -220,6 +220,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
     });
   }
 
+  Future<void> _waitForOverlayDismissal() {
+    return Future<void>.delayed(const Duration(milliseconds: 280));
+  }
+
   void _showAddMenu() {
     showModalBottomSheet(
       context: context,
@@ -244,8 +248,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 ),
                 title: const Text('录制手势'),
                 subtitle: const Text('点击、滑动、完整轨迹'),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(context).pop();
+                  await _waitForOverlayDismissal();
+                  if (!mounted) return;
                   _pickGestureType();
                 },
               ),
@@ -374,6 +380,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
             subtitle: const Text('像录音一样计时，结束后保存点击、滑动和轨迹'),
             onTap: () async {
               Navigator.of(context).pop();
+              await _waitForOverlayDismissal();
+              if (!mounted) return;
               final result = await AlarmBridge().enterPickerMode('record');
               final action = _recordedActionFromResult(result);
               if (action != null) {
@@ -387,6 +395,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
             subtitle: const Text('点击屏幕生成编号圆点，保存后每个点都是独立步骤'),
             onTap: () async {
               Navigator.of(context).pop();
+              await _waitForOverlayDismissal();
+              if (!mounted) return;
               final result = await AlarmBridge().enterPickerMode('clickSteps');
               final actions = _clickActionsFromSteps(result);
               if (actions.isNotEmpty) {
@@ -400,6 +410,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
             subtitle: const Text('拖动标记到目标位置后保存'),
             onTap: () async {
               Navigator.of(context).pop();
+              await _waitForOverlayDismissal();
+              if (!mounted) return;
               final result = await AlarmBridge().enterPickerMode('click');
               if (result != null && result['cancelled'] != true) {
                 _addGestureActionsWithBuffers([
@@ -417,6 +429,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
             subtitle: const Text('拖动起点和终点后保存'),
             onTap: () async {
               Navigator.of(context).pop();
+              await _waitForOverlayDismissal();
+              if (!mounted) return;
               final result = await AlarmBridge().enterPickerMode('swipe');
               if (result != null && result['cancelled'] != true) {
                 _addGestureActionsWithBuffers([
@@ -682,6 +696,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
   Future<void> _pickButtonRecognizeAction({
     ButtonRecognizeSource source = ButtonRecognizeSource.accessibility,
   }) async {
+    await _waitForOverlayDismissal();
+    if (!mounted) return;
     final result = await AlarmBridge().enterPickerMode(
       source == ButtonRecognizeSource.imageText
           ? 'imageButtonDetect'
@@ -980,6 +996,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
     );
     if (type == null) return const [];
 
+    await _waitForOverlayDismissal();
+    if (!mounted) return const [];
     final result = await AlarmBridge().enterPickerMode(type);
     if (result == null || result['cancelled'] == true) return const [];
     if (type == 'record') {
