@@ -21,6 +21,7 @@ import android.os.SystemClock
 import android.text.InputType
 import android.graphics.Typeface
 import android.util.DisplayMetrics
+import android.content.res.Configuration
 import android.view.Gravity
 import android.view.Display
 import android.view.MotionEvent
@@ -63,11 +64,17 @@ class AutoSwipeService : AccessibilityService() {
     private var flutterOverlayParams: WindowManager.LayoutParams? = null
     private var flutterOverlayEngine: FlutterEngine? = null
     private var flutterOverlayView: FlutterView? = null
+    private var flutterOverlayChannel: MethodChannel? = null
     private var pickerOverlay: View? = null
     private var startMenuButton: TextView? = null
+    private var pauseMenuButton: TextView? = null
+    private var endMenuButton: TextView? = null
+    private var statusPrimaryView: TextView? = null
+    private var statusSecondaryView: TextView? = null
     private var collapsedMenuButton: TextView? = null
 
     private var isRunning = false
+    private var isPaused = false
     private var minSeconds = 0
     private var maxSeconds = 0
     private var loopCount = 1
@@ -89,6 +96,10 @@ class AutoSwipeService : AccessibilityService() {
     private var nativePickerResult: ((Map<String, Any?>) -> Unit)? = null
     private var runStartedAt = 0L
     private var runTotalMillis = 0L
+    private var currentActionIndex = -1
+    private var resumeActionIndex = 0
+    private var currentWaitUntilMillis = 0L
+    private var pausedWaitRemainingMillis = 0L
     private var playbackTicker: Runnable? = null
     private val defaultGestureBeforeWaitMillis = 300
     private val defaultGestureAfterWaitMillis = 800
@@ -357,12 +368,60 @@ class AutoSwipeService : AccessibilityService() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+            setPadding(dp(5), dp(5), dp(5), dp(5))
             background = roundedBackground(
                 if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
                 dp(20).toFloat(),
                 if (darkMode) 0x55FFFFFF else 0x33212C2E,
             )
+        }
+
+        startMenuButton = null
+        pauseMenuButton = null
+        endMenuButton = null
+        statusPrimaryView = null
+        statusSecondaryView = null
+
+        if (isRunning || isPaused) {
+            val pauseButton = iconButton(if (isPaused) "▶" else "⏸", if (isPaused) "继续" else "暂停", 0xFFFFC46B.toInt()) {
+                if (isPaused) {
+                    resumeScriptRun()
+                } else {
+                    pauseScriptRun()
+                }
+            }
+            val endButton = iconButton("■", "结束", 0xFFFF8A80.toInt()) {
+                stopScriptRun()
+            }
+            pauseMenuButton = pauseButton
+            endMenuButton = endButton
+            attachDrag(pauseButton, layoutParams)
+            attachDrag(endButton, layoutParams)
+            row.addView(pauseButton, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(4) })
+            row.addView(endButton, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(6) })
+            val statusColumn = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val primary = TextView(this).apply {
+                textSize = 11f
+                includeFontPadding = false
+                setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            val secondary = TextView(this).apply {
+                textSize = 10f
+                includeFontPadding = false
+                setTextColor(if (darkMode) 0xFFB7C4C8.toInt() else 0xFF516063.toInt())
+            }
+            statusPrimaryView = primary
+            statusSecondaryView = secondary
+            statusColumn.addView(primary)
+            statusColumn.addView(secondary)
+            row.addView(statusColumn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            attachDrag(statusColumn, layoutParams)
+            attachDrag(row, layoutParams)
+            return row
         }
 
         val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
@@ -390,7 +449,9 @@ class AutoSwipeService : AccessibilityService() {
             attachDrag(button, layoutParams)
             row.addView(
                 button,
-                LinearLayout.LayoutParams(dp(32), dp(34)),
+                LinearLayout.LayoutParams(dp(28), dp(28)).apply {
+                    marginEnd = dp(3)
+                },
             )
         }
         attachDrag(row, layoutParams)
@@ -429,13 +490,15 @@ class AutoSwipeService : AccessibilityService() {
     ): TextView {
         return TextView(this).apply {
             text = icon
-            textSize = 19f
+            textSize = 15f
             gravity = Gravity.CENTER
             setTextColor(color)
             contentDescription = description
             includeFontPadding = false
             typeface = Typeface.DEFAULT_BOLD
             background = null
+            minWidth = dp(28)
+            minHeight = dp(28)
             setOnClickListener { onClick() }
         }
     }
@@ -698,7 +761,11 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showFlutterAutomationOverlay(mode: String) {
         removeChooserOverlay()
-        destroyFlutterAutomationOverlay()
+        if (flutterOverlayEngine != null && flutterOverlayRoot != null) {
+            updateFlutterOverlayMode(mode)
+            showFlutterOverlayWindow()
+            return
+        }
 
         val loader = FlutterInjector.instance().flutterLoader()
         loader.startInitialization(applicationContext)
@@ -755,9 +822,14 @@ class AutoSwipeService : AccessibilityService() {
         showFlutterOverlayWindow()
     }
 
+    private fun updateFlutterOverlayMode(mode: String) {
+        flutterOverlayChannel?.invokeMethod("setOverlayMode", mapOf("mode" to mode))
+    }
+
     private fun installFlutterOverlayChannel(engine: FlutterEngine) {
-        MethodChannel(engine.dartExecutor.binaryMessenger, alarmChannelName)
-            .setMethodCallHandler { call, result ->
+        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, alarmChannelName)
+        flutterOverlayChannel = channel
+        channel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "enterPickerMode" -> {
                         val type = call.argument<String>("type") ?: "click"
@@ -783,7 +855,7 @@ class AutoSwipeService : AccessibilityService() {
                         val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
                         result.success(null)
                         handler.post {
-                            destroyFlutterAutomationOverlay()
+                            hideFlutterOverlayWindow()
                             AutoSwipeService.updateConfig(
                                 min,
                                 max,
@@ -806,7 +878,7 @@ class AutoSwipeService : AccessibilityService() {
                             if (packageName.isNullOrBlank()) {
                                 false
                             } else {
-                                handler.post { destroyFlutterAutomationOverlay() }
+                                handler.post { hideFlutterOverlayWindow() }
                                 AutoSwipeService.openAppAndRunConfig(
                                     this,
                                     packageName,
@@ -822,7 +894,7 @@ class AutoSwipeService : AccessibilityService() {
                     }
                     "closeAutomationOverlay" -> {
                         result.success(null)
-                        handler.post { destroyFlutterAutomationOverlay() }
+                        handler.post { hideFlutterOverlayWindow() }
                     }
                     else -> result.notImplemented()
                 }
@@ -870,6 +942,7 @@ class AutoSwipeService : AccessibilityService() {
         flutterOverlayParams = null
         flutterOverlayEngine = null
         flutterOverlayView = null
+        flutterOverlayChannel = null
     }
 
     private fun showConfigChooser() {
@@ -1559,11 +1632,7 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
             "recorded" -> {
-                if (asMapList(result["segments"]).isNotEmpty()) {
-                    listOf(normalizeMap(result))
-                } else {
-                    emptyList()
-                }
+                recordedActionsFromResult(result)
             }
             "click" -> {
                 listOf(
@@ -1589,6 +1658,85 @@ class AutoSwipeService : AccessibilityService() {
             }
             else -> emptyList()
         }
+    }
+
+    private fun recordedActionsFromResult(result: Map<String, Any?>): List<Map<String, Any?>> {
+        val segments = asMapList(result["segments"])
+            .mapNotNull { segment ->
+                val points = asMapList(segment["points"])
+                    .sortedBy { (it["t"] as? Number)?.toLong() ?: 0L }
+                if (points.isEmpty()) return@mapNotNull null
+                normalizeMap(segment) + mapOf("points" to points)
+            }
+            .sortedBy { segment ->
+                ((asMapList(segment["points"]).firstOrNull()?.get("t") as? Number)?.toLong()
+                    ?: ((segment["start"] as? Number)?.toLong() ?: 0L))
+            }
+        if (segments.isEmpty()) return emptyList()
+
+        val actions = mutableListOf<Map<String, Any?>>()
+        var previousEnd = 0L
+        segments.forEach { segment ->
+            val points = asMapList(segment["points"])
+            val firstPoint = normalizeMap(points.first())
+            val lastPoint = normalizeMap(points.last())
+            val start = ((firstPoint["t"] as? Number)?.toLong()
+                ?: (segment["start"] as? Number)?.toLong()
+                ?: 0L).coerceAtLeast(0L)
+            val end = ((lastPoint["t"] as? Number)?.toLong() ?: start).coerceAtLeast(start)
+            val waitMillis = (start - previousEnd).coerceAtLeast(0L)
+            if (waitMillis > 0L) {
+                actions.add(fixedMillisWaitAction(waitMillis.toInt()))
+            }
+
+            val normalizedPoints = points.map { point ->
+                val item = normalizeMap(point)
+                item + mapOf("t" to (((item["t"] as? Number)?.toLong() ?: start) - start).coerceAtLeast(0L))
+            }
+            if (isRecordedTap(points)) {
+                actions.add(
+                    mapOf(
+                        "type" to "click",
+                        "x1" to ((firstPoint["x"] as? Number)?.toDouble() ?: 0.5),
+                        "y1" to ((firstPoint["y"] as? Number)?.toDouble() ?: 0.5),
+                        "duration" to 50,
+                    ),
+                )
+            } else {
+                actions.add(
+                    mapOf(
+                        "type" to "recorded",
+                        "duration" to (end - start).coerceAtLeast(50L),
+                        "segments" to listOf(
+                            mapOf(
+                                "start" to 0,
+                                "duration" to (end - start).coerceAtLeast(50L),
+                                "points" to normalizedPoints,
+                            ),
+                        ),
+                    ),
+                )
+            }
+            previousEnd = end
+        }
+        return actions
+    }
+
+    private fun isRecordedTap(points: List<Map<String, Any?>>): Boolean {
+        if (points.isEmpty()) return false
+        if (points.size == 1) return true
+        val first = normalizeMap(points.first())
+        val startX = (first["x"] as? Number)?.toFloat() ?: 0.5f
+        val startY = (first["y"] as? Number)?.toFloat() ?: 0.5f
+        val maxDistance = points.maxOf { point ->
+            val item = normalizeMap(point)
+            val dx = ((item["x"] as? Number)?.toFloat() ?: startX) - startX
+            val dy = ((item["y"] as? Number)?.toFloat() ?: startY) - startY
+            dx * dx + dy * dy
+        }
+        val firstT = (first["t"] as? Number)?.toLong() ?: 0L
+        val lastT = (normalizeMap(points.last())["t"] as? Number)?.toLong() ?: firstT
+        return maxDistance <= 0.0004f && (lastT - firstT) <= 220L
     }
 
     private fun appendGestureActionsWithBuffers(actions: List<Map<String, Any?>>) {
@@ -1952,28 +2100,83 @@ class AutoSwipeService : AccessibilityService() {
         runTotalMillis =
             singleRunMillis * remainingLoops + loopIntervalMillis * (remainingLoops - 1).coerceAtLeast(0)
         isRunning = true
+        isPaused = false
+        currentActionIndex = -1
+        resumeActionIndex = 0
+        currentWaitUntilMillis = 0L
+        pausedWaitRemainingMillis = 0L
         updateStatusText()
-        showFloatingWindow(expanded = false, attachToRightEdge = true)
+        showFloatingWindow(expanded = true)
         startPlaybackTicker()
         executeActionIndex(0)
     }
 
     private fun stopScriptRun() {
         isRunning = false
+        isPaused = false
         handler.removeCallbacksAndMessages(null)
         playbackTicker = null
         runtimeActions.clear()
         remainingLoops = 0
+        currentActionIndex = -1
+        resumeActionIndex = 0
+        currentWaitUntilMillis = 0L
+        pausedWaitRemainingMillis = 0L
         updateStatusText()
+    }
+
+    private fun pauseScriptRun() {
+        if (!isRunning || isPaused) return
+        isPaused = true
+        val now = SystemClock.uptimeMillis()
+        if (currentWaitUntilMillis > now) {
+            pausedWaitRemainingMillis = currentWaitUntilMillis - now
+        }
+        handler.removeCallbacksAndMessages(null)
+        playbackTicker = null
+        if (currentWaitUntilMillis > 0L) {
+            resumeActionIndex = (currentActionIndex + 1).coerceAtLeast(0)
+        }
+        currentWaitUntilMillis = 0L
+        updateStatusText()
+        showFloatingWindow(expanded = true)
+    }
+
+    private fun resumeScriptRun() {
+        if (!isRunning || !isPaused) return
+        isPaused = false
+        updateStatusText()
+        showFloatingWindow(expanded = true)
+        startPlaybackTicker()
+        val nextIndex = resumeActionIndex.coerceAtLeast(0)
+        if (pausedWaitRemainingMillis > 0L) {
+            val remaining = pausedWaitRemainingMillis
+            pausedWaitRemainingMillis = 0L
+            currentWaitUntilMillis = SystemClock.uptimeMillis() + remaining
+            handler.postDelayed({
+                currentWaitUntilMillis = 0L
+                currentActionIndex = nextIndex
+                executeActionIndex(nextIndex)
+            }, remaining)
+        } else {
+            executeActionIndex(nextIndex)
+        }
     }
 
     private fun executeActionIndex(index: Int) {
         if (!isRunning) return
+        if (isPaused) {
+            resumeActionIndex = index
+            return
+        }
 
         if (index >= runtimeActions.size) {
+            currentActionIndex = runtimeActions.size
+            currentWaitUntilMillis = 0L
             if (remainingLoops > 1) {
                 remainingLoops -= 1
                 val delay = loopIntervalMillis.coerceAtLeast(0L)
+                updateStatusText()
                 handler.postDelayed({ executeActionIndex(0) }, delay)
             } else if (minSeconds > 0 || maxSeconds > 0) {
                 val delay = if (maxSeconds > minSeconds) {
@@ -1981,6 +2184,7 @@ class AutoSwipeService : AccessibilityService() {
                 } else {
                     minSeconds * 1000L
                 }
+                updateStatusText()
                 handler.postDelayed({ executeActionIndex(0) }, delay)
             } else {
                 isRunning = false
@@ -1993,10 +2197,15 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         val action = runtimeActions[index]
+        currentActionIndex = index
+        resumeActionIndex = index
+        currentWaitUntilMillis = 0L
+        updateStatusText()
         when (action["type"] as? String ?: "swipe") {
             "swipe", "click", "recorded" -> {
                 showGestureActionPreview(action) {
                     performGestureAction(action) {
+                        resumeActionIndex = index + 1
                         executeActionIndex(index + 1)
                     }
                 }
@@ -2004,11 +2213,15 @@ class AutoSwipeService : AccessibilityService() {
             "nav" -> {
                 val navType = action["navType"] as? String ?: "back"
                 performNavigationAction(navType) {
+                    resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
             }
             "wait" -> {
                 val waitMillis = resolveWaitMillis(action)
+                currentWaitUntilMillis = SystemClock.uptimeMillis() + waitMillis
+                resumeActionIndex = index + 1
+                updateStatusText()
                 handler.postDelayed({ executeActionIndex(index + 1) }, waitMillis)
             }
             "launchApp" -> {
@@ -2019,15 +2232,18 @@ class AutoSwipeService : AccessibilityService() {
                         startActivity(intent)
                     }
                 }
+                resumeActionIndex = index + 1
                 handler.postDelayed({ executeActionIndex(index + 1) }, 1000)
             }
             "buttonRecognize" -> {
                 performButtonRecognizeAction(action) {
+                    resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
             }
             "lockScreen" -> {
                 performLockScreenAction {
+                    resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
             }
@@ -3424,6 +3640,10 @@ class AutoSwipeService : AccessibilityService() {
             floatingView = null
         }
         startMenuButton = null
+        pauseMenuButton = null
+        endMenuButton = null
+        statusPrimaryView = null
+        statusSecondaryView = null
         collapsedMenuButton = null
     }
 
@@ -3436,15 +3656,57 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun updateStatusText() {
-        val button = startMenuButton ?: return
+        val button = startMenuButton
+        val primary = statusPrimaryView
+        val secondary = statusSecondaryView
         if (isRunning) {
             val elapsed = (SystemClock.uptimeMillis() - runStartedAt).coerceAtLeast(0L)
-            button.text = "■"
-            button.contentDescription =
+            val totalLoops = loopCount.coerceAtLeast(1)
+            val loopIndex = (totalLoops - remainingLoops + 1).coerceIn(1, totalLoops)
+            val stepIndex = (currentActionIndex + 1).coerceIn(1, runtimeActions.size.coerceAtLeast(1))
+            val totalSteps = runtimeActions.size.coerceAtLeast(1)
+            val waitLeft = if (currentWaitUntilMillis > 0L) {
+                (currentWaitUntilMillis - SystemClock.uptimeMillis()).coerceAtLeast(0L)
+            } else {
+                0L
+            }
+            button?.text = "■"
+            button?.contentDescription =
                 "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+            primary?.text =
+                "${if (isPaused) "暂停" else "执行"} 轮 ${loopIndex}/${totalLoops}  步 ${stepIndex}/${totalSteps}  ${formatLongElapsed(elapsed)}"
+            secondary?.text =
+                if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "总时长 ${formatShortElapsed(runTotalMillis)}"
+            pauseMenuButton?.text = if (isPaused) "▶" else "⏸"
+            pauseMenuButton?.contentDescription = if (isPaused) "继续" else "暂停"
         } else {
-            button.text = "▶"
-            button.contentDescription = "启动"
+            button?.text = "▶"
+            button?.contentDescription = "启动"
+            primary?.text = "待命"
+            secondary?.text = "未执行"
+            pauseMenuButton?.text = "⏸"
+            pauseMenuButton?.contentDescription = "暂停"
+        }
+    }
+
+    private fun formatLongElapsed(milliseconds: Long): String {
+        val totalSeconds = (milliseconds / 1000).coerceAtLeast(0L)
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    private fun formatPreciseWait(milliseconds: Long): String {
+        return if (milliseconds >= 1000L) {
+            val seconds = milliseconds / 1000.0
+            if (milliseconds % 1000L == 0L) {
+                "${seconds.toInt()}秒"
+            } else {
+                String.format(Locale.getDefault(), "%.1f秒", seconds)
+            }
+        } else {
+            "${milliseconds}毫秒"
         }
     }
 
@@ -3610,6 +3872,13 @@ class AutoSwipeService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (floatingView != null) {
+            showFloatingWindow(expanded = !collapsed, attachToRightEdge = collapsedEdgeRight)
+        }
+    }
 
     private data class RecordedPoint(val x: Float, val y: Float, val t: Long)
 

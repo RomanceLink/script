@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'gesture_pages.dart';
 import 'logic/task_definitions.dart';
@@ -157,9 +158,38 @@ class _FloatingAutomationOverlayShell extends StatefulWidget {
 
 class _FloatingAutomationOverlayShellState
     extends State<_FloatingAutomationOverlayShell> {
+  static const _channel = MethodChannel('scriptapp/alarm');
   final TaskRepository _repository = TaskRepository();
   final DouyinLauncher _launcher = DouyinLauncher();
   final AlarmBridge _alarmBridge = AlarmBridge();
+  late String _mode;
+  int _overlayRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _channel.setMethodCallHandler(_handleNativeCall);
+  }
+
+  @override
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    super.dispose();
+  }
+
+  Future<void> _handleNativeCall(MethodCall call) async {
+    if (call.method != 'setOverlayMode' || !mounted) {
+      return;
+    }
+    final mode =
+        (call.arguments as Map<Object?, Object?>?)?['mode'] as String? ??
+        widget.initialMode;
+    setState(() {
+      _mode = mode;
+      _overlayRevision += 1;
+    });
+  }
 
   Future<void> _syncConfigs(List<GestureConfig> configs) {
     return _alarmBridge.syncAutomationConfigs(
@@ -171,7 +201,7 @@ class _FloatingAutomationOverlayShellState
 
   @override
   Widget build(BuildContext context) {
-    final content = widget.initialMode == 'run'
+    final content = _mode == 'run'
         ? _GestureRunChooserPage(
             repository: _repository,
             alarmBridge: _alarmBridge,
@@ -179,7 +209,7 @@ class _FloatingAutomationOverlayShellState
         : GestureConfigPage(
             repository: _repository,
             launcher: _launcher,
-            autoCreateOnOpen: widget.initialMode == 'create',
+            autoCreateOnOpen: _mode == 'create',
             onConfigsChanged: _syncConfigs,
           );
 
@@ -204,7 +234,7 @@ class _FloatingAutomationOverlayShellState
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(26),
                       child: Navigator(
-                        key: ValueKey(widget.initialMode),
+                        key: ValueKey('$_mode-$_overlayRevision'),
                         onGenerateRoute: (_) =>
                             MaterialPageRoute<void>(builder: (_) => content),
                       ),

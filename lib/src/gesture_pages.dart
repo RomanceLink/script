@@ -402,9 +402,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
               await _waitForOverlayDismissal();
               if (!mounted) return;
               final result = await AlarmBridge().enterPickerMode('record');
-              final action = _recordedActionFromResult(result);
-              if (action != null) {
-                _addGestureActionsWithBuffers([action]);
+              final actions = _actionsFromRecordedResult(result);
+              if (actions.isNotEmpty) {
+                _addGestureActionsWithBuffers(actions);
               }
             },
           ),
@@ -512,6 +512,92 @@ class _GestureEditPageState extends State<GestureEditPage> {
       duration: (result['duration'] as num?)?.toInt() ?? 0,
       segments: segments,
     );
+  }
+
+  List<GestureAction> _actionsFromRecordedResult(Map<String, Object?>? result) {
+    final recorded = _recordedActionFromResult(result);
+    if (recorded == null) {
+      return const [];
+    }
+    final segments = [...recorded.segments]
+      ..sort((a, b) => _segmentStart(a).compareTo(_segmentStart(b)));
+    final actions = <GestureAction>[];
+    var previousEnd = 0;
+    for (final segment in segments) {
+      final start = _segmentStart(segment);
+      final end = _segmentEnd(segment, start);
+      final waitMillis = (start - previousEnd).clamp(0, 10000000);
+      if (waitMillis > 0) {
+        actions.add(WaitAction.fixedMilliseconds(milliseconds: waitMillis));
+      }
+      if (_isTapSegment(segment)) {
+        final point = segment.points.first;
+        actions.add(ClickAction(x1: point.x, y1: point.y));
+      } else {
+        final normalizedPoints = segment.points
+            .map(
+              (point) => GesturePoint(
+                x: point.x.clamp(0.0, 1.0),
+                y: point.y.clamp(0.0, 1.0),
+                t: (point.t - start).clamp(0, 10000000),
+              ),
+            )
+            .toList();
+        final duration = (end - start).clamp(50, 10000000);
+        actions.add(
+          RecordedGestureAction(
+            duration: duration,
+            segments: [
+              GestureSegment(
+                start: 0,
+                duration: duration,
+                points: normalizedPoints,
+              ),
+            ],
+          ),
+        );
+      }
+      previousEnd = end;
+    }
+    return actions;
+  }
+
+  int _segmentStart(GestureSegment segment) {
+    var start = segment.start;
+    for (final point in segment.points) {
+      if (point.t < start || start == 0) {
+        start = point.t;
+      }
+    }
+    return start.clamp(0, 10000000);
+  }
+
+  int _segmentEnd(GestureSegment segment, int start) {
+    var end = start + segment.duration;
+    for (final point in segment.points) {
+      if (point.t > end) {
+        end = point.t;
+      }
+    }
+    return end.clamp(start, 10000000);
+  }
+
+  bool _isTapSegment(GestureSegment segment) {
+    if (segment.points.length <= 1) {
+      return true;
+    }
+    final first = segment.points.first;
+    final last = segment.points.last;
+    var maxDistanceSquared = 0.0;
+    for (final point in segment.points) {
+      final dx = point.x - first.x;
+      final dy = point.y - first.y;
+      final distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared > maxDistanceSquared) {
+        maxDistanceSquared = distanceSquared;
+      }
+    }
+    return maxDistanceSquared <= 0.0004 && (last.t - first.t) <= 220;
   }
 
   void _pickNavAction() {
@@ -1076,8 +1162,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
     final result = await AlarmBridge().enterPickerMode(type);
     if (result == null || result['cancelled'] == true) return const [];
     if (type == 'record') {
-      final action = _recordedActionFromResult(result);
-      return action == null ? const [] : [action];
+      return _actionsFromRecordedResult(result);
     }
     if (type == 'clickSteps') {
       return _clickActionsFromSteps(result);
@@ -1256,161 +1341,187 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final previewConfig = GestureConfig(
+      id: '_preview',
+      name: '',
+      actions: _actions,
+      loopCount: _loopCount,
+      loopIntervalMillis: _loopIntervalMillis,
+    );
+    final header = [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: TextField(
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: '方案名称',
+            hintText: '例如：刷抖音专用',
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '预计执行时长：${estimateGestureConfigDuration(previewConfig).label}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _loopCountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '循环次数',
+                  helperText: '最少 1 次',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _loopIntervalController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '循环间隔毫秒',
+                  helperText: '每轮之间等待',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Divider(),
+    ];
+    final footer = Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FilledButton.icon(
+            onPressed: _showAddMenu,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('添加内容'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(onPressed: _save, child: const Text('保存')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.config == null ? '新建配置' : '编辑配置'),
         actions: [TextButton(onPressed: _save, child: const Text('保存'))],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '方案名称',
-                hintText: '例如：刷抖音专用',
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '预计执行时长：${estimateGestureConfigDuration(GestureConfig(id: "_preview", name: "", actions: _actions, loopCount: _loopCount, loopIntervalMillis: _loopIntervalMillis)).label}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _loopCountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '循环次数',
-                      helperText: '最少 1 次',
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _loopIntervalController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '循环间隔毫秒',
-                      helperText: '每轮之间等待',
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Divider(),
-          Expanded(
-            child: _actions.isEmpty
-                ? const Center(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 430;
+          final actionList = _actions.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
                     child: Text(
                       '点击下方按钮添加第一个动作',
                       style: TextStyle(color: Colors.grey),
                     ),
-                  )
-                : ReorderableListView.builder(
-                    buildDefaultDragHandles: false,
-                    itemCount: _actions.length,
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        final item = _actions.removeAt(oldIndex);
-                        _actions.insert(newIndex, item);
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      final action = _actions[index];
-                      return ListTile(
-                        key: ValueKey('${action.type}_$index'),
-                        leading: CircleAvatar(
-                          radius: 14,
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(fontSize: 12),
+                  ),
+                )
+              : ReorderableListView.builder(
+                  shrinkWrap: compact,
+                  physics: compact
+                      ? const NeverScrollableScrollPhysics()
+                      : const AlwaysScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  itemCount: _actions.length,
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final item = _actions.removeAt(oldIndex);
+                      _actions.insert(newIndex, item);
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final action = _actions[index];
+                    return ListTile(
+                      key: ValueKey('${action.type}_$index'),
+                      leading: CircleAvatar(
+                        radius: 14,
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      title: Text(_actionLabel(action)),
+                      subtitle: Text(_actionSubtitle(action)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(Icons.drag_handle_rounded),
                           ),
-                        ),
-                        title: Text(_actionLabel(action)),
-                        subtitle: Text(_actionSubtitle(action)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ReorderableDragStartListener(
-                              index: index,
-                              child: const Icon(Icons.drag_handle_rounded),
-                            ),
-                            if (_isPositionEditable(action))
-                              IconButton(
-                                icon: const Icon(Icons.edit_location_alt),
-                                onPressed: () => _editAction(index),
-                              ),
+                          if (_isPositionEditable(action))
                             IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline_rounded,
-                                color: Colors.redAccent,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _actions.removeAt(index)),
+                              icon: const Icon(Icons.edit_location_alt),
+                              onPressed: () => _editAction(index),
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              children: [
-                FilledButton.icon(
-                  onPressed: _showAddMenu,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('添加内容'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.remove_circle_outline_rounded,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () =>
+                                setState(() => _actions.removeAt(index)),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _save,
-                        child: const Text('保存'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+                    );
+                  },
+                );
+          if (compact) {
+            return ListView(
+              padding: EdgeInsets.zero,
+              children: [...header, actionList, footer],
+            );
+          }
+          return Column(
+            children: [
+              ...header,
+              Expanded(child: actionList),
+              footer,
+            ],
+          );
+        },
       ),
     );
   }
