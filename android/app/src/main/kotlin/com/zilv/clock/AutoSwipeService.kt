@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
+import android.graphics.Typeface
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.Display
@@ -255,7 +256,34 @@ class AutoSwipeService : AccessibilityService() {
             gravity = Gravity.TOP or Gravity.START
             x = floatingLayoutParams?.x ?: 100
             y = floatingLayoutParams?.y ?: 120
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
+    }
+
+    private fun fullScreenOverlayParams(focusable: Boolean = false): WindowManager.LayoutParams {
+        return baseOverlayParams().apply {
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+            flags = if (focusable) {
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            } else {
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            }
+        }
+    }
+
+    private fun isDarkModeActive(): Boolean {
+        val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        return nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
 
     private fun showFloatingWindow(
@@ -308,11 +336,16 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun createExpandedMenu(layoutParams: WindowManager.LayoutParams): View {
+        val darkMode = isDarkModeActive()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(4), dp(4), dp(4))
-            background = roundedBackground(0xE6151A1E.toInt(), dp(20).toFloat(), 0x55FFFFFF)
+            background = roundedBackground(
+                if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
+                dp(20).toFloat(),
+                if (darkMode) 0x55FFFFFF else 0x33212C2E,
+            )
         }
 
         val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
@@ -348,13 +381,20 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun createCollapsedMenu(layoutParams: WindowManager.LayoutParams): View {
+        val darkMode = isDarkModeActive()
         val bubble = TextView(this).apply {
             text = if (collapsedEdgeRight) "‹" else "›"
             textSize = 28f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
             contentDescription = "展开"
-            background = roundedBackground(0xE6151A1E.toInt(), dp(18).toFloat(), 0x66FFFFFF)
+            includeFontPadding = false
+            typeface = Typeface.DEFAULT_BOLD
+            background = roundedBackground(
+                if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
+                dp(18).toFloat(),
+                if (darkMode) 0x66FFFFFF else 0x33212C2E,
+            )
             setOnClickListener { showFloatingWindow(expanded = true) }
         }
         collapsedMenuButton = bubble
@@ -372,10 +412,12 @@ class AutoSwipeService : AccessibilityService() {
     ): TextView {
         return TextView(this).apply {
             text = icon
-            textSize = 18f
+            textSize = 19f
             gravity = Gravity.CENTER
             setTextColor(color)
             contentDescription = description
+            includeFontPadding = false
+            typeface = Typeface.DEFAULT_BOLD
             background = null
             setOnClickListener { onClick() }
         }
@@ -2107,7 +2149,15 @@ class AutoSwipeService : AccessibilityService() {
                     }
                     textMatches(node.text, targetText, exact)
                 }
-                onResult(match?.let { ButtonMatchTarget(bounds = it.bounds) })
+                if (match == null) {
+                    onResult(null)
+                    return@recognizeScreenText
+                }
+                val clickableTarget = findNearestClickableTargetForOcr(match.bounds)
+                onResult(
+                    clickableTarget
+                        ?: ButtonMatchTarget(bounds = expandTapRect(match.bounds, dp(22), dp(26))),
+                )
             },
             onFailure = { onResult(null) },
         )
@@ -2247,6 +2297,29 @@ class AutoSwipeService : AccessibilityService() {
         return dx * dx + dy * dy
     }
 
+    private fun findNearestClickableTargetForOcr(ocrBounds: Rect): ButtonMatchTarget? {
+        val nodes = collectButtonNodes(rootInActiveWindow)
+        val match = nodes.maxByOrNull { node ->
+            val overlap = overlapArea(ocrBounds, node.bounds)
+            val distancePenalty = centerDistanceSquared(ocrBounds, node.bounds)
+            overlap.toLong() * 100L - distancePenalty.toLong()
+        } ?: return null
+        return ButtonMatchTarget(
+            bounds = Rect(match.bounds),
+            accessibilityNode = match.accessibilityNode,
+        )
+    }
+
+    private fun expandTapRect(bounds: Rect, horizontal: Int, vertical: Int): Rect {
+        val (screenWidth, screenHeight) = screenSize()
+        return Rect(
+            (bounds.left - horizontal).coerceAtLeast(0),
+            (bounds.top - vertical).coerceAtLeast(0),
+            (bounds.right + horizontal).coerceAtMost(screenWidth),
+            (bounds.bottom + vertical).coerceAtMost(screenHeight),
+        )
+    }
+
     private fun actionRegionRect(action: Map<String, Any?>): Rect? {
         if ((action["regionMode"] as? String ?: "full") != "custom") return null
         val region = normalizeMap(
@@ -2261,14 +2334,8 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showMatchedButtonPreview(bounds: Rect, onDone: () -> Unit) {
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
+        val lp = fullScreenOverlayParams().apply {
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         val preview = object : View(this) {
             private val density = resources.displayMetrics.density
@@ -2295,7 +2362,7 @@ class AutoSwipeService : AccessibilityService() {
                     windowManager?.removeView(preview)
                 } catch (_: Exception) {
                 }
-                onDone()
+                handler.postDelayed(onDone, 140)
             }, 220)
         } catch (_: Exception) {
             onDone()
@@ -2303,14 +2370,8 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showGestureActionPreview(action: Map<String, Any?>, onDone: () -> Unit) {
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
+        val lp = fullScreenOverlayParams().apply {
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         val overlay = object : View(this) {
             private val density = resources.displayMetrics.density
@@ -2349,8 +2410,11 @@ class AutoSwipeService : AccessibilityService() {
                         canvas.drawCircle(x2, y2, 10f * density, pointFill)
                     }
                     "recorded" -> {
-                        asMapList(action["segments"]).forEach { segment ->
+                        asMapList(action["segments"])
+                            .sortedBy { segmentStartMillis(it) }
+                            .forEach { segment ->
                             val points = asMapList(segment["points"])
+                                .sortedBy { (it["t"] as? Number)?.toLong() ?: 0L }
                             if (points.isEmpty()) return@forEach
                             val path = Path()
                             points.forEachIndexed { index, point ->
@@ -2375,7 +2439,7 @@ class AutoSwipeService : AccessibilityService() {
                     windowManager?.removeView(overlay)
                 } catch (_: Exception) {
                 }
-                onDone()
+                handler.postDelayed(onDone, 140)
             }, 220)
         } catch (_: Exception) {
             onDone()
@@ -2401,20 +2465,11 @@ class AutoSwipeService : AccessibilityService() {
             moveTo(bounds.centerX().toFloat(), bounds.centerY().toFloat())
         }
         try {
-            dispatchGesture(
+            dispatchGestureWithRetry(
                 GestureDescription.Builder()
                     .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
                     .build(),
-                object : GestureResultCallback() {
-                    override fun onCompleted(gestureDescription: GestureDescription?) {
-                        onDone()
-                    }
-
-                    override fun onCancelled(gestureDescription: GestureDescription?) {
-                        onDone()
-                    }
-                },
-                null,
+                onDone = onDone,
             )
         } catch (_: Exception) {
             onDone()
@@ -2505,17 +2560,64 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         try {
-            dispatchGesture(gestureBuilder.build(), object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
+            dispatchGestureWithRetry(
+                gestureBuilder.build(),
+                onDone = {
                     handler.postDelayed({ onDone() }, 100)
-                }
-
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    handler.postDelayed({ onDone() }, 100)
-                }
-            }, null)
+                },
+            )
         } catch (_: Exception) {
             onDone()
+        }
+    }
+
+    private fun dispatchGestureWithRetry(
+        gesture: GestureDescription,
+        retriesRemaining: Int = 3,
+        retryDelayMillis: Long = 120L,
+        onDone: () -> Unit,
+    ) {
+        val started = try {
+            dispatchGesture(
+                gesture,
+                object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        onDone()
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        if (retriesRemaining > 0) {
+                            handler.postDelayed({
+                                dispatchGestureWithRetry(
+                                    gesture = gesture,
+                                    retriesRemaining = retriesRemaining - 1,
+                                    retryDelayMillis = retryDelayMillis,
+                                    onDone = onDone,
+                                )
+                            }, retryDelayMillis)
+                        } else {
+                            onDone()
+                        }
+                    }
+                },
+                null,
+            )
+        } catch (_: Exception) {
+            false
+        }
+        if (!started) {
+            if (retriesRemaining > 0) {
+                handler.postDelayed({
+                    dispatchGestureWithRetry(
+                        gesture = gesture,
+                        retriesRemaining = retriesRemaining - 1,
+                        retryDelayMillis = retryDelayMillis,
+                        onDone = onDone,
+                    )
+                }, retryDelayMillis)
+            } else {
+                onDone()
+            }
         }
     }
 
@@ -2525,12 +2627,15 @@ class AutoSwipeService : AccessibilityService() {
         width: Float,
         height: Float,
     ): Boolean {
-        val segments = asMapList(action["segments"]).take(20)
+        val segments = asMapList(action["segments"])
+            .sortedBy { segmentStartMillis(it) }
+            .take(20)
         if (segments.isEmpty()) return false
 
         var added = false
         segments.forEach { segment ->
             val points = asMapList(segment["points"])
+                .sortedBy { (it["t"] as? Number)?.toLong() ?: 0L }
             if (points.isEmpty()) return@forEach
 
             val path = Path()
@@ -2544,8 +2649,8 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
 
-            val start = ((segment["start"] as? Number)?.toLong() ?: 0L).coerceAtLeast(0L)
-            val duration = ((segment["duration"] as? Number)?.toLong() ?: 80L).coerceAtLeast(50L)
+            val start = segmentStartMillis(segment)
+            val duration = segmentDurationMillis(segment, start)
             try {
                 builder.addStroke(GestureDescription.StrokeDescription(path, start, duration))
                 added = true
@@ -2554,6 +2659,25 @@ class AutoSwipeService : AccessibilityService() {
             }
         }
         return added
+    }
+
+    private fun segmentStartMillis(segment: Map<String, Any?>): Long {
+        val points = asMapList(segment["points"])
+        val pointStart = points.minOfOrNull { (it["t"] as? Number)?.toLong() ?: Long.MAX_VALUE }
+            ?.takeIf { it != Long.MAX_VALUE }
+        return (pointStart ?: ((segment["start"] as? Number)?.toLong() ?: 0L)).coerceAtLeast(0L)
+    }
+
+    private fun segmentDurationMillis(segment: Map<String, Any?>, start: Long = segmentStartMillis(segment)): Long {
+        val points = asMapList(segment["points"])
+        val pointEnd = points.maxOfOrNull { (it["t"] as? Number)?.toLong() ?: Long.MIN_VALUE }
+            ?.takeIf { it != Long.MIN_VALUE }
+        val rawDuration = if (pointEnd != null) {
+            (pointEnd - start).coerceAtLeast(50L)
+        } else {
+            ((segment["duration"] as? Number)?.toLong() ?: 80L).coerceAtLeast(50L)
+        }
+        return rawDuration.coerceAtLeast(50L)
     }
 
     private fun showPickerOverlay(pickerType: String) {
@@ -2578,15 +2702,7 @@ class AutoSwipeService : AccessibilityService() {
         pickerMode = pickerType
         pickerData.clear()
 
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-        }
+        val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x22000000)
@@ -2672,15 +2788,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showRecordingOverlay() {
         pickerMode = "recorded"
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-        }
+        val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x33000000)
@@ -2754,15 +2862,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showClickStepsOverlay() {
         pickerMode = "clickSteps"
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-        }
+        val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x22000000)
@@ -2825,15 +2925,7 @@ class AutoSwipeService : AccessibilityService() {
     private fun showButtonDetectOverlay() {
         pickerMode = "buttonDetect"
         val nodes = collectButtonNodes(rootInActiveWindow)
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-        }
+        val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -2899,15 +2991,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showLoadingPickerOverlay(message: String) {
-        val lp = WindowManager.LayoutParams().apply {
-            type = overlayType()
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-        }
+        val lp = fullScreenOverlayParams()
         val container = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
         }
