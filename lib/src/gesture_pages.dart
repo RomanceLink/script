@@ -695,14 +695,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   Future<void> _pickButtonRecognizeAction({
     ButtonRecognizeSource source = ButtonRecognizeSource.accessibility,
+    Map<String, Object?>? initialResult,
+    int? editIndex,
   }) async {
-    await _waitForOverlayDismissal();
-    if (!mounted) return;
-    final result = await AlarmBridge().enterPickerMode(
-      source == ButtonRecognizeSource.imageText
-          ? 'imageButtonDetect'
-          : 'buttonDetect',
-    );
+    Map<String, Object?>? result = initialResult;
+    if (result == null) {
+      await _waitForOverlayDismissal();
+      if (!mounted) return;
+      result = await AlarmBridge().enterPickerMode(
+        source == ButtonRecognizeSource.imageText
+            ? 'imageButtonDetect'
+            : 'buttonDetect',
+      );
+    }
     if (!mounted || result == null || result['cancelled'] == true) {
       return;
     }
@@ -1006,7 +1011,11 @@ class _GestureEditPageState extends State<GestureEditPage> {
     if (!mounted || action == null) {
       return;
     }
-    _addAction(action);
+    if (editIndex != null) {
+      setState(() => _actions[editIndex] = action);
+    } else {
+      _addAction(action);
+    }
   }
 
   Future<List<GestureAction>> _pickNestedGestureActions() async {
@@ -1123,13 +1132,22 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
     if (action is WaitAction) {
       await _editWaitAction(index, action);
+      return;
+    }
+    if (action is ButtonRecognizeAction) {
+      await _pickButtonRecognizeAction(
+        source: action.source,
+        initialResult: action.toJson(),
+        editIndex: index,
+      );
     }
   }
 
   bool _isPositionEditable(GestureAction action) {
     return action is ClickAction ||
         action is SwipeAction ||
-        action is WaitAction;
+        action is WaitAction ||
+        action is ButtonRecognizeAction;
   }
 
   Future<void> _editWaitAction(int index, WaitAction action) async {

@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -1906,8 +1908,10 @@ class AutoSwipeService : AccessibilityService() {
         val action = runtimeActions[index]
         when (action["type"] as? String ?: "swipe") {
             "swipe", "click", "recorded" -> {
-                performGestureAction(action) {
-                    executeActionIndex(index + 1)
+                showGestureActionPreview(action) {
+                    performGestureAction(action) {
+                        executeActionIndex(index + 1)
+                    }
                 }
             }
             "nav" -> {
@@ -2021,8 +2025,8 @@ class AutoSwipeService : AccessibilityService() {
                 if (mode == "custom" && customActions.isNotEmpty()) {
                     executeInlineActions(customActions, onDone)
                 } else {
-                    showMatchedButtonPreview(match) {
-                        performButtonClick(match) {
+                    showMatchedButtonPreview(match.bounds) {
+                        performButtonTargetClick(match) {
                             handler.postDelayed(onDone, 250)
                         }
                     }
@@ -2059,7 +2063,11 @@ class AutoSwipeService : AccessibilityService() {
             }
             val action = actions[index]
             when (action["type"] as? String ?: "swipe") {
-                "swipe", "click", "recorded" -> performGestureAction(action) { runAt(index + 1) }
+                "swipe", "click", "recorded" -> {
+                    showGestureActionPreview(action) {
+                        performGestureAction(action) { runAt(index + 1) }
+                    }
+                }
                 "nav" -> performNavigationAction(action["navType"] as? String ?: "back") { runAt(index + 1) }
                 "wait" -> handler.postDelayed({ runAt(index + 1) }, resolveWaitMillis(action))
                 "launchApp" -> {
@@ -2079,15 +2087,15 @@ class AutoSwipeService : AccessibilityService() {
         runAt(0)
     }
 
-    private fun findMatchingButtonTarget(action: Map<String, Any?>, onResult: (Rect?) -> Unit) {
+    private fun findMatchingButtonTarget(action: Map<String, Any?>, onResult: (ButtonMatchTarget?) -> Unit) {
         if ((action["source"] as? String) == "imageText") {
             findMatchingOcrText(action, onResult)
             return
         }
-        onResult(findMatchingButton(action)?.bounds)
+        onResult(findMatchingButton(action))
     }
 
-    private fun findMatchingOcrText(action: Map<String, Any?>, onResult: (Rect?) -> Unit) {
+    private fun findMatchingOcrText(action: Map<String, Any?>, onResult: (ButtonMatchTarget?) -> Unit) {
         recognizeScreenText(
             onSuccess = { nodes ->
                 val targetText = ((action["buttonText"] as? String) ?: (action["text"] as? String) ?: "").trim()
@@ -2099,13 +2107,13 @@ class AutoSwipeService : AccessibilityService() {
                     }
                     textMatches(node.text, targetText, exact)
                 }
-                onResult(match?.bounds)
+                onResult(match?.let { ButtonMatchTarget(bounds = it.bounds) })
             },
             onFailure = { onResult(null) },
         )
     }
 
-    private fun findMatchingButton(action: Map<String, Any?>): ButtonNodeInfo? {
+    private fun findMatchingButton(action: Map<String, Any?>): ButtonMatchTarget? {
         val nodes = collectButtonNodes(rootInActiveWindow)
         val idCounts = nodes.groupingBy { it.viewId }.eachCount()
         val targetText = ((action["buttonText"] as? String) ?: (action["text"] as? String) ?: "").trim()
@@ -2114,7 +2122,7 @@ class AutoSwipeService : AccessibilityService() {
         val exact = (action["matchMode"] as? String) == "exact"
         val region = actionRegionRect(action)
         val savedBounds = actionSavedBoundsRect(action)
-        return nodes
+        val match = nodes
             .asSequence()
             .filter { node ->
                 if (region != null && !Rect.intersects(region, node.bounds)) {
@@ -2138,6 +2146,12 @@ class AutoSwipeService : AccessibilityService() {
                     savedBounds = savedBounds,
                 )
             }
+        return match?.let {
+            ButtonMatchTarget(
+                bounds = it.bounds,
+                accessibilityNode = it.accessibilityNode,
+            )
+        }
     }
 
     private fun textMatches(value: String, target: String, exact: Boolean): Boolean {
@@ -2286,6 +2300,100 @@ class AutoSwipeService : AccessibilityService() {
         } catch (_: Exception) {
             onDone()
         }
+    }
+
+    private fun showGestureActionPreview(action: Map<String, Any?>, onDone: () -> Unit) {
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+        val overlay = object : View(this) {
+            private val density = resources.displayMetrics.density
+            private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 3f * density
+            }
+            private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0x2240C4FF
+                style = Paint.Style.FILL
+            }
+            private val pointFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.FILL
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val width = width.toFloat()
+                val height = height.toFloat()
+                when (action["type"] as? String ?: "swipe") {
+                    "click" -> {
+                        val x = (((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width)
+                        val y = (((action["y1"] as? Number)?.toFloat() ?: 0.5f) * height)
+                        canvas.drawCircle(x, y, 20f * density, fill)
+                        canvas.drawCircle(x, y, 20f * density, stroke)
+                    }
+                    "swipe" -> {
+                        val x1 = (((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width)
+                        val y1 = (((action["y1"] as? Number)?.toFloat() ?: 0.6f) * height)
+                        val x2 = (((action["x2"] as? Number)?.toFloat() ?: 0.5f) * width)
+                        val y2 = (((action["y2"] as? Number)?.toFloat() ?: 0.4f) * height)
+                        canvas.drawLine(x1, y1, x2, y2, stroke)
+                        canvas.drawCircle(x1, y1, 10f * density, pointFill)
+                        canvas.drawCircle(x2, y2, 10f * density, pointFill)
+                    }
+                    "recorded" -> {
+                        asMapList(action["segments"]).forEach { segment ->
+                            val points = asMapList(segment["points"])
+                            if (points.isEmpty()) return@forEach
+                            val path = Path()
+                            points.forEachIndexed { index, point ->
+                                val x = (((point["x"] as? Number)?.toFloat() ?: 0.5f) * width)
+                                val y = (((point["y"] as? Number)?.toFloat() ?: 0.5f) * height)
+                                if (index == 0) {
+                                    path.moveTo(x, y)
+                                } else {
+                                    path.lineTo(x, y)
+                                }
+                            }
+                            canvas.drawPath(path, stroke)
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            windowManager?.addView(overlay, lp)
+            handler.postDelayed({
+                try {
+                    windowManager?.removeView(overlay)
+                } catch (_: Exception) {
+                }
+                onDone()
+            }, 220)
+        } catch (_: Exception) {
+            onDone()
+        }
+    }
+
+    private fun performButtonTargetClick(target: ButtonMatchTarget, onDone: () -> Unit) {
+        val node = target.accessibilityNode
+        if (node != null) {
+            try {
+                if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    onDone()
+                    return
+                }
+            } catch (_: Exception) {
+            }
+        }
+        performButtonClick(target.bounds, onDone)
     }
 
     private fun performButtonClick(bounds: Rect, onDone: () -> Unit) {
@@ -2915,29 +3023,7 @@ class AutoSwipeService : AccessibilityService() {
                             onFailure()
                             return
                         }
-                        val image = InputImage.fromBitmap(bitmap, 0)
-                        TextRecognition.getClient(
-                            ChineseTextRecognizerOptions.Builder().build(),
-                        ).process(image)
-                            .addOnSuccessListener { text ->
-                                val nodes = mutableListOf<OcrTextInfo>()
-                                text.textBlocks.forEach { block ->
-                                    block.lines.forEach { line ->
-                                        val rect = line.boundingBox ?: return@forEach
-                                        val value = line.text.trim()
-                                        if (value.isNotBlank() && rect.width() > dp(8) && rect.height() > dp(8)) {
-                                            nodes.add(OcrTextInfo(rect, value))
-                                        }
-                                    }
-                                }
-                                onSuccess(nodes)
-                            }
-                            .addOnFailureListener {
-                                onFailure()
-                            }
-                            .addOnCompleteListener {
-                                bitmap.recycle()
-                            }
+                        recognizeScreenTextFromBitmap(bitmap, onSuccess, onFailure)
                     }
 
                     override fun onFailure(errorCode: Int) {
@@ -2948,6 +3034,101 @@ class AutoSwipeService : AccessibilityService() {
         } catch (_: Exception) {
             onFailure()
         }
+    }
+
+    private fun recognizeScreenTextFromBitmap(
+        bitmap: Bitmap,
+        onSuccess: (List<OcrTextInfo>) -> Unit,
+        onFailure: () -> Unit,
+    ) {
+        val recognizer = TextRecognition.getClient(
+            ChineseTextRecognizerOptions.Builder().build(),
+        )
+        val enhancedBitmap = preprocessOcrBitmap(bitmap)
+        val collected = linkedMapOf<String, OcrTextInfo>()
+
+        fun collect(result: com.google.mlkit.vision.text.Text) {
+            result.textBlocks.forEach { block ->
+                block.lines.forEach { line ->
+                    val rect = line.boundingBox ?: return@forEach
+                    val value = line.text.trim()
+                    if (value.isNotBlank() && rect.width() > dp(8) && rect.height() > dp(8)) {
+                        val key = "${rect.flattenToString()}|$value"
+                        collected[key] = OcrTextInfo(rect, value)
+                    }
+                }
+            }
+        }
+
+        recognizer.process(InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { original ->
+                collect(original)
+                recognizer.process(InputImage.fromBitmap(enhancedBitmap, 0))
+                    .addOnSuccessListener { enhanced ->
+                        collect(enhanced)
+                        onSuccess(collected.values.toList())
+                    }
+                    .addOnFailureListener {
+                        if (collected.isNotEmpty()) {
+                            onSuccess(collected.values.toList())
+                        } else {
+                            onFailure()
+                        }
+                    }
+                    .addOnCompleteListener {
+                        enhancedBitmap.recycle()
+                        bitmap.recycle()
+                    }
+            }
+            .addOnFailureListener {
+                recognizer.process(InputImage.fromBitmap(enhancedBitmap, 0))
+                    .addOnSuccessListener { enhanced ->
+                        collect(enhanced)
+                        onSuccess(collected.values.toList())
+                    }
+                    .addOnFailureListener { onFailure() }
+                    .addOnCompleteListener {
+                        enhancedBitmap.recycle()
+                        bitmap.recycle()
+                    }
+            }
+    }
+
+    private fun preprocessOcrBitmap(source: Bitmap): Bitmap {
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val matrix = ColorMatrix().apply { setSaturation(0f) }
+        val contrast = 1.45f
+        val translate = (-128f * contrast) + 128f
+        val contrastMatrix = ColorMatrix(
+            floatArrayOf(
+                contrast, 0f, 0f, 0f, translate,
+                0f, contrast, 0f, 0f, translate,
+                0f, 0f, contrast, 0f, translate,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+        matrix.postConcat(contrastMatrix)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = ColorMatrixColorFilter(matrix)
+        }
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(source, 0f, 0f, paint)
+
+        for (x in 0 until output.width step 2) {
+            for (y in 0 until output.height step 2) {
+                val pixel = output.getPixel(x, y)
+                val luminance = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
+                val bw = if (luminance > 168) 255 else 0
+                output.setPixel(x, y, Color.rgb(bw, bw, bw))
+                if (x + 1 < output.width) output.setPixel(x + 1, y, Color.rgb(bw, bw, bw))
+                if (y + 1 < output.height) output.setPixel(x, y + 1, Color.rgb(bw, bw, bw))
+                if (x + 1 < output.width && y + 1 < output.height) {
+                    output.setPixel(x + 1, y + 1, Color.rgb(bw, bw, bw))
+                }
+            }
+        }
+        return output
     }
 
     private fun collectButtonNodes(root: AccessibilityNodeInfo?): List<ButtonNodeInfo> {
@@ -2979,18 +3160,30 @@ class AutoSwipeService : AccessibilityService() {
             return ""
         }
 
+        fun nearestClickableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            var current = node
+            repeat(5) {
+                if (current?.isClickable == true) return current
+                current = current?.parent
+            }
+            return null
+        }
+
         fun visit(node: AccessibilityNodeInfo?) {
             if (node == null) return
+            val clickableNode = nearestClickableNode(node)
+            val actionableNode = clickableNode ?: node
             val rect = Rect()
-            node.getBoundsInScreen(rect)
+            actionableNode.getBoundsInScreen(rect)
             val text = collectNodeText(node)
             val description = node.contentDescription?.toString().orEmpty()
-            val viewId = nearestViewId(node)
-            val className = node.className?.toString().orEmpty()
-            val looksLikeButton = node.isClickable ||
+            val viewId = nearestViewId(actionableNode)
+            val className = actionableNode.className?.toString().orEmpty()
+            val looksLikeButton = actionableNode.isClickable ||
                 className.contains("Button", ignoreCase = true) ||
+                className.contains("ImageView", ignoreCase = true) ||
                 className.contains("TextView", ignoreCase = true) && (text.isNotBlank() || description.isNotBlank())
-            if (node.isVisibleToUser &&
+            if (actionableNode.isVisibleToUser &&
                 looksLikeButton &&
                 rect.width() > dp(16) &&
                 rect.height() > dp(16) &&
@@ -2999,7 +3192,20 @@ class AutoSwipeService : AccessibilityService() {
             ) {
                 val key = "${rect.flattenToString()}|$text|$description|$viewId"
                 if (seen.add(key)) {
-                    out.add(ButtonNodeInfo(rect, text, viewId, description, className))
+                    out.add(
+                        ButtonNodeInfo(
+                            bounds = Rect(rect),
+                            text = text,
+                            viewId = viewId,
+                            description = description,
+                            className = className,
+                            accessibilityNode = try {
+                                AccessibilityNodeInfo.obtain(actionableNode)
+                            } catch (_: Exception) {
+                                null
+                            },
+                        ),
+                    )
                 }
             }
             for (index in 0 until node.childCount) {
@@ -3286,12 +3492,18 @@ class AutoSwipeService : AccessibilityService() {
 
     private data class StepPoint(var x: Float, var y: Float)
 
+    private data class ButtonMatchTarget(
+        val bounds: Rect,
+        val accessibilityNode: AccessibilityNodeInfo? = null,
+    )
+
     private data class ButtonNodeInfo(
         val bounds: Rect,
         val text: String,
         val viewId: String,
         val description: String,
         val className: String,
+        val accessibilityNode: AccessibilityNodeInfo? = null,
     ) {
         fun toResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
             return mapOf(
