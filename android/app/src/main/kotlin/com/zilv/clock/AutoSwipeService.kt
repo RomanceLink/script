@@ -2,6 +2,7 @@ package com.zilv.clock
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -103,6 +104,10 @@ class AutoSwipeService : AccessibilityService() {
     private var currentWaitUntilMillis = 0L
     private var pausedWaitRemainingMillis = 0L
     private var playbackTicker: Runnable? = null
+    private var activeRecordingSurface: RecordingSurface? = null
+    private var activeRecordingAutoStopOnHome = false
+    private var unlockRecordWaitingForRecord = false
+    private var unlockRecordFinalizing = false
     private val defaultGestureBeforeWaitMillis = 300
     private val defaultGestureAfterWaitMillis = 800
 
@@ -171,12 +176,44 @@ class AutoSwipeService : AccessibilityService() {
             loopIntervalMillis: Int = 0,
             delaySeconds: Int = 5,
         ): Boolean {
+            val service = instance
+            val unlockActions = if (isDeviceLocked(context)) {
+                loadUnlockActions(context)
+            } else {
+                emptyList()
+            }
+            if (service != null && unlockActions.isNotEmpty()) {
+                val combinedActions = mutableListOf<Map<String, Any?>>()
+                combinedActions.addAll(unlockActions)
+                combinedActions.add(fixedWaitMap(800))
+                combinedActions.add(
+                    mapOf(
+                        "type" to "launchApp",
+                        "packageName" to packageName,
+                        "label" to packageLabel,
+                    ),
+                )
+                combinedActions.add(fixedWaitMap(delaySeconds.coerceAtLeast(0) * 1000))
+                combinedActions.addAll(expandLoopedActions(actions, loopCount, loopIntervalMillis))
+                service.handler.post {
+                    updateConfig(
+                        0,
+                        0,
+                        combinedActions,
+                        "解锁并执行 ${configName ?: packageLabel}",
+                        1,
+                        0,
+                    )
+                }
+                return true
+            }
+
             val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
                 ?: return false
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
 
-            val service = instance ?: return true
+            service ?: return true
             service.handler.postDelayed({
                 service.showFloatingWindow(expanded = false, attachToRightEdge = true)
                 if (actions.isNotEmpty()) {
@@ -191,6 +228,56 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }, delaySeconds.coerceAtLeast(0) * 1000L)
             return true
+        }
+
+        private fun isDeviceLocked(context: Context): Boolean {
+            val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                keyguard?.isDeviceLocked == true
+            } else {
+                keyguard?.isKeyguardLocked == true
+            }
+        }
+
+        private fun loadUnlockActions(context: Context): List<Map<String, Any?>> {
+            val raw = context
+                .getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                .getString("flutter.unlock_gesture_config_v1", null)
+                ?: return emptyList()
+            return try {
+                val obj = JSONObject(raw)
+                val array = obj.optJSONArray("actions") ?: return emptyList()
+                jsonArrayToList(array)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        private fun expandLoopedActions(
+            actions: List<Map<String, Any?>>,
+            loopCount: Int,
+            loopIntervalMillis: Int,
+        ): List<Map<String, Any?>> {
+            val loops = loopCount.coerceIn(1, 9999)
+            val interval = loopIntervalMillis.coerceIn(0, 10_000_000)
+            val out = mutableListOf<Map<String, Any?>>()
+            repeat(loops) { index ->
+                out.addAll(actions.map(::normalizeMap))
+                if (index < loops - 1 && interval > 0) {
+                    out.add(fixedWaitMap(interval))
+                }
+            }
+            return out
+        }
+
+        private fun fixedWaitMap(milliseconds: Int): Map<String, Any?> {
+            val millis = milliseconds.coerceIn(1, 10_000_000)
+            return mapOf(
+                "type" to "wait",
+                "waitMode" to "fixed",
+                "waitMillis" to millis,
+                "seconds" to ((millis + 999) / 1000).coerceIn(1, 10000),
+            )
         }
 
         fun parseActionsJson(raw: String?): List<Map<String, Any?>> {
@@ -2977,6 +3064,10 @@ class AutoSwipeService : AccessibilityService() {
             showRecordingOverlay()
             return
         }
+        if (pickerType == "unlockRecord") {
+            showUnlockRecordIntroOverlay()
+            return
+        }
         if (pickerType == "clickSteps") {
             showClickStepsOverlay()
             return
@@ -3077,14 +3168,133 @@ class AutoSwipeService : AccessibilityService() {
         onPickerResult?.invoke(result)
     }
 
-    private fun showRecordingOverlay() {
-        pickerMode = "recorded"
+    private fun showUnlockRecordIntroOverlay() {
+        pickerMode = "unlockRecord"
+        showCenteredPickerMessage(
+            title = "锁屏执行",
+            message = "如果你要在锁屏状态下执行任务，需要先录制一次解锁脚本。录制过程会记录你点亮屏幕后滑动、输入密码直到进入桌面的手势。",
+            primaryText = "继续",
+            secondaryText = "取消",
+            onPrimary = { showUnlockRecordReadyOverlay() },
+            onSecondary = {
+                publishPickerResult(mapOf("cancelled" to true))
+                removePickerOverlay()
+            },
+        )
+    }
+
+    private fun showUnlockRecordReadyOverlay() {
+        showCenteredPickerMessage(
+            title = "开始录制",
+            message = "准备好后点击开始录制。下一步会让你锁屏，然后点亮手机并录制解锁手势。",
+            primaryText = "开始录制",
+            secondaryText = "取消",
+            onPrimary = { showUnlockRecordLockOverlay() },
+            onSecondary = {
+                publishPickerResult(mapOf("cancelled" to true))
+                removePickerOverlay()
+            },
+        )
+    }
+
+    private fun showUnlockRecordLockOverlay() {
+        showCenteredPickerMessage(
+            title = "锁屏录制",
+            message = "点击锁屏后手机会熄屏。之后你点亮手机，会看到录制手势按钮。",
+            primaryText = "锁屏",
+            secondaryText = "取消",
+            onPrimary = {
+                showUnlockRecordStepOverlay()
+                performLockScreenAction {}
+            },
+            onSecondary = {
+                publishPickerResult(mapOf("cancelled" to true))
+                removePickerOverlay()
+            },
+        )
+    }
+
+    private fun showUnlockRecordStepOverlay() {
+        unlockRecordWaitingForRecord = true
+        showCenteredPickerMessage(
+            title = "步骤",
+            message = "点亮手机后点击录制手势，然后完成滑动解锁和密码输入。进入桌面后会自动结束录制。",
+            primaryText = "录制手势",
+            secondaryText = "取消",
+            onPrimary = {
+                unlockRecordWaitingForRecord = false
+                showRecordingOverlay(autoStart = true, autoStopOnHome = true)
+            },
+            onSecondary = {
+                unlockRecordWaitingForRecord = false
+                publishPickerResult(mapOf("cancelled" to true))
+                removePickerOverlay()
+            },
+        )
+    }
+
+    private fun showCenteredPickerMessage(
+        title: String,
+        message: String,
+        primaryText: String,
+        secondaryText: String,
+        onPrimary: () -> Unit,
+        onSecondary: () -> Unit,
+    ) {
+        removePickerOverlay()
+        val lp = fullScreenOverlayParams(focusable = true)
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(0x55000000)
+            isClickable = true
+            isFocusable = true
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = roundedBackground(0xF21F252B.toInt(), dp(18).toFloat(), 0x44FFFFFF)
+        }
+        panel.addView(TextView(this).apply {
+            text = title
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        })
+        panel.addView(TextView(this).apply {
+            text = message
+            textSize = 13f
+            setTextColor(0xFFD6DEE4.toInt())
+            setPadding(0, dp(10), 0, dp(14))
+        })
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        row.addView(menuButton(secondaryText, 0xFFFF8A80.toInt(), onSecondary), LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(10)
+        })
+        row.addView(menuButton(primaryText, 0xFF4CAF50.toInt(), onPrimary), LinearLayout.LayoutParams(0, dp(42), 1f))
+        panel.addView(row)
+        root.addView(panel, FrameLayout.LayoutParams((resources.displayMetrics.widthPixels - dp(48)).coerceAtMost(dp(420)), FrameLayout.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER
+        })
+        try {
+            windowManager?.addView(root, lp)
+            pickerOverlay = root
+        } catch (_: Exception) {
+            publishPickerResult(mapOf("cancelled" to true))
+        }
+    }
+
+    private fun showRecordingOverlay(autoStart: Boolean = false, autoStopOnHome: Boolean = false) {
+        pickerMode = if (autoStopOnHome) "unlockRecordCapture" else "recorded"
         val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
             setBackgroundColor(0x33000000)
         }
         val surface = RecordingSurface(this)
+        activeRecordingSurface = surface
+        activeRecordingAutoStopOnHome = autoStopOnHome
+        unlockRecordFinalizing = false
         container.addView(surface, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -3101,11 +3311,15 @@ class AutoSwipeService : AccessibilityService() {
             publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
         }
-        var recording = false
+        var recording = autoStart
         val timer = object : Runnable {
             override fun run() {
                 if (!recording) return
-                recordButton.text = "保存 ${formatElapsed(surface.elapsedMillis())}"
+                recordButton.text = if (autoStopOnHome) {
+                    "录制 ${formatElapsed(surface.elapsedMillis())}"
+                } else {
+                    "保存 ${formatElapsed(surface.elapsedMillis())}"
+                }
                 handler.postDelayed(this, 200)
             }
         }
@@ -3113,9 +3327,10 @@ class AutoSwipeService : AccessibilityService() {
             if (!recording) {
                 recording = true
                 surface.startRecording()
-                recordButton.text = "保存 00:00"
+                recordButton.text = if (autoStopOnHome) "录制 00:00" else "保存 00:00"
                 handler.post(timer)
             } else {
+                if (autoStopOnHome) return@setOnClickListener
                 if (!surface.hasGesture()) {
                     recordButton.text = "请先触摸屏幕"
                     handler.postDelayed({
@@ -3145,8 +3360,15 @@ class AutoSwipeService : AccessibilityService() {
         try {
             windowManager?.addView(container, lp)
             pickerOverlay = container
+            if (autoStart) {
+                surface.startRecording()
+                recordButton.text = "录制 00:00"
+                handler.post(timer)
+            }
         } catch (_: Exception) {
             pickerMode = null
+            activeRecordingSurface = null
+            activeRecordingAutoStopOnHome = false
             publishPickerResult(mapOf("cancelled" to true))
         }
     }
@@ -3649,6 +3871,10 @@ class AutoSwipeService : AccessibilityService() {
             pickerOverlay = null
         }
         pickerMode = null
+        activeRecordingSurface = null
+        activeRecordingAutoStopOnHome = false
+        unlockRecordWaitingForRecord = false
+        unlockRecordFinalizing = false
     }
 
     private fun removeChooserOverlay() {
@@ -3899,8 +4125,45 @@ class AutoSwipeService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!activeRecordingAutoStopOnHome || unlockRecordFinalizing) {
+            return
+        }
+        val packageName = event?.packageName?.toString().orEmpty()
+        if (packageName.isNotBlank() && isHomePackage(packageName)) {
+            finishUnlockRecordingForHome()
+        }
+    }
     override fun onInterrupt() {}
+
+    private fun isHomePackage(packageName: String): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+        }
+        val resolved = packageManager.queryIntentActivities(intent, 0)
+        return resolved.any { it.activityInfo?.packageName == packageName }
+    }
+
+    private fun finishUnlockRecordingForHome() {
+        val surface = activeRecordingSurface ?: return
+        if (!surface.hasGesture()) return
+        unlockRecordFinalizing = true
+        val result = surface.exportResult()
+        showCenteredPickerMessage(
+            title = "保存解锁脚本",
+            message = "已经检测到进入桌面，是否保存这次锁屏解锁录制？",
+            primaryText = "保存",
+            secondaryText = "取消",
+            onPrimary = {
+                publishPickerResult(result)
+                removePickerOverlay()
+            },
+            onSecondary = {
+                publishPickerResult(mapOf("cancelled" to true))
+                removePickerOverlay()
+            },
+        )
+    }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)

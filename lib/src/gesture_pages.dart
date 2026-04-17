@@ -26,6 +26,7 @@ class GestureConfigPage extends StatefulWidget {
 
 class _GestureConfigPageState extends State<GestureConfigPage> {
   List<GestureConfig> _configs = [];
+  GestureConfig? _unlockConfig;
   bool _loading = true;
   bool _handledAutoCreate = false;
 
@@ -37,9 +38,11 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
 
   Future<void> _load() async {
     final configs = await widget.repository.loadGestureConfigs();
+    final unlockConfig = await widget.repository.loadUnlockGestureConfig();
     if (mounted) {
       setState(() {
         _configs = configs;
+        _unlockConfig = unlockConfig;
         _loading = false;
       });
       if (widget.autoCreateOnOpen && !_handledAutoCreate) {
@@ -51,6 +54,56 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
         });
       }
     }
+  }
+
+  Future<void> _recordUnlockConfig() async {
+    if (_unlockConfig != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('已有锁屏脚本'),
+          content: const Text('已经录制过锁屏解锁脚本，是否重新录制？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('继续'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) {
+        return;
+      }
+    }
+
+    final result = await AlarmBridge().enterPickerMode('unlockRecord');
+    final actions = _unlockActionsFromResult(result);
+    if (!mounted || actions.isEmpty) {
+      return;
+    }
+    final config = GestureConfig(
+      id: 'unlock_script',
+      name: '锁屏解锁脚本',
+      actions: actions,
+    );
+    await widget.repository.saveUnlockGestureConfig(config);
+    if (!mounted) return;
+    setState(() => _unlockConfig = config);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('锁屏解锁脚本已保存')));
+  }
+
+  List<GestureAction> _unlockActionsFromResult(Map<String, Object?>? result) {
+    final rawSegments = (result?['segments'] as List<Object?>?) ?? const [];
+    if (result == null || result['cancelled'] == true || rawSegments.isEmpty) {
+      return const [];
+    }
+    return _UnlockActionBuilder.build(result);
   }
 
   Future<void> _addOrEdit([GestureConfig? config]) async {
@@ -107,10 +160,23 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('自动化配置中心')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addOrEdit(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('新建方案'),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'unlock_record',
+            onPressed: _recordUnlockConfig,
+            icon: const Icon(Icons.lock_open_rounded),
+            label: Text(_unlockConfig == null ? '锁屏录制' : '重录锁屏'),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'new_config',
+            onPressed: () => _addOrEdit(),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('新建方案'),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -1205,37 +1271,75 @@ class _GestureEditPageState extends State<GestureEditPage> {
   }
 
   Future<void> _editName() async {
-    var draft = _nameController.text.trim();
-    final next = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('方案名称'),
-        content: TextFormField(
-          initialValue: draft,
-          autofocus: true,
-          onChanged: (value) => draft = value,
-          decoration: const InputDecoration(
-            labelText: '名称',
-            hintText: '例如：刷抖音专用',
+    var nameDraft = _nameController.text.trim();
+    var loopCountDraft = _loopCountController.text.trim();
+    var loopIntervalDraft = _loopIntervalController.text.trim();
+    final next =
+        await showDialog<
+          ({String name, String loopCount, String loopInterval})
+        >(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('方案设置'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: nameDraft,
+                  autofocus: true,
+                  onChanged: (value) => nameDraft = value,
+                  decoration: const InputDecoration(
+                    labelText: '名称',
+                    hintText: '例如：刷抖音专用',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: loopCountDraft,
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => loopCountDraft = value,
+                  decoration: const InputDecoration(
+                    labelText: '循环次数',
+                    helperText: '最少 1 次',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: loopIntervalDraft,
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => loopIntervalDraft = value,
+                  decoration: const InputDecoration(
+                    labelText: '循环间隔毫秒',
+                    helperText: '每轮之间等待',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop((
+                  name: nameDraft.trim(),
+                  loopCount: loopCountDraft.trim(),
+                  loopInterval: loopIntervalDraft.trim(),
+                )),
+                child: const Text('保存'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(draft.trim()),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
+        );
     if (!mounted || next == null) {
       return;
     }
     setState(() {
-      _nameController.text = next;
+      _nameController.text = next.name;
+      _loopCountController.text =
+          '${(int.tryParse(next.loopCount) ?? 1).clamp(1, 9999)}';
+      _loopIntervalController.text =
+          '${(int.tryParse(next.loopInterval) ?? 0).clamp(0, 10000000)}';
     });
   }
 
@@ -1409,6 +1513,13 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1449,36 +1560,6 @@ class _GestureEditPageState extends State<GestureEditPage> {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _loopCountController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '循环次数',
-                  helperText: '最少 1 次',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _loopIntervalController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '循环间隔毫秒',
-                  helperText: '每轮之间等待',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-          ],
         ),
       ),
       const SizedBox(height: 8),
@@ -1708,6 +1789,95 @@ class _ActionCategoryHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _UnlockActionBuilder {
+  static List<GestureAction> build(Map<String, Object?> result) {
+    final rawSegments = (result['segments'] as List<Object?>?) ?? const [];
+    final segments =
+        rawSegments
+            .whereType<Map<Object?, Object?>>()
+            .map(GestureSegment.fromJson)
+            .where((segment) => segment.points.isNotEmpty)
+            .toList()
+          ..sort((a, b) => _segmentStart(a).compareTo(_segmentStart(b)));
+    final actions = <GestureAction>[];
+    var previousEnd = 0;
+    for (final segment in segments) {
+      final start = _segmentStart(segment);
+      final end = _segmentEnd(segment, start);
+      final waitMillis = (start - previousEnd).clamp(0, 10000000);
+      if (waitMillis > 0) {
+        actions.add(WaitAction.fixedMilliseconds(milliseconds: waitMillis));
+      }
+      if (_isTapSegment(segment)) {
+        final point = segment.points.first;
+        actions.add(ClickAction(x1: point.x, y1: point.y));
+      } else {
+        final duration = (end - start).clamp(50, 10000000);
+        actions.add(
+          RecordedGestureAction(
+            duration: duration,
+            segments: [
+              GestureSegment(
+                start: 0,
+                duration: duration,
+                points: segment.points
+                    .map(
+                      (point) => GesturePoint(
+                        x: point.x.clamp(0.0, 1.0),
+                        y: point.y.clamp(0.0, 1.0),
+                        t: (point.t - start).clamp(0, 10000000),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+        );
+      }
+      previousEnd = end;
+    }
+    return actions;
+  }
+
+  static int _segmentStart(GestureSegment segment) {
+    var start = segment.start;
+    for (final point in segment.points) {
+      if (point.t < start || start == 0) {
+        start = point.t;
+      }
+    }
+    return start.clamp(0, 10000000);
+  }
+
+  static int _segmentEnd(GestureSegment segment, int start) {
+    var end = start + segment.duration;
+    for (final point in segment.points) {
+      if (point.t > end) {
+        end = point.t;
+      }
+    }
+    return end.clamp(start, 10000000);
+  }
+
+  static bool _isTapSegment(GestureSegment segment) {
+    if (segment.points.length <= 1) {
+      return true;
+    }
+    final first = segment.points.first;
+    final last = segment.points.last;
+    var maxDistanceSquared = 0.0;
+    for (final point in segment.points) {
+      final dx = point.x - first.x;
+      final dy = point.y - first.y;
+      final distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared > maxDistanceSquared) {
+        maxDistanceSquared = distanceSquared;
+      }
+    }
+    return maxDistanceSquared <= 0.0004 && (last.t - first.t) <= 220;
   }
 }
 

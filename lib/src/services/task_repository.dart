@@ -7,6 +7,7 @@ import '../models/task_models.dart';
 class TaskRepository {
   static const String _storageKey = 'daily_task_state_v1';
   static const String _gestureConfigsKey = 'gesture_configs_v1';
+  static const String _unlockGestureConfigKey = 'unlock_gesture_config_v1';
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -30,6 +31,27 @@ class TaskRepository {
       _gestureConfigsKey,
       jsonEncode(configs.map((c) => c.toJson()).toList()),
     );
+  }
+
+  Future<GestureConfig?> loadUnlockGestureConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final raw = prefs.getString(_unlockGestureConfigKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return GestureConfig.fromJson(jsonDecode(raw) as Map<String, Object?>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveUnlockGestureConfig(GestureConfig? config) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (config == null) {
+      await prefs.remove(_unlockGestureConfigKey);
+      return;
+    }
+    await prefs.setString(_unlockGestureConfigKey, jsonEncode(config.toJson()));
   }
 
   Future<DailyTaskState> loadOrCreateToday(
