@@ -163,6 +163,11 @@ class AlarmBridge {
     return result ?? false;
   }
 
+  Future<bool> verifyUnlockScript() async {
+    final result = await _channel.invokeMethod<bool>('verifyUnlockScript');
+    return result ?? false;
+  }
+
   Future<void> runGestureConfig({
     required String name,
     required List<Map<String, Object?>> actions,

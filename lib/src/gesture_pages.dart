@@ -98,6 +98,20 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
     ).showSnackBar(const SnackBar(content: Text('锁屏解锁脚本已保存')));
   }
 
+  Future<void> _verifyUnlockConfig() async {
+    if (_unlockConfig == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先录制锁屏解锁脚本')));
+      return;
+    }
+    final ok = await AlarmBridge().verifyUnlockScript();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? '已开始验证锁屏解锁脚本' : '验证失败，请检查无障碍服务')),
+    );
+  }
+
   List<GestureAction> _unlockActionsFromResult(Map<String, Object?>? result) {
     final rawSegments = (result?['segments'] as List<Object?>?) ?? const [];
     if (result == null || result['cancelled'] == true || rawSegments.isEmpty) {
@@ -160,8 +174,10 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('自动化配置中心')),
-      floatingActionButton: Row(
-        mainAxisSize: MainAxisSize.min,
+      floatingActionButton: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        alignment: WrapAlignment.end,
         children: [
           FloatingActionButton.extended(
             heroTag: 'unlock_record',
@@ -169,7 +185,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
             icon: const Icon(Icons.lock_open_rounded),
             label: Text(_unlockConfig == null ? '锁屏录制' : '重录锁屏'),
           ),
-          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'unlock_verify',
+            onPressed: _unlockConfig == null ? null : _verifyUnlockConfig,
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('验证锁屏'),
+          ),
           FloatingActionButton.extended(
             heroTag: 'new_config',
             onPressed: () => _addOrEdit(),

@@ -113,6 +113,9 @@ class AutoSwipeService : AccessibilityService() {
     private var unlockMotionStatusView: TextView? = null
     private var unlockMotionStartedAt = 0L
     private var unlockMotionTicker: Runnable? = null
+    private var unlockMotionTrailOverlay: View? = null
+    private var unlockMotionTrailVisible = false
+    private val unlockMotionTrailSegments = mutableListOf<RecordedSegment>()
     private var unlockRecordWaitingForRecord = false
     private var unlockRecordFinalizing = false
     private val defaultGestureBeforeWaitMillis = 300
@@ -234,6 +237,25 @@ class AutoSwipeService : AccessibilityService() {
                     )
                 }
             }, delaySeconds.coerceAtLeast(0) * 1000L)
+            return true
+        }
+
+        fun verifyUnlockScript(context: Context): Boolean {
+            val service = instance ?: return false
+            val unlockActions = loadUnlockActions(context)
+            if (unlockActions.isEmpty()) return false
+            service.handler.post {
+                service.hideFlutterOverlayWindow()
+                if (isDeviceLocked(context)) {
+                    updateConfig(0, 0, unlockActions, "验证锁屏解锁", 1, 0)
+                } else {
+                    service.performLockScreenAction {
+                        service.handler.postDelayed({
+                            updateConfig(0, 0, unlockActions, "验证锁屏解锁", 1, 0)
+                        }, 1500)
+                    }
+                }
+            }
             return true
         }
 
@@ -999,6 +1021,9 @@ class AutoSwipeService : AccessibilityService() {
                                 )
                             },
                         )
+                    }
+                    "verifyUnlockScript" -> {
+                        result.success(AutoSwipeService.verifyUnlockScript(this))
                     }
                     "closeAutomationOverlay" -> {
                         result.success(null)
@@ -3417,8 +3442,10 @@ class AutoSwipeService : AccessibilityService() {
         removePickerOverlay()
         pickerMode = "unlockMotionRecord"
         unlockRecordFinalizing = false
+        unlockMotionTrailSegments.clear()
         unlockMotionRecorder = MotionEventRecorder().apply { startRecording() }
         unlockMotionStartedAt = SystemClock.uptimeMillis()
+        ensureUnlockMotionTrailOverlay()
         showUnlockMotionControl()
         startUnlockMotionTicker()
     }
@@ -3441,12 +3468,17 @@ class AutoSwipeService : AccessibilityService() {
             includeFontPadding = false
         }
         unlockMotionStatusView = status
-        root.addView(status, LinearLayout.LayoutParams(dp(84), dp(32)).apply {
+        root.addView(status, LinearLayout.LayoutParams(dp(78), dp(32)).apply {
+            marginEnd = dp(8)
+        })
+        root.addView(menuButton("结束", 0xFF4CAF50.toInt()) {
+            stopUnlockMotionRecording(cancelled = false)
+        }, LinearLayout.LayoutParams(dp(58), dp(34)).apply {
             marginEnd = dp(8)
         })
         root.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
             stopUnlockMotionRecording(cancelled = true)
-        }, LinearLayout.LayoutParams(dp(64), dp(34)))
+        }, LinearLayout.LayoutParams(dp(58), dp(34)))
 
         unlockMotionControl = root
         unlockMotionControlParams = baseOverlayParams().apply {
@@ -3466,6 +3498,7 @@ class AutoSwipeService : AccessibilityService() {
         val view = unlockMotionControl ?: return
         val params = unlockMotionControlParams ?: return
         if (unlockMotionControlVisible) return
+        updateUnlockMotionStatus()
         try {
             windowManager?.addView(view, params)
             unlockMotionControlVisible = true
@@ -3487,6 +3520,7 @@ class AutoSwipeService : AccessibilityService() {
     private fun stopUnlockMotionRecording(cancelled: Boolean) {
         stopUnlockMotionTicker()
         detachUnlockMotionControl()
+        removeUnlockMotionTrailOverlay()
         unlockMotionControl = null
         unlockMotionControlParams = null
         unlockMotionStatusView = null
@@ -3519,10 +3553,8 @@ class AutoSwipeService : AccessibilityService() {
         stopUnlockMotionTicker()
         val ticker = object : Runnable {
             override fun run() {
-                val started = unlockMotionStartedAt
-                if (unlockMotionRecorder == null || started == 0L) return
-                unlockMotionStatusView?.text =
-                    "录制 ${formatElapsed((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
+                if (unlockMotionRecorder == null || unlockMotionStartedAt == 0L) return
+                updateUnlockMotionStatus()
                 handler.postDelayed(this, 250)
             }
         }
@@ -3530,10 +3562,95 @@ class AutoSwipeService : AccessibilityService() {
         handler.post(ticker)
     }
 
+    private fun updateUnlockMotionStatus() {
+        val started = unlockMotionStartedAt
+        if (started == 0L) return
+        unlockMotionStatusView?.text =
+            "录制 ${formatElapsed((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
+    }
+
     private fun stopUnlockMotionTicker() {
         unlockMotionTicker?.let { handler.removeCallbacks(it) }
         unlockMotionTicker = null
         unlockMotionStartedAt = 0L
+    }
+
+    private fun ensureUnlockMotionTrailOverlay() {
+        if (unlockMotionTrailOverlay != null) {
+            attachUnlockMotionTrailOverlay()
+            return
+        }
+        unlockMotionTrailOverlay = object : View(this) {
+            private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 4f * resources.displayMetrics.density
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.FILL
+            }
+            private val number = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                textAlign = Paint.Align.CENTER
+                textSize = 11f * resources.displayMetrics.scaledDensity
+                typeface = Typeface.DEFAULT_BOLD
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                unlockMotionTrailSegments.forEachIndexed { index, segment ->
+                    if (segment.points.isEmpty()) return@forEachIndexed
+                    val path = Path()
+                    segment.points.forEachIndexed { pointIndex, item ->
+                        val x = item.x * width
+                        val y = item.y * height
+                        if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    canvas.drawPath(path, stroke)
+                    val first = segment.points.first()
+                    val cx = first.x * width
+                    val cy = first.y * height
+                    val radius = 10f * resources.displayMetrics.density
+                    canvas.drawCircle(cx, cy, radius, fill)
+                    val baseline = cy - (number.descent() + number.ascent()) / 2
+                    canvas.drawText("${index + 1}", cx, baseline, number)
+                }
+            }
+        }
+        attachUnlockMotionTrailOverlay()
+    }
+
+    private fun attachUnlockMotionTrailOverlay() {
+        val view = unlockMotionTrailOverlay ?: return
+        if (unlockMotionTrailVisible) {
+            view.invalidate()
+            return
+        }
+        val lp = fullScreenOverlayParams().apply {
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        try {
+            windowManager?.addView(view, lp)
+            unlockMotionTrailVisible = true
+        } catch (_: Exception) {
+            unlockMotionTrailVisible = false
+        }
+    }
+
+    private fun removeUnlockMotionTrailOverlay() {
+        val view = unlockMotionTrailOverlay
+        if (view != null && unlockMotionTrailVisible) {
+            try {
+                windowManager?.removeView(view)
+            } catch (_: Exception) {
+            }
+        }
+        unlockMotionTrailOverlay = null
+        unlockMotionTrailVisible = false
+        unlockMotionTrailSegments.clear()
     }
 
     private fun showClickStepsOverlay() {
@@ -4028,6 +4145,7 @@ class AutoSwipeService : AccessibilityService() {
     private fun removePickerOverlay() {
         detachPickerOverlayView()
         detachUnlockMotionControl()
+        removeUnlockMotionTrailOverlay()
         unlockMotionControl = null
         unlockMotionControlParams = null
         unlockMotionStatusView = null
@@ -4336,45 +4454,9 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showUnlockMotionTrail(segment: RecordedSegment) {
         if (segment.points.isEmpty()) return
-        val lp = fullScreenOverlayParams().apply {
-            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        }
-        val trail = object : View(this) {
-            private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFF40C4FF.toInt()
-                style = Paint.Style.STROKE
-                strokeWidth = 4f * resources.displayMetrics.density
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            private val point = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFF40C4FF.toInt()
-                style = Paint.Style.FILL
-            }
-
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val path = Path()
-                segment.points.forEachIndexed { index, item ->
-                    val x = item.x * width
-                    val y = item.y * height
-                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                canvas.drawPath(path, stroke)
-                val first = segment.points.first()
-                canvas.drawCircle(first.x * width, first.y * height, 7f * resources.displayMetrics.density, point)
-            }
-        }
-        try {
-            windowManager?.addView(trail, lp)
-            handler.postDelayed({
-                try {
-                    windowManager?.removeView(trail)
-                } catch (_: Exception) {
-                }
-            }, 450)
-        } catch (_: Exception) {
-        }
+        unlockMotionTrailSegments.add(segment)
+        ensureUnlockMotionTrailOverlay()
+        unlockMotionTrailOverlay?.invalidate()
     }
 
     private fun isHomePackage(packageName: String): Boolean {

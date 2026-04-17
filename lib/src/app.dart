@@ -1476,6 +1476,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
           _SettingsSectionCard(
             accent: const Color(0xFFC084FC),
             title: '脚本配置',

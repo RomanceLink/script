@@ -116,6 +116,9 @@ class MainActivity : FlutterActivity() {
                             )
                         }
                     }
+                    "verifyUnlockScript" -> {
+                        result.success(AutoSwipeService.verifyUnlockScript(this))
+                    }
                     "performAutoSwipe" -> {
                         val min = call.argument<Int>("min") ?: 30
                         val max = call.argument<Int>("max") ?: 60
