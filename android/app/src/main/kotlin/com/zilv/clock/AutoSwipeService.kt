@@ -127,7 +127,7 @@ class AutoSwipeService : AccessibilityService() {
 
             val service = instance ?: return true
             service.handler.postDelayed({
-                service.showFloatingWindow(expanded = true)
+                service.showFloatingWindow(expanded = false, attachToRightEdge = true)
                 if (actions.isNotEmpty()) {
                     updateConfig(0, 0, actions, configName ?: packageLabel)
                 }
@@ -230,19 +230,33 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun showFloatingWindow(expanded: Boolean): Boolean {
+    private fun showFloatingWindow(
+        expanded: Boolean,
+        attachToRightEdge: Boolean = false,
+    ): Boolean {
         removeFloatingWindow()
         removeChooserOverlay()
         collapsed = !expanded
 
         val layoutParams = baseOverlayParams()
         val root = if (expanded) createExpandedMenu(layoutParams) else createCollapsedMenu(layoutParams)
+        val shouldAttachRight = attachToRightEdge || !expanded
+        clampOverlayPosition(root, layoutParams, attachRight = shouldAttachRight)
 
         return try {
             windowManager?.addView(root, layoutParams)
             floatingView = root
             floatingLayoutParams = layoutParams
             updateStatusText()
+            handler.post {
+                val params = floatingLayoutParams ?: return@post
+                val view = floatingView ?: return@post
+                clampOverlayPosition(view, params, attachRight = shouldAttachRight)
+                try {
+                    windowManager?.updateViewLayout(view, params)
+                } catch (_: Exception) {
+                }
+            }
             true
         } catch (_: Exception) {
             floatingView = null
@@ -255,36 +269,36 @@ class AutoSwipeService : AccessibilityService() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            background = roundedBackground(0xDD151A1E.toInt(), dp(28).toFloat(), 0x55FFFFFF)
+            setPadding(dp(6), dp(5), dp(6), dp(5))
+            background = roundedBackground(0xE6151A1E.toInt(), dp(22).toFloat(), 0x55FFFFFF)
         }
 
-        val configButton = menuButton("配置", 0xFF7ED8C3.toInt()) {
+        val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
             openFlutterCommand("open_configs")
         }
-        startMenuButton = menuButton("启动", 0xFF8EB8FF.toInt()) {
+        startMenuButton = iconButton("▶", "启动", 0xFF8EB8FF.toInt()) {
             if (isRunning) {
                 stopScriptRun()
             } else {
                 showConfigChooser()
             }
         }
-        val recordButton = menuButton("录制", 0xFFFFB989.toInt()) {
+        val recordButton = iconButton("●", "录制", 0xFFFFB989.toInt()) {
             showFloatingRecorder()
         }
-        val closeButton = menuButton("关闭", 0xFFFF8A80.toInt()) {
+        val closeButton = iconButton("×", "关闭", 0xFFFF8A80.toInt()) {
             closeAutomationMenu()
         }
-        val foldButton = menuButton("折叠", 0xFFE8A8FF.toInt()) {
-            showFloatingWindow(expanded = false)
+        val foldButton = iconButton("›", "折叠", 0xFFE8A8FF.toInt()) {
+            showFloatingWindow(expanded = false, attachToRightEdge = true)
         }
 
         listOf(configButton, startMenuButton, recordButton, closeButton, foldButton).forEach { button ->
             row.addView(
                 button,
-                LinearLayout.LayoutParams(if (button == startMenuButton) dp(82) else dp(58), dp(46)).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
+                LinearLayout.LayoutParams(dp(38), dp(38)).apply {
+                    marginStart = dp(2)
+                    marginEnd = dp(2)
                 },
             )
         }
@@ -294,16 +308,34 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun createCollapsedMenu(layoutParams: WindowManager.LayoutParams): View {
         val bubble = TextView(this).apply {
-            text = "展开"
-            textSize = 13f
+            text = "‹"
+            textSize = 28f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x66FFFFFF)
+            contentDescription = "展开"
+            background = roundedBackground(0xE6151A1E.toInt(), dp(18).toFloat(), 0x66FFFFFF)
             setOnClickListener { showFloatingWindow(expanded = true) }
         }
-        attachDrag(bubble, layoutParams)
+        attachDrag(bubble, layoutParams, stickToRight = true)
         return FrameLayout(this).apply {
-            addView(bubble, FrameLayout.LayoutParams(dp(64), dp(48)))
+            addView(bubble, FrameLayout.LayoutParams(dp(40), dp(48)))
+        }
+    }
+
+    private fun iconButton(
+        icon: String,
+        description: String,
+        color: Int,
+        onClick: () -> Unit,
+    ): TextView {
+        return TextView(this).apply {
+            text = icon
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            contentDescription = description
+            background = roundedBackground(color and 0xCCFFFFFF.toInt(), dp(16).toFloat(), 0x33FFFFFF)
+            setOnClickListener { onClick() }
         }
     }
 
@@ -318,7 +350,11 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun attachDrag(view: View, layoutParams: WindowManager.LayoutParams) {
+    private fun attachDrag(
+        view: View,
+        layoutParams: WindowManager.LayoutParams,
+        stickToRight: Boolean = false,
+    ) {
         var initialX = 0
         var initialY = 0
         var initialTouchX = 0f
@@ -342,6 +378,8 @@ class AutoSwipeService : AccessibilityService() {
                         moving = true
                         layoutParams.x = initialX + dx.toInt()
                         layoutParams.y = initialY + dy.toInt()
+                        val root = floatingView ?: view
+                        clampOverlayPosition(root, layoutParams, attachRight = stickToRight)
                         floatingView?.let { windowManager?.updateViewLayout(it, layoutParams) }
                         repositionChooser()
                     }
@@ -358,6 +396,32 @@ class AutoSwipeService : AccessibilityService() {
                 else -> false
             }
         }
+    }
+
+    private fun clampOverlayPosition(
+        view: View?,
+        layoutParams: WindowManager.LayoutParams,
+        attachRight: Boolean = false,
+    ) {
+        val dm = resources.displayMetrics
+        val fallbackWidth = if (collapsed) dp(40) else dp(220)
+        val fallbackHeight = if (collapsed) dp(48) else dp(48)
+        val viewWidth = view?.width ?: 0
+        val viewHeight = view?.height ?: 0
+        val width = when {
+            viewWidth > 0 -> viewWidth
+            layoutParams.width > 0 -> layoutParams.width
+            else -> fallbackWidth
+        }
+        val height = when {
+            viewHeight > 0 -> viewHeight
+            layoutParams.height > 0 -> layoutParams.height
+            else -> fallbackHeight
+        }
+        val maxX = (dm.widthPixels - width).coerceAtLeast(0)
+        val maxY = (dm.heightPixels - height).coerceAtLeast(0)
+        layoutParams.x = if (attachRight) maxX else layoutParams.x.coerceIn(0, maxX)
+        layoutParams.y = layoutParams.y.coerceIn(0, maxY)
     }
 
     private fun floatingPanelParams(
@@ -377,6 +441,7 @@ class AutoSwipeService : AccessibilityService() {
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             x = floatingLayoutParams?.x ?: x
             y = (floatingLayoutParams?.y ?: y) + dp(60)
+            clampOverlayPosition(null, this)
         }
     }
 
@@ -384,6 +449,15 @@ class AutoSwipeService : AccessibilityService() {
         try {
             windowManager?.addView(view, layoutParams)
             chooserOverlay = view
+            handler.post {
+                val chooser = chooserOverlay ?: return@post
+                val params = chooser.layoutParams as? WindowManager.LayoutParams ?: return@post
+                clampOverlayPosition(chooser, params)
+                try {
+                    windowManager?.updateViewLayout(chooser, params)
+                } catch (_: Exception) {
+                }
+            }
         } catch (_: Exception) {
             chooserOverlay = null
         }
@@ -391,12 +465,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showConfigChooser() {
         removeChooserOverlay()
-        val layoutParams = baseOverlayParams().apply {
-            width = dp(280)
-            height = WindowManager.LayoutParams.WRAP_CONTENT
-            x = floatingLayoutParams?.x ?: x
-            y = (floatingLayoutParams?.y ?: y) + dp(60)
-        }
+        val layoutParams = floatingPanelParams(widthDp = 280)
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -474,12 +543,7 @@ class AutoSwipeService : AccessibilityService() {
             })
         }
 
-        try {
-            windowManager?.addView(panel, layoutParams)
-            chooserOverlay = panel
-        } catch (_: Exception) {
-            chooserOverlay = null
-        }
+        addChooserPanel(panel, layoutParams)
     }
 
     private fun showFloatingRecorder() {
@@ -1319,6 +1383,7 @@ class AutoSwipeService : AccessibilityService() {
         val params = chooser.layoutParams as? WindowManager.LayoutParams ?: return
         params.x = floatingLayoutParams?.x ?: params.x
         params.y = (floatingLayoutParams?.y ?: params.y) + dp(60)
+        clampOverlayPosition(chooser, params)
         windowManager?.updateViewLayout(chooser, params)
     }
 
@@ -1346,6 +1411,7 @@ class AutoSwipeService : AccessibilityService() {
         runTotalMillis = estimateActionsMillis(runtimeActions)
         isRunning = true
         updateStatusText()
+        showFloatingWindow(expanded = false, attachToRightEdge = true)
         startPlaybackTicker()
         executeActionIndex(0)
     }
@@ -1928,13 +1994,15 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun updateStatusText() {
-        startMenuButton?.text = when {
-            isRunning -> {
-                val elapsed = (SystemClock.uptimeMillis() - runStartedAt).coerceAtLeast(0L)
-                "停止\n${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
-            }
-            scriptName != null -> "启动"
-            else -> "启动"
+        val button = startMenuButton ?: return
+        if (isRunning) {
+            val elapsed = (SystemClock.uptimeMillis() - runStartedAt).coerceAtLeast(0L)
+            button.text = "■"
+            button.contentDescription =
+                "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+        } else {
+            button.text = "▶"
+            button.contentDescription = "启动"
         }
     }
 
