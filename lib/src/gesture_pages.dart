@@ -138,7 +138,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      '${config.actions.length} 个动作 · 约 ${estimateGestureActionsDuration(config.actions).label}',
+                      '${config.actions.length} 个动作 · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}',
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -180,12 +180,20 @@ class _GestureEditPageState extends State<GestureEditPage> {
   static const _defaultGestureAfterWaitMillis = 800;
 
   late TextEditingController _nameController;
+  late TextEditingController _loopCountController;
+  late TextEditingController _loopIntervalController;
   final List<GestureAction> _actions = [];
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.config?.name ?? '');
+    _loopCountController = TextEditingController(
+      text: '${widget.config?.loopCount ?? 1}',
+    );
+    _loopIntervalController = TextEditingController(
+      text: '${widget.config?.loopIntervalMillis ?? 0}',
+    );
     if (widget.config != null) {
       _actions.addAll(widget.config!.actions);
     }
@@ -194,8 +202,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _loopCountController.dispose();
+    _loopIntervalController.dispose();
     super.dispose();
   }
+
+  int get _loopCount =>
+      (int.tryParse(_loopCountController.text.trim()) ?? 1).clamp(1, 9999);
+
+  int get _loopIntervalMillis =>
+      (int.tryParse(_loopIntervalController.text.trim()) ?? 0).clamp(
+        0,
+        10000000,
+      );
 
   void _addAction(GestureAction action) {
     setState(() => _actions.add(action));
@@ -1094,6 +1113,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
           'gesture_${DateTime.now().millisecondsSinceEpoch}',
       name: _nameController.text.trim(),
       actions: _actions,
+      loopCount: _loopCount,
+      loopIntervalMillis: _loopIntervalMillis,
     );
     Navigator.of(context).pop(config);
   }
@@ -1257,11 +1278,41 @@ class _GestureEditPageState extends State<GestureEditPage> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '预计执行时长：${estimateGestureActionsDuration(_actions).label}',
+                '预计执行时长：${estimateGestureConfigDuration(GestureConfig(id: "_preview", name: "", actions: _actions, loopCount: _loopCount, loopIntervalMillis: _loopIntervalMillis)).label}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _loopCountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: '循环次数',
+                      helperText: '最少 1 次',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _loopIntervalController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: '循环间隔毫秒',
+                      helperText: '每轮之间等待',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

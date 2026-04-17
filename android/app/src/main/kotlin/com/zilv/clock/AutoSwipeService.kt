@@ -70,6 +70,9 @@ class AutoSwipeService : AccessibilityService() {
     private var isRunning = false
     private var minSeconds = 0
     private var maxSeconds = 0
+    private var loopCount = 1
+    private var loopIntervalMillis = 0L
+    private var remainingLoops = 0
     private var scriptName: String? = null
     private var collapsed = false
     private var collapsedEdgeRight = true
@@ -103,12 +106,17 @@ class AutoSwipeService : AccessibilityService() {
             max: Int,
             actions: List<Map<String, Any?>>,
             name: String? = null,
+            loopCount: Int = 1,
+            loopIntervalMillis: Int = 0,
         ) {
             instance?.apply {
                 handler.removeCallbacksAndMessages(null)
                 isRunning = false
                 minSeconds = min
                 maxSeconds = max
+                this.loopCount = loopCount.coerceIn(1, 9999)
+                this.loopIntervalMillis = loopIntervalMillis.coerceIn(0, 10_000_000).toLong()
+                remainingLoops = this.loopCount
                 scriptName = name
                 gestureActions.clear()
                 gestureActions.addAll(actions.map(::normalizeMap))
@@ -146,6 +154,8 @@ class AutoSwipeService : AccessibilityService() {
             packageLabel: String,
             configName: String?,
             actions: List<Map<String, Any?>>,
+            loopCount: Int = 1,
+            loopIntervalMillis: Int = 0,
             delaySeconds: Int = 5,
         ): Boolean {
             val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -157,7 +167,14 @@ class AutoSwipeService : AccessibilityService() {
             service.handler.postDelayed({
                 service.showFloatingWindow(expanded = false, attachToRightEdge = true)
                 if (actions.isNotEmpty()) {
-                    updateConfig(0, 0, actions, configName ?: packageLabel)
+                    updateConfig(
+                        0,
+                        0,
+                        actions,
+                        configName ?: packageLabel,
+                        loopCount,
+                        loopIntervalMillis,
+                    )
                 }
             }, delaySeconds.coerceAtLeast(0) * 1000L)
             return true
@@ -762,10 +779,19 @@ class AutoSwipeService : AccessibilityService() {
                         val max = call.argument<Int>("max") ?: 0
                         val name = call.argument<String>("name")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        val loopCount = call.argument<Int>("loopCount") ?: 1
+                        val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
                         result.success(null)
                         handler.post {
                             destroyFlutterAutomationOverlay()
-                            AutoSwipeService.updateConfig(min, max, actions, name)
+                            AutoSwipeService.updateConfig(
+                                min,
+                                max,
+                                actions,
+                                name,
+                                loopCount,
+                                loopIntervalMillis,
+                            )
                         }
                     }
                     "openAppAndRunConfig" -> {
@@ -773,6 +799,8 @@ class AutoSwipeService : AccessibilityService() {
                         val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
                         val configName = call.argument<String>("configName")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        val loopCount = call.argument<Int>("loopCount") ?: 1
+                        val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
                         val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
                         result.success(
                             if (packageName.isNullOrBlank()) {
@@ -785,6 +813,8 @@ class AutoSwipeService : AccessibilityService() {
                                     packageLabel,
                                     configName,
                                     actions,
+                                    loopCount,
+                                    loopIntervalMillis,
                                     delaySeconds,
                                 )
                             },
@@ -1872,6 +1902,8 @@ class AutoSwipeService : AccessibilityService() {
             "id" to id,
             "name" to name,
             "actions" to floatingRecordActions.map(::normalizeMap),
+            "loopCount" to 1,
+            "loopIntervalMillis" to 0,
         )
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val key = "flutter.gesture_configs_v1"
@@ -1898,6 +1930,10 @@ class AutoSwipeService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         minSeconds = 0
         maxSeconds = 0
+        loopCount = ((config["loopCount"] as? Number)?.toInt() ?: 1).coerceIn(1, 9999)
+        loopIntervalMillis =
+            ((config["loopIntervalMillis"] as? Number)?.toLong() ?: 0L).coerceIn(0L, 10_000_000L)
+        remainingLoops = loopCount
         scriptName = config["name"] as? String ?: "配置"
         gestureActions.clear()
         gestureActions.addAll(actions)
@@ -1910,8 +1946,11 @@ class AutoSwipeService : AccessibilityService() {
         }
         runtimeActions.clear()
         runtimeActions.addAll(gestureActions.map(::planRuntimeAction))
+        remainingLoops = loopCount.coerceAtLeast(1)
         runStartedAt = SystemClock.uptimeMillis()
-        runTotalMillis = estimateActionsMillis(runtimeActions)
+        val singleRunMillis = estimateActionsMillis(runtimeActions)
+        runTotalMillis =
+            singleRunMillis * remainingLoops + loopIntervalMillis * (remainingLoops - 1).coerceAtLeast(0)
         isRunning = true
         updateStatusText()
         showFloatingWindow(expanded = false, attachToRightEdge = true)
@@ -1924,6 +1963,7 @@ class AutoSwipeService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         playbackTicker = null
         runtimeActions.clear()
+        remainingLoops = 0
         updateStatusText()
     }
 
@@ -1931,7 +1971,11 @@ class AutoSwipeService : AccessibilityService() {
         if (!isRunning) return
 
         if (index >= runtimeActions.size) {
-            if (minSeconds > 0 || maxSeconds > 0) {
+            if (remainingLoops > 1) {
+                remainingLoops -= 1
+                val delay = loopIntervalMillis.coerceAtLeast(0L)
+                handler.postDelayed({ executeActionIndex(0) }, delay)
+            } else if (minSeconds > 0 || maxSeconds > 0) {
                 val delay = if (maxSeconds > minSeconds) {
                     (random.nextInt(maxSeconds - minSeconds + 1) + minSeconds) * 1000L
                 } else {
@@ -1942,6 +1986,7 @@ class AutoSwipeService : AccessibilityService() {
                 isRunning = false
                 playbackTicker = null
                 runtimeActions.clear()
+                remainingLoops = 0
                 updateStatusText()
             }
             return

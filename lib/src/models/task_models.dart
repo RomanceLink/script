@@ -587,16 +587,22 @@ class GestureConfig {
     required this.id,
     required this.name,
     this.actions = const [],
+    this.loopCount = 1,
+    this.loopIntervalMillis = 0,
   });
 
   final String id;
   final String name;
   final List<GestureAction> actions;
+  final int loopCount;
+  final int loopIntervalMillis;
 
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'actions': actions.map((a) => a.toJson()).toList(),
+    'loopCount': loopCount.clamp(1, 9999),
+    'loopIntervalMillis': loopIntervalMillis.clamp(0, 10000000),
   };
 
   factory GestureConfig.fromJson(Map<String, Object?> json) {
@@ -607,6 +613,9 @@ class GestureConfig {
           .whereType<Map<String, Object?>>()
           .map(GestureAction.fromJson)
           .toList(),
+      loopCount: ((json['loopCount'] as num?)?.toInt() ?? 1).clamp(1, 9999),
+      loopIntervalMillis: ((json['loopIntervalMillis'] as num?)?.toInt() ?? 0)
+          .clamp(0, 10000000),
     );
   }
 
@@ -614,11 +623,15 @@ class GestureConfig {
     String? id,
     String? name,
     List<GestureAction>? actions,
+    int? loopCount,
+    int? loopIntervalMillis,
   }) {
     return GestureConfig(
       id: id ?? this.id,
       name: name ?? this.name,
       actions: actions ?? this.actions,
+      loopCount: loopCount ?? this.loopCount,
+      loopIntervalMillis: loopIntervalMillis ?? this.loopIntervalMillis,
     );
   }
 }
@@ -670,6 +683,18 @@ GestureDurationRange estimateGestureActionsDuration(
     maxMillis += range.maxMillis;
   }
   return GestureDurationRange(minMillis: minMillis, maxMillis: maxMillis);
+}
+
+GestureDurationRange estimateGestureConfigDuration(GestureConfig config) {
+  final actionRange = estimateGestureActionsDuration(config.actions);
+  final loops = config.loopCount.clamp(1, 9999);
+  final interval = config.loopIntervalMillis.clamp(0, 10000000);
+  if (loops <= 1) {
+    return actionRange;
+  }
+  final repeatedMin = actionRange.minMillis * loops + interval * (loops - 1);
+  final repeatedMax = actionRange.maxMillis * loops + interval * (loops - 1);
+  return GestureDurationRange(minMillis: repeatedMin, maxMillis: repeatedMax);
 }
 
 GestureDurationRange estimateGestureActionDuration(GestureAction action) {

@@ -16,6 +16,8 @@ class AlarmReminder {
     this.targetAppLabel,
     this.gestureConfigName,
     this.gestureActionsJson,
+    this.gestureLoopCount,
+    this.gestureLoopIntervalMillis,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class AlarmReminder {
   final String? targetAppLabel;
   final String? gestureConfigName;
   final String? gestureActionsJson;
+  final int? gestureLoopCount;
+  final int? gestureLoopIntervalMillis;
 
   Map<String, Object?> toJson() {
     return {
@@ -45,6 +49,8 @@ class AlarmReminder {
       'targetAppLabel': targetAppLabel,
       'gestureConfigName': gestureConfigName,
       'gestureActionsJson': gestureActionsJson,
+      'gestureLoopCount': gestureLoopCount,
+      'gestureLoopIntervalMillis': gestureLoopIntervalMillis,
     };
   }
 }
@@ -141,6 +147,8 @@ class AlarmBridge {
     required String packageLabel,
     String? configName,
     List<Map<String, Object?>> actions = const [],
+    int loopCount = 1,
+    int loopIntervalMillis = 0,
     int delaySeconds = 5,
   }) async {
     final result = await _channel.invokeMethod<bool>('openAppAndRunConfig', {
@@ -148,6 +156,8 @@ class AlarmBridge {
       'packageLabel': packageLabel,
       'configName': configName,
       'actions': actions,
+      'loopCount': loopCount,
+      'loopIntervalMillis': loopIntervalMillis,
       'delaySeconds': delaySeconds,
     });
     return result ?? false;
@@ -156,6 +166,8 @@ class AlarmBridge {
   Future<void> runGestureConfig({
     required String name,
     required List<Map<String, Object?>> actions,
+    int loopCount = 1,
+    int loopIntervalMillis = 0,
   }) async {
     await _channel.invokeMethod('performAutoSwipe', {
       'min':
@@ -163,6 +175,8 @@ class AlarmBridge {
       'max': 0,
       'actions': actions,
       'name': name,
+      'loopCount': loopCount,
+      'loopIntervalMillis': loopIntervalMillis,
     });
   }
 

@@ -50,12 +50,14 @@ class AlarmActivity : ComponentActivity() {
         val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
         val configName = intent.getStringExtra("gestureConfigName")
         val actionsJson = intent.getStringExtra("gestureActionsJson")
+        val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
+        val loopIntervalMillis = intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
         findViewById<TextView>(R.id.alarmTitle).text = title
         findViewById<TextView>(R.id.alarmBody).text = body
         findViewById<TextView>(R.id.alarmHint).text = if (configName.isNullOrBlank()) {
             "提醒已触发，点击下方按钮打开 $targetAppLabel。"
         } else {
-            "绑定配置：$configName，打开 $targetAppLabel 后 5 秒自动执行。"
+            "绑定配置：$configName（$loopCount 次，间隔 ${loopIntervalMillis} 毫秒），打开 $targetAppLabel 后 5 秒自动执行。"
         }
         findViewById<TextView>(R.id.openTaskButton).text = "打开$targetAppLabel"
         findViewById<TextView>(R.id.openTaskButton).setOnClickListener {
@@ -67,6 +69,8 @@ class AlarmActivity : ComponentActivity() {
                     targetAppLabel,
                     configName,
                     AutoSwipeService.parseActionsJson(actionsJson),
+                    loopCount,
+                    loopIntervalMillis,
                     5
                 )
             } else {

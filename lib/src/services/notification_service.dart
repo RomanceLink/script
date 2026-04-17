@@ -87,6 +87,11 @@ class NotificationService {
                   definition,
                   gestureConfigs,
                 ),
+                gestureLoopCount: _gestureLoopCount(definition, gestureConfigs),
+                gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
+                  definition,
+                  gestureConfigs,
+                ),
               ),
             );
           }
@@ -121,6 +126,14 @@ class NotificationService {
                     definition,
                     gestureConfigs,
                   ),
+                  gestureLoopCount: _gestureLoopCount(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
+                    definition,
+                    gestureConfigs,
+                  ),
                 ),
               );
             }
@@ -151,6 +164,14 @@ class NotificationService {
                     gestureConfigs,
                   ),
                   gestureActionsJson: _gestureActionsJson(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  gestureLoopCount: _gestureLoopCount(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
                     definition,
                     gestureConfigs,
                   ),
@@ -190,6 +211,20 @@ class NotificationService {
     final config = _gestureConfigFor(definition, configs);
     if (config == null) return null;
     return jsonEncode(config.actions.map((action) => action.toJson()).toList());
+  }
+
+  int? _gestureLoopCount(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(definition, configs)?.loopCount;
+  }
+
+  int? _gestureLoopIntervalMillis(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(definition, configs)?.loopIntervalMillis;
   }
 
   Future<void> _showSummary(DailyTaskState state) async {

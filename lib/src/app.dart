@@ -265,6 +265,8 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
     await widget.alarmBridge.runGestureConfig(
       name: config.name,
       actions: config.actions.map((action) => action.toJson()).toList(),
+      loopCount: config.loopCount,
+      loopIntervalMillis: config.loopIntervalMillis,
     );
   }
 
@@ -298,7 +300,7 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      '${config.actions.length} 个动作 · 约 ${estimateGestureActionsDuration(config.actions).label}',
+                      '${config.actions.length} 个动作 · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}',
                     ),
                     trailing: IconButton.filledTonal(
                       tooltip: '播放',
@@ -518,6 +520,8 @@ class _DashboardPageState extends State<DashboardPage>
       packageLabel: state.selectedAppLabel,
       configName: config?.name,
       actions: config?.actions.map((a) => a.toJson()).toList() ?? const [],
+      loopCount: config?.loopCount ?? 1,
+      loopIntervalMillis: config?.loopIntervalMillis ?? 0,
       delaySeconds: 5,
     );
     if (!mounted) {
@@ -692,7 +696,7 @@ class _DashboardPageState extends State<DashboardPage>
     if (config == null) {
       return '配置已删除';
     }
-    return '${config.name} · 约 ${estimateGestureActionsDuration(config.actions).label}';
+    return '${config.name} · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}';
   }
 
   @override

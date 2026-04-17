@@ -96,6 +96,8 @@ class MainActivity : FlutterActivity() {
                         val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
                         val configName = call.argument<String>("configName")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        val loopCount = call.argument<Int>("loopCount") ?: 1
+                        val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
                         val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
                         if (packageName.isNullOrBlank()) {
                             result.success(false)
@@ -107,6 +109,8 @@ class MainActivity : FlutterActivity() {
                                     packageLabel,
                                     configName,
                                     actions,
+                                    loopCount,
+                                    loopIntervalMillis,
                                     delaySeconds
                                 )
                             )
@@ -117,7 +121,9 @@ class MainActivity : FlutterActivity() {
                         val max = call.argument<Int>("max") ?: 60
                         val name = call.argument<String>("name")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
-                        AutoSwipeService.updateConfig(min, max, actions, name)
+                        val loopCount = call.argument<Int>("loopCount") ?: 1
+                        val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
+                        AutoSwipeService.updateConfig(min, max, actions, name, loopCount, loopIntervalMillis)
                         result.success(null)
                     }
                     "scheduleSelfTest" -> {
