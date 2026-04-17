@@ -31,6 +31,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -66,9 +67,9 @@ class AutoSwipeService : AccessibilityService() {
     private var flutterOverlayView: FlutterView? = null
     private var flutterOverlayChannel: MethodChannel? = null
     private var pickerOverlay: View? = null
-    private var startMenuButton: TextView? = null
-    private var pauseMenuButton: TextView? = null
-    private var endMenuButton: TextView? = null
+    private var startMenuButton: ImageView? = null
+    private var pauseMenuButton: ImageView? = null
+    private var endMenuButton: ImageView? = null
     private var statusPrimaryView: TextView? = null
     private var statusSecondaryView: TextView? = null
     private var collapsedMenuButton: TextView? = null
@@ -85,6 +86,7 @@ class AutoSwipeService : AccessibilityService() {
     private var collapsedEdgeRight = true
     private var flutterOverlayAttached = false
     private var selectedConfigIndex = -1
+    private var lastNightModeMask = Configuration.UI_MODE_NIGHT_UNDEFINED
 
     private val gestureActions = mutableListOf<Map<String, Any?>>()
     private val runtimeActions = mutableListOf<Map<String, Any?>>()
@@ -246,6 +248,7 @@ class AutoSwipeService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        lastNightModeMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
     }
 
     private fun showAutomationMenuInternal(configs: List<Map<String, Any?>>): Boolean {
@@ -383,14 +386,18 @@ class AutoSwipeService : AccessibilityService() {
         statusSecondaryView = null
 
         if (isRunning || isPaused) {
-            val pauseButton = iconButton(if (isPaused) "▶" else "⏸", if (isPaused) "继续" else "暂停", 0xFFFFC46B.toInt()) {
+            val pauseButton = iconButton(
+                if (isPaused) R.drawable.ic_overlay_play else R.drawable.ic_overlay_pause,
+                if (isPaused) "继续" else "暂停",
+                0xFFFFC46B.toInt(),
+            ) {
                 if (isPaused) {
                     resumeScriptRun()
                 } else {
                     pauseScriptRun()
                 }
             }
-            val endButton = iconButton("■", "结束", 0xFFFF8A80.toInt()) {
+            val endButton = iconButton(R.drawable.ic_overlay_stop, "结束", 0xFFFF8A80.toInt()) {
                 stopScriptRun()
             }
             pauseMenuButton = pauseButton
@@ -424,10 +431,10 @@ class AutoSwipeService : AccessibilityService() {
             return row
         }
 
-        val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
+        val configButton = iconButton(R.drawable.ic_overlay_settings, "配置", 0xFF7ED8C3.toInt()) {
             showFlutterAutomationOverlay("configs")
         }
-        val startButton = iconButton("▶", "启动", 0xFF8EB8FF.toInt()) {
+        val startButton = iconButton(R.drawable.ic_overlay_play, "启动", 0xFF8EB8FF.toInt()) {
             if (isRunning) {
                 stopScriptRun()
             } else {
@@ -435,13 +442,13 @@ class AutoSwipeService : AccessibilityService() {
             }
         }
         startMenuButton = startButton
-        val recordButton = iconButton("●", "录制", 0xFFFFB989.toInt()) {
+        val recordButton = iconButton(R.drawable.ic_overlay_record, "录制", 0xFFFFB989.toInt()) {
             showFlutterAutomationOverlay("create")
         }
-        val closeButton = iconButton("×", "关闭", 0xFFFF8A80.toInt()) {
+        val closeButton = iconButton(R.drawable.ic_overlay_close, "关闭", 0xFFFF8A80.toInt()) {
             closeAutomationMenu()
         }
-        val foldButton = iconButton("›", "折叠", 0xFFE8A8FF.toInt()) {
+        val foldButton = iconButton(R.drawable.ic_overlay_fold, "折叠", 0xFFE8A8FF.toInt()) {
             showFloatingWindow(expanded = false)
         }
 
@@ -483,22 +490,20 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun iconButton(
-        icon: String,
+        iconRes: Int,
         description: String,
         color: Int,
         onClick: () -> Unit,
-    ): TextView {
-        return TextView(this).apply {
-            text = icon
-            textSize = 15f
-            gravity = Gravity.CENTER
-            setTextColor(color)
+    ): ImageView {
+        return ImageView(this).apply {
+            setImageResource(iconRes)
+            imageTintList = android.content.res.ColorStateList.valueOf(color)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
             contentDescription = description
-            includeFontPadding = false
-            typeface = Typeface.DEFAULT_BOLD
             background = null
-            minWidth = dp(28)
-            minHeight = dp(28)
+            minimumWidth = dp(28)
+            minimumHeight = dp(28)
+            adjustViewBounds = false
             setOnClickListener { onClick() }
         }
     }
@@ -3670,21 +3675,20 @@ class AutoSwipeService : AccessibilityService() {
             } else {
                 0L
             }
-            button?.text = "■"
             button?.contentDescription =
                 "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
             primary?.text =
                 "${if (isPaused) "暂停" else "执行"} 轮 ${loopIndex}/${totalLoops}  步 ${stepIndex}/${totalSteps}  ${formatLongElapsed(elapsed)}"
             secondary?.text =
                 if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "总时长 ${formatShortElapsed(runTotalMillis)}"
-            pauseMenuButton?.text = if (isPaused) "▶" else "⏸"
+            pauseMenuButton?.setImageResource(if (isPaused) R.drawable.ic_overlay_play else R.drawable.ic_overlay_pause)
             pauseMenuButton?.contentDescription = if (isPaused) "继续" else "暂停"
         } else {
-            button?.text = "▶"
+            button?.setImageResource(R.drawable.ic_overlay_play)
             button?.contentDescription = "启动"
             primary?.text = "待命"
             secondary?.text = "未执行"
-            pauseMenuButton?.text = "⏸"
+            pauseMenuButton?.setImageResource(R.drawable.ic_overlay_pause)
             pauseMenuButton?.contentDescription = "暂停"
         }
     }
@@ -3875,6 +3879,11 @@ class AutoSwipeService : AccessibilityService() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        val newNightModeMask = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        if (newNightModeMask == lastNightModeMask) {
+            return
+        }
+        lastNightModeMask = newNightModeMask
         if (floatingView != null) {
             showFloatingWindow(expanded = !collapsed, attachToRightEdge = collapsedEdgeRight)
         }
