@@ -161,6 +161,9 @@ class GestureEditPage extends StatefulWidget {
 }
 
 class _GestureEditPageState extends State<GestureEditPage> {
+  static const _defaultGestureBeforeWaitMillis = 300;
+  static const _defaultGestureAfterWaitMillis = 800;
+
   late TextEditingController _nameController;
   final List<GestureAction> _actions = [];
 
@@ -181,6 +184,25 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   void _addAction(GestureAction action) {
     setState(() => _actions.add(action));
+  }
+
+  void _addGestureActionsWithBuffers(List<GestureAction> actions) {
+    if (actions.isEmpty) return;
+    setState(() {
+      for (final action in actions) {
+        _actions.add(
+          WaitAction.fixedMilliseconds(
+            milliseconds: _defaultGestureBeforeWaitMillis,
+          ),
+        );
+        _actions.add(action);
+        _actions.add(
+          WaitAction.fixedMilliseconds(
+            milliseconds: _defaultGestureAfterWaitMillis,
+          ),
+        );
+      }
+    });
   }
 
   void _showAddMenu() {
@@ -216,6 +238,17 @@ class _GestureEditPageState extends State<GestureEditPage> {
               onTap: () {
                 Navigator.of(context).pop();
                 _pickRandomWaitAction();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.more_time_rounded,
+                color: Colors.deepOrange,
+              ),
+              title: const Text('毫秒等待'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickMillisecondWaitAction();
               },
             ),
             ListTile(
@@ -262,7 +295,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
               final result = await AlarmBridge().enterPickerMode('record');
               final action = _recordedActionFromResult(result);
               if (action != null) {
-                _addAction(action);
+                _addGestureActionsWithBuffers([action]);
               }
             },
           ),
@@ -275,7 +308,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
               final result = await AlarmBridge().enterPickerMode('clickSteps');
               final actions = _clickActionsFromSteps(result);
               if (actions.isNotEmpty) {
-                setState(() => _actions.addAll(actions));
+                _addGestureActionsWithBuffers(actions);
               }
             },
           ),
@@ -287,12 +320,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
               Navigator.of(context).pop();
               final result = await AlarmBridge().enterPickerMode('click');
               if (result != null && result['cancelled'] != true) {
-                _addAction(
+                _addGestureActionsWithBuffers([
                   ClickAction(
                     x1: (result['x1'] as num).toDouble(),
                     y1: (result['y1'] as num).toDouble(),
                   ),
-                );
+                ]);
               }
             },
           ),
@@ -304,14 +337,14 @@ class _GestureEditPageState extends State<GestureEditPage> {
               Navigator.of(context).pop();
               final result = await AlarmBridge().enterPickerMode('swipe');
               if (result != null && result['cancelled'] != true) {
-                _addAction(
+                _addGestureActionsWithBuffers([
                   SwipeAction(
                     x1: (result['x1'] as num).toDouble(),
                     y1: (result['y1'] as num).toDouble(),
                     x2: (result['x2'] as num).toDouble(),
                     y2: (result['y2'] as num).toDouble(),
                   ),
-                );
+                ]);
               }
             },
           ),
@@ -490,6 +523,44 @@ class _GestureEditPageState extends State<GestureEditPage> {
     _addAction(action);
   }
 
+  Future<void> _pickMillisecondWaitAction() async {
+    var millisText = '800';
+    final action = await showDialog<WaitAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('设置毫秒等待'),
+        content: TextFormField(
+          initialValue: millisText,
+          onChanged: (value) => millisText = value,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: '等待毫秒',
+            hintText: '例如 300 或 800',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final milliseconds = int.tryParse(millisText.trim()) ?? 800;
+              Navigator.of(
+                context,
+              ).pop(WaitAction.fixedMilliseconds(milliseconds: milliseconds));
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    _addAction(action);
+  }
+
   Future<void> _pickAppAction() async {
     final apps = await widget.launcher.listLaunchableApps();
     if (!mounted) return;
@@ -573,11 +644,100 @@ class _GestureEditPageState extends State<GestureEditPage> {
           duration: action.duration,
         );
       });
+      return;
+    }
+    if (action is WaitAction) {
+      await _editWaitAction(index, action);
     }
   }
 
   bool _isPositionEditable(GestureAction action) {
-    return action is ClickAction || action is SwipeAction;
+    return action is ClickAction ||
+        action is SwipeAction ||
+        action is WaitAction;
+  }
+
+  Future<void> _editWaitAction(int index, WaitAction action) async {
+    if (action.isRandom) {
+      var minText = action.effectiveMinSeconds.toString();
+      var maxText = action.effectiveMaxSeconds.toString();
+      final next = await showDialog<WaitAction>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('编辑随机等待'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                initialValue: minText,
+                onChanged: (value) => minText = value,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '最小秒数'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: maxText,
+                onChanged: (value) => maxText = value,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '最大秒数'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                final min = int.tryParse(minText.trim()) ?? 30;
+                final max = int.tryParse(maxText.trim()) ?? 120;
+                Navigator.of(
+                  context,
+                ).pop(WaitAction.random(minSeconds: min, maxSeconds: max));
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      );
+      if (next != null && mounted) {
+        setState(() => _actions[index] = next);
+      }
+      return;
+    }
+
+    var millisText = action.milliseconds.toString();
+    final next = await showDialog<WaitAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('编辑等待'),
+        content: TextFormField(
+          initialValue: millisText,
+          onChanged: (value) => millisText = value,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: '等待毫秒'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final milliseconds = int.tryParse(millisText.trim()) ?? 800;
+              Navigator.of(
+                context,
+              ).pop(WaitAction.fixedMilliseconds(milliseconds: milliseconds));
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (next != null && mounted) {
+      setState(() => _actions[index] = next);
+    }
   }
 
   @override
@@ -713,7 +873,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   String _actionLabel(GestureAction action) {
     if (action is WaitAction) {
-      return action.isRandom ? '随机等待' : '固定等待';
+      if (action.isRandom) return '随机等待';
+      return action.usesMilliseconds ? '毫秒等待' : '固定等待';
     }
     return switch (action.type) {
       GestureActionType.swipe => '滑动手势',
@@ -745,13 +906,25 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
     if (action is WaitAction) {
       if (action.isRandom) {
-        return '${action.effectiveMinSeconds}-${action.effectiveMaxSeconds} 秒内随机';
+        return '${_formatWaitDuration(action.effectiveMinMilliseconds)}-${_formatWaitDuration(action.effectiveMaxMilliseconds)} 内随机';
       }
-      return '固定等待 ${action.seconds} 秒';
+      return '固定等待 ${_formatWaitDuration(action.milliseconds)}';
     }
     if (action is LaunchAppAction) {
       return '拉起 ${action.label}';
     }
     return '';
+  }
+
+  String _formatWaitDuration(int milliseconds) {
+    if (milliseconds < 1000) return '$milliseconds 毫秒';
+    if (milliseconds < 60000) {
+      if (milliseconds % 1000 == 0) return '${milliseconds ~/ 1000} 秒';
+      return '${(milliseconds / 1000).toStringAsFixed(1)} 秒';
+    }
+    final seconds = (milliseconds / 1000).ceil();
+    final minutes = seconds ~/ 60;
+    final rest = seconds % 60;
+    return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
   }
 }

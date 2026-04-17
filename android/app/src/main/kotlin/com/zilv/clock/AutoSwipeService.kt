@@ -60,6 +60,8 @@ class AutoSwipeService : AccessibilityService() {
     private var runStartedAt = 0L
     private var runTotalMillis = 0L
     private var playbackTicker: Runnable? = null
+    private val defaultGestureBeforeWaitMillis = 300
+    private val defaultGestureAfterWaitMillis = 800
 
     private val handler = Handler(Looper.getMainLooper())
     private val random = Random()
@@ -681,6 +683,9 @@ class AutoSwipeService : AccessibilityService() {
         panel.addView(optionRow("随机等待", "在秒数范围内随机等待", 0xFFFFB74D.toInt()) {
             showFloatingWaitEditor(randomWait = true)
         })
+        panel.addView(optionRow("毫秒等待", "用于动作前后缓冲，避免冲突", 0xFFFF9800.toInt()) {
+            showFloatingWaitEditor(randomWait = false, milliseconds = true)
+        })
         panel.addView(optionRow("固定等待", "固定等待指定秒数，最多 10000 秒", 0xFF8D6E63.toInt()) {
             showFloatingWaitEditor(randomWait = false)
         })
@@ -761,14 +766,35 @@ class AutoSwipeService : AccessibilityService() {
         addChooserPanel(panel, layoutParams)
     }
 
-    private fun showFloatingWaitEditor(randomWait: Boolean) {
+    private fun showFloatingWaitEditor(
+        randomWait: Boolean,
+        milliseconds: Boolean = false,
+        editIndex: Int? = null,
+    ) {
         removeChooserOverlay()
         val layoutParams = floatingPanelParams(widthDp = 320, focusable = true)
-        val panel = floatingPanel(if (randomWait) "随机等待" else "固定等待")
+        val panel = floatingPanel(if (randomWait) "随机等待" else if (milliseconds) "毫秒等待" else "固定等待")
+        val editing = editIndex != null
+        val current = editIndex?.let { floatingRecordActions.getOrNull(it) }
+        val cancelAction = {
+            if (editing) {
+                showFloatingRecorder()
+            } else {
+                showFloatingAddMenu()
+            }
+        }
 
         if (randomWait) {
-            val minInput = inputField("30", "最小秒数", numberOnly = true)
-            val maxInput = inputField("120", "最大秒数", numberOnly = true)
+            val minInput = inputField(
+                ((current?.get("minSeconds") as? Number)?.toInt() ?: 30).toString(),
+                "最小秒数",
+                numberOnly = true,
+            )
+            val maxInput = inputField(
+                ((current?.get("maxSeconds") as? Number)?.toInt() ?: 120).toString(),
+                "最大秒数",
+                numberOnly = true,
+            )
             panel.addView(fieldLabel("最小秒数"))
             panel.addView(minInput, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -785,44 +811,76 @@ class AutoSwipeService : AccessibilityService() {
                 dp(42),
             ))
             panel.addView(actionButtonRow(
-                onCancel = { showFloatingAddMenu() },
+                onCancel = cancelAction,
                 onConfirm = {
                     val rawMin = (minInput.text?.toString()?.trim()?.toIntOrNull() ?: 30).coerceIn(1, 10000)
                     val rawMax = (maxInput.text?.toString()?.trim()?.toIntOrNull() ?: 120).coerceIn(1, 10000)
                     val min = kotlin.math.min(rawMin, rawMax)
                     val max = kotlin.math.max(rawMin, rawMax)
-                    floatingRecordActions.add(
+                    upsertFloatingWaitAction(
+                        editIndex,
                         mapOf(
                             "type" to "wait",
                             "waitMode" to "random",
                             "seconds" to min,
                             "minSeconds" to min,
                             "maxSeconds" to max,
+                            "minMillis" to min * 1000,
+                            "maxMillis" to max * 1000,
+                            "waitMillis" to min * 1000,
                         ),
                     )
                     showFloatingRecorder()
                 },
+                confirmLabel = if (editing) "保存" else "添加",
+            ))
+        } else if (milliseconds) {
+            val defaultMillis = ((current?.get("waitMillis") as? Number)?.toInt()
+                ?: ((current?.get("seconds") as? Number)?.toInt()?.times(1000))
+                ?: defaultGestureAfterWaitMillis).coerceIn(1, 10_000_000)
+            val millisInput = inputField(defaultMillis.toString(), "等待毫秒", numberOnly = true)
+            panel.addView(fieldLabel("等待毫秒，比如 300 或 800"))
+            panel.addView(millisInput, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ))
+            panel.addView(actionButtonRow(
+                onCancel = cancelAction,
+                onConfirm = {
+                    val millis = (millisInput.text?.toString()?.trim()?.toIntOrNull()
+                        ?: defaultGestureAfterWaitMillis).coerceIn(1, 10_000_000)
+                    upsertFloatingWaitAction(editIndex, fixedMillisWaitAction(millis))
+                    showFloatingRecorder()
+                },
+                confirmLabel = if (editing) "保存" else "添加",
             ))
         } else {
-            val secondsInput = inputField("5", "等待秒数", numberOnly = true)
+            val secondsInput = inputField(
+                ((current?.get("seconds") as? Number)?.toInt() ?: 5).toString(),
+                "等待秒数",
+                numberOnly = true,
+            )
             panel.addView(fieldLabel("等待秒数，最多 10000 秒"))
             panel.addView(secondsInput, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(42),
             ))
             panel.addView(actionButtonRow(
-                onCancel = { showFloatingAddMenu() },
+                onCancel = cancelAction,
                 onConfirm = {
                     val seconds = (secondsInput.text?.toString()?.trim()?.toIntOrNull() ?: 5).coerceIn(1, 10000)
-                    floatingRecordActions.add(
+                    upsertFloatingWaitAction(
+                        editIndex,
                         mapOf(
                             "type" to "wait",
                             "waitMode" to "fixed",
                             "seconds" to seconds,
+                            "waitMillis" to seconds * 1000,
                         ),
                     )
                     showFloatingRecorder()
                 },
+                confirmLabel = if (editing) "保存" else "添加",
             ))
         }
 
@@ -904,28 +962,32 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun appendFloatingPickerResult(result: Map<String, Any?>) {
-        when (result["type"] as? String) {
+        appendGestureActionsWithBuffers(floatingActionsFromPickerResult(result))
+    }
+
+    private fun floatingActionsFromPickerResult(result: Map<String, Any?>): List<Map<String, Any?>> {
+        return when (result["type"] as? String) {
             "clickSteps" -> {
                 val points = result["points"] as? List<*> ?: emptyList<Any?>()
-                points.forEach { point ->
-                    val map = point as? Map<*, *> ?: return@forEach
-                    floatingRecordActions.add(
-                        mapOf(
-                            "type" to "click",
-                            "x1" to ((map["x"] as? Number)?.toDouble() ?: 0.5),
-                            "y1" to ((map["y"] as? Number)?.toDouble() ?: 0.5),
-                            "duration" to 50,
-                        ),
+                points.mapNotNull { point ->
+                    val map = point as? Map<*, *> ?: return@mapNotNull null
+                    mapOf(
+                        "type" to "click",
+                        "x1" to ((map["x"] as? Number)?.toDouble() ?: 0.5),
+                        "y1" to ((map["y"] as? Number)?.toDouble() ?: 0.5),
+                        "duration" to 50,
                     )
                 }
             }
             "recorded" -> {
                 if (asMapList(result["segments"]).isNotEmpty()) {
-                    floatingRecordActions.add(normalizeMap(result))
+                    listOf(normalizeMap(result))
+                } else {
+                    emptyList()
                 }
             }
             "click" -> {
-                floatingRecordActions.add(
+                listOf(
                     mapOf(
                         "type" to "click",
                         "x1" to ((result["x1"] as? Number)?.toDouble() ?: 0.5),
@@ -935,7 +997,7 @@ class AutoSwipeService : AccessibilityService() {
                 )
             }
             "swipe" -> {
-                floatingRecordActions.add(
+                listOf(
                     mapOf(
                         "type" to "swipe",
                         "x1" to ((result["x1"] as? Number)?.toDouble() ?: 0.5),
@@ -946,11 +1008,70 @@ class AutoSwipeService : AccessibilityService() {
                     ),
                 )
             }
+            else -> emptyList()
+        }
+    }
+
+    private fun appendGestureActionsWithBuffers(actions: List<Map<String, Any?>>) {
+        actions.forEach { action ->
+            floatingRecordActions.add(fixedMillisWaitAction(defaultGestureBeforeWaitMillis))
+            floatingRecordActions.add(action)
+            floatingRecordActions.add(fixedMillisWaitAction(defaultGestureAfterWaitMillis))
+        }
+    }
+
+    private fun fixedMillisWaitAction(milliseconds: Int): Map<String, Any?> {
+        val millis = milliseconds.coerceIn(1, 10_000_000)
+        val seconds = ((millis + 999) / 1000).coerceIn(1, 10000)
+        return mapOf(
+            "type" to "wait",
+            "waitMode" to "fixed",
+            "waitMillis" to millis,
+            "seconds" to seconds,
+        )
+    }
+
+    private fun upsertFloatingWaitAction(index: Int?, action: Map<String, Any?>) {
+        if (index != null && index in floatingRecordActions.indices) {
+            floatingRecordActions[index] = action
+        } else {
+            floatingRecordActions.add(action)
+        }
+    }
+
+    private fun isRandomWait(action: Map<String, Any?>): Boolean {
+        return action["waitMode"] == "random" ||
+            action["minSeconds"] != null ||
+            action["maxSeconds"] != null ||
+            action["minMillis"] != null ||
+            action["maxMillis"] != null
+    }
+
+    private fun hasMillisWait(action: Map<String, Any?>): Boolean {
+        return action["waitMillis"] != null || action["minMillis"] != null || action["maxMillis"] != null
+    }
+
+    private fun replaceFloatingActionFromPicker(index: Int, result: Map<String, Any?>) {
+        val replacements = floatingActionsFromPickerResult(result)
+        if (replacements.isEmpty()) return
+        if (index in floatingRecordActions.indices) {
+            floatingRecordActions[index] = replacements.first()
+            if (replacements.size > 1) {
+                floatingRecordActions.addAll(index + 1, replacements.drop(1))
+            }
         }
     }
 
     private fun editFloatingAction(index: Int) {
         val action = floatingRecordActions.getOrNull(index) ?: return
+        if ((action["type"] as? String) == "wait") {
+            showFloatingWaitEditor(
+                randomWait = isRandomWait(action),
+                milliseconds = hasMillisWait(action),
+                editIndex = index,
+            )
+            return
+        }
         val pickerType = when (action["type"] as? String) {
             "click" -> "click"
             "swipe" -> "swipe"
@@ -960,16 +1081,7 @@ class AutoSwipeService : AccessibilityService() {
         removeChooserOverlay()
         startNativePicker(pickerType) { result ->
             if (result["cancelled"] != true) {
-                val before = floatingRecordActions.size
-                appendFloatingPickerResult(result)
-                if (floatingRecordActions.size > before) {
-                    val replacement = floatingRecordActions.removeAt(floatingRecordActions.lastIndex)
-                    if (index in floatingRecordActions.indices) {
-                        floatingRecordActions[index] = replacement
-                    } else {
-                        floatingRecordActions.add(replacement)
-                    }
-                }
+                replaceFloatingActionFromPicker(index, result)
             }
             showFloatingRecorder()
         }
@@ -995,7 +1107,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun isFloatingActionEditable(action: Map<String, Any?>): Boolean {
         return when (action["type"] as? String) {
-            "click", "swipe", "recorded" -> true
+            "click", "swipe", "recorded", "wait" -> true
             else -> false
         }
     }
@@ -1012,8 +1124,10 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun nativeActionTitle(action: Map<String, Any?>): String {
         if ((action["type"] as? String) == "wait") {
-            return if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
+            return if (isRandomWait(action)) {
                 "随机等待"
+            } else if (hasMillisWait(action)) {
+                "毫秒等待"
             } else {
                 "固定等待"
             }
@@ -1039,12 +1153,12 @@ class AutoSwipeService : AccessibilityService() {
                 else -> "模拟返回键"
             }
             "wait" -> {
-                if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
-                    val min = ((action["minSeconds"] as? Number)?.toInt() ?: (action["seconds"] as? Number)?.toInt() ?: 1)
-                    val max = ((action["maxSeconds"] as? Number)?.toInt() ?: min)
-                    "$min-$max 秒内随机"
+                if (isRandomWait(action)) {
+                    val min = waitMinMillis(action)
+                    val max = waitMaxMillis(action)
+                    "${formatWaitDuration(min)}-${formatWaitDuration(max)} 内随机"
                 } else {
-                    "固定等待 ${((action["seconds"] as? Number)?.toInt() ?: 1)} 秒"
+                    "固定等待 ${formatWaitDuration(resolveWaitMillis(action))}"
                 }
             }
             "launchApp" -> "拉起 ${(action["label"] as? String) ?: (action["packageName"] as? String) ?: "应用"}"
@@ -1139,7 +1253,11 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun actionButtonRow(onCancel: () -> Unit, onConfirm: () -> Unit): View {
+    private fun actionButtonRow(
+        onCancel: () -> Unit,
+        onConfirm: () -> Unit,
+        confirmLabel: String = "添加",
+    ): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(12), 0, 0)
@@ -1151,7 +1269,7 @@ class AutoSwipeService : AccessibilityService() {
             },
         )
         row.addView(
-            menuButton("添加", 0xFF4CAF50.toInt(), onConfirm),
+            menuButton(confirmLabel, 0xFF4CAF50.toInt(), onConfirm),
             LinearLayout.LayoutParams(0, dp(42), 1f),
         )
         return row
@@ -1274,8 +1392,8 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
             "wait" -> {
-                val seconds = resolveWaitSeconds(action)
-                handler.postDelayed({ executeActionIndex(index + 1) }, seconds * 1000L)
+                val waitMillis = resolveWaitMillis(action)
+                handler.postDelayed({ executeActionIndex(index + 1) }, waitMillis)
             }
             "launchApp" -> {
                 val packageName = action["packageName"] as? String
@@ -1295,9 +1413,11 @@ class AutoSwipeService : AccessibilityService() {
         if ((action["type"] as? String) != "wait") {
             return action
         }
+        val millis = resolveWaitMillis(action)
         return action + mapOf(
             "waitMode" to "fixed",
-            "seconds" to resolveWaitSeconds(action),
+            "waitMillis" to millis,
+            "seconds" to ((millis + 999) / 1000).coerceIn(1L, 10000L),
         )
     }
 
@@ -1314,17 +1434,41 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun resolveWaitSeconds(action: Map<String, Any?>): Long {
+        return ((resolveWaitMillis(action) + 999L) / 1000L).coerceIn(1L, 10000L)
+    }
+
+    private fun resolveWaitMillis(action: Map<String, Any?>): Long {
         val mode = action["waitMode"] as? String
-        val seconds = ((action["seconds"] as? Number)?.toLong() ?: 1L).coerceIn(1L, 10000L)
-        if (mode != "random" && action["minSeconds"] == null && action["maxSeconds"] == null) {
-            return seconds
+        val millis = ((action["waitMillis"] as? Number)?.toLong()
+            ?: ((action["seconds"] as? Number)?.toLong() ?: 1L) * 1000L).coerceIn(1L, 10_000_000L)
+        if (mode != "random" &&
+            action["minSeconds"] == null &&
+            action["maxSeconds"] == null &&
+            action["minMillis"] == null &&
+            action["maxMillis"] == null
+        ) {
+            return millis
         }
-        val rawMin = ((action["minSeconds"] as? Number)?.toLong() ?: seconds).coerceIn(1L, 10000L)
-        val rawMax = ((action["maxSeconds"] as? Number)?.toLong() ?: rawMin).coerceIn(1L, 10000L)
+        val rawMin = waitMinMillis(action)
+        val rawMax = waitMaxMillis(action)
         val min = kotlin.math.min(rawMin, rawMax)
         val max = kotlin.math.max(rawMin, rawMax)
         if (max <= min) return min
         return random.nextInt((max - min + 1).toInt()).toLong() + min
+    }
+
+    private fun waitMinMillis(action: Map<String, Any?>): Long {
+        val seconds = ((action["seconds"] as? Number)?.toLong() ?: 1L).coerceIn(1L, 10000L)
+        return ((action["minMillis"] as? Number)?.toLong()
+            ?: ((action["minSeconds"] as? Number)?.toLong()?.times(1000L))
+            ?: ((action["waitMillis"] as? Number)?.toLong())
+            ?: seconds * 1000L).coerceIn(1L, 10_000_000L)
+    }
+
+    private fun waitMaxMillis(action: Map<String, Any?>): Long {
+        return ((action["maxMillis"] as? Number)?.toLong()
+            ?: ((action["maxSeconds"] as? Number)?.toLong()?.times(1000L))
+            ?: waitMinMillis(action)).coerceIn(1L, 10_000_000L)
     }
 
     private fun performNavigationAction(navType: String, onDone: () -> Unit) {
@@ -1846,9 +1990,9 @@ class AutoSwipeService : AccessibilityService() {
     private fun estimateActionsDurationLabel(actions: List<Map<String, Any?>>): String {
         val (minMillis, maxMillis) = estimateActionsMillisRange(actions)
         return if (minMillis == maxMillis) {
-            formatElapsed(minMillis)
+            formatDurationLabel(minMillis)
         } else {
-            "${formatElapsed(minMillis)}-${formatElapsed(maxMillis)}"
+            "${formatDurationLabel(minMillis)}-${formatDurationLabel(maxMillis)}"
         }
     }
 
@@ -1882,13 +2026,13 @@ class AutoSwipeService : AccessibilityService() {
                 millis to millis
             }
             "wait" -> {
-                val seconds = ((action["seconds"] as? Number)?.toLong() ?: 1L).coerceIn(1L, 10000L)
-                if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
-                    val rawMin = ((action["minSeconds"] as? Number)?.toLong() ?: seconds).coerceIn(1L, 10000L)
-                    val rawMax = ((action["maxSeconds"] as? Number)?.toLong() ?: rawMin).coerceIn(1L, 10000L)
-                    kotlin.math.min(rawMin, rawMax) * 1000L to kotlin.math.max(rawMin, rawMax) * 1000L
+                if (isRandomWait(action)) {
+                    val rawMin = waitMinMillis(action)
+                    val rawMax = waitMaxMillis(action)
+                    kotlin.math.min(rawMin, rawMax) to kotlin.math.max(rawMin, rawMax)
                 } else {
-                    seconds * 1000L to seconds * 1000L
+                    val millis = resolveWaitMillis(action)
+                    millis to millis
                 }
             }
             "launchApp" -> 1000L to 1000L
@@ -1903,7 +2047,7 @@ class AutoSwipeService : AccessibilityService() {
                 "swipe" -> ((action["duration"] as? Number)?.toLong() ?: 400L) + 100L
                 "recorded" -> ((action["duration"] as? Number)?.toLong() ?: 0L) + 100L
                 "nav" -> if (action["navType"] == "recents") 900L else 650L
-                "wait" -> resolveWaitSeconds(action) * 1000L
+                "wait" -> resolveWaitMillis(action)
                 "launchApp" -> 1000L
                 else -> 0L
             }
@@ -1919,6 +2063,27 @@ class AutoSwipeService : AccessibilityService() {
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
         return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+    }
+
+    private fun formatDurationLabel(milliseconds: Long): String {
+        val millis = milliseconds.coerceAtLeast(0L)
+        if (millis < 1000L) {
+            return "${millis}毫秒"
+        }
+        if (millis < 60_000L) {
+            return if (millis % 1000L == 0L) {
+                "${millis / 1000L}秒"
+            } else {
+                "${String.format(Locale.US, "%.1f", millis / 1000.0)}秒"
+            }
+        }
+        val minutes = millis / 60_000L
+        val seconds = (millis % 60_000L) / 1000L
+        return if (seconds == 0L) "${minutes}分钟" else "${minutes}分${seconds}秒"
+    }
+
+    private fun formatWaitDuration(milliseconds: Long): String {
+        return formatDurationLabel(milliseconds)
     }
 
     private fun formatShortElapsed(milliseconds: Long): String {

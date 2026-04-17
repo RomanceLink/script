@@ -318,39 +318,64 @@ class NavAction extends GestureAction {
 
 class WaitAction extends GestureAction {
   const WaitAction({
-    required this.seconds,
-    this.minSeconds,
-    this.maxSeconds,
+    required this.milliseconds,
+    this.minMilliseconds,
+    this.maxMilliseconds,
     this.isRandom = false,
   }) : super(type: GestureActionType.wait);
 
   factory WaitAction.fixed({required int seconds}) {
-    return WaitAction(seconds: seconds.clamp(1, 10000));
+    return WaitAction.fixedMilliseconds(milliseconds: seconds * 1000);
+  }
+
+  factory WaitAction.fixedMilliseconds({required int milliseconds}) {
+    return WaitAction(milliseconds: milliseconds.clamp(1, 10000000));
   }
 
   factory WaitAction.random({
     required int minSeconds,
     required int maxSeconds,
   }) {
-    final min = minSeconds.clamp(1, 10000);
-    final max = maxSeconds.clamp(1, 10000);
+    return WaitAction.randomMilliseconds(
+      minMilliseconds: minSeconds * 1000,
+      maxMilliseconds: maxSeconds * 1000,
+    );
+  }
+
+  factory WaitAction.randomMilliseconds({
+    required int minMilliseconds,
+    required int maxMilliseconds,
+  }) {
+    final min = minMilliseconds.clamp(1, 10000000);
+    final max = maxMilliseconds.clamp(1, 10000000);
     final orderedMin = min <= max ? min : max;
     final orderedMax = max >= min ? max : min;
     return WaitAction(
-      seconds: orderedMin,
-      minSeconds: orderedMin,
-      maxSeconds: orderedMax,
+      milliseconds: orderedMin,
+      minMilliseconds: orderedMin,
+      maxMilliseconds: orderedMax,
       isRandom: true,
     );
   }
 
-  final int seconds;
-  final int? minSeconds;
-  final int? maxSeconds;
+  final int milliseconds;
+  final int? minMilliseconds;
+  final int? maxMilliseconds;
   final bool isRandom;
 
-  int get effectiveMinSeconds => isRandom ? minSeconds ?? seconds : seconds;
-  int get effectiveMaxSeconds => isRandom ? maxSeconds ?? seconds : seconds;
+  int get seconds => (milliseconds / 1000).ceil().clamp(1, 10000);
+  int get effectiveMinMilliseconds =>
+      isRandom ? minMilliseconds ?? milliseconds : milliseconds;
+  int get effectiveMaxMilliseconds =>
+      isRandom ? maxMilliseconds ?? milliseconds : milliseconds;
+  int get effectiveMinSeconds =>
+      (effectiveMinMilliseconds / 1000).ceil().clamp(1, 10000);
+  int get effectiveMaxSeconds =>
+      (effectiveMaxMilliseconds / 1000).ceil().clamp(1, 10000);
+  bool get usesMilliseconds =>
+      milliseconds % 1000 != 0 ||
+      (minMilliseconds != null && minMilliseconds! % 1000 != 0) ||
+      (maxMilliseconds != null && maxMilliseconds! % 1000 != 0);
 
   @override
   Map<String, Object?> toJson() => isRandom
@@ -360,20 +385,40 @@ class WaitAction extends GestureAction {
           'seconds': seconds,
           'minSeconds': effectiveMinSeconds,
           'maxSeconds': effectiveMaxSeconds,
+          'waitMillis': milliseconds,
+          'minMillis': effectiveMinMilliseconds,
+          'maxMillis': effectiveMaxMilliseconds,
         }
-      : {'type': type.name, 'waitMode': 'fixed', 'seconds': seconds};
+      : {
+          'type': type.name,
+          'waitMode': 'fixed',
+          'seconds': seconds,
+          'waitMillis': milliseconds,
+        };
 
   factory WaitAction.fromJson(Map<String, Object?> json) {
+    int? secondsToMillis(Object? value) {
+      final seconds = (value as num?)?.toInt();
+      return seconds == null ? null : seconds * 1000;
+    }
+
     final mode = json['waitMode'] as String?;
-    final min = (json['minSeconds'] as num?)?.toInt();
-    final max = (json['maxSeconds'] as num?)?.toInt();
-    if (mode == 'random' || min != null || max != null) {
-      return WaitAction.random(
-        minSeconds: min ?? (json['seconds'] as num?)?.toInt() ?? 1,
-        maxSeconds: max ?? min ?? (json['seconds'] as num?)?.toInt() ?? 1,
+    final millis =
+        (json['waitMillis'] as num?)?.toInt() ??
+        ((json['seconds'] as num?)?.toInt() ?? 1) * 1000;
+    final minMillis =
+        (json['minMillis'] as num?)?.toInt() ??
+        secondsToMillis(json['minSeconds']);
+    final maxMillis =
+        (json['maxMillis'] as num?)?.toInt() ??
+        secondsToMillis(json['maxSeconds']);
+    if (mode == 'random' || minMillis != null || maxMillis != null) {
+      return WaitAction.randomMilliseconds(
+        minMilliseconds: minMillis ?? millis,
+        maxMilliseconds: maxMillis ?? minMillis ?? millis,
       );
     }
-    return WaitAction.fixed(seconds: (json['seconds'] as num?)?.toInt() ?? 1);
+    return WaitAction.fixedMilliseconds(milliseconds: millis);
   }
 }
 
@@ -456,8 +501,12 @@ class GestureDurationRange {
 
   String get label {
     String format(int millis) {
+      if (millis < 1000) return '$millis 毫秒';
+      if (millis < 60000) {
+        if (millis % 1000 == 0) return '${millis ~/ 1000} 秒';
+        return '${(millis / 1000).toStringAsFixed(1)} 秒';
+      }
       final seconds = (millis / 1000).ceil();
-      if (seconds < 60) return '$seconds 秒';
       final minutes = seconds ~/ 60;
       final rest = seconds % 60;
       return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
@@ -498,8 +547,8 @@ GestureDurationRange estimateGestureActionDuration(GestureAction action) {
   }
   if (action is WaitAction) {
     return GestureDurationRange(
-      minMillis: action.effectiveMinSeconds * 1000,
-      maxMillis: action.effectiveMaxSeconds * 1000,
+      minMillis: action.effectiveMinMilliseconds,
+      maxMillis: action.effectiveMaxMilliseconds,
     );
   }
   if (action is NavAction) {
