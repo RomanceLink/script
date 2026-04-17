@@ -132,6 +132,10 @@ class AlarmBridge {
     return result ?? false;
   }
 
+  Future<void> closeAutomationOverlay() async {
+    await _channel.invokeMethod('closeAutomationOverlay');
+  }
+
   Future<bool> openAppAndRunConfig({
     required String packageName,
     required String packageLabel,

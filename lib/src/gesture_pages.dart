@@ -10,11 +10,15 @@ class GestureConfigPage extends StatefulWidget {
   const GestureConfigPage({
     required this.repository,
     required this.launcher,
+    this.autoCreateOnOpen = false,
+    this.onConfigsChanged,
     super.key,
   });
 
   final TaskRepository repository;
   final DouyinLauncher launcher;
+  final bool autoCreateOnOpen;
+  final Future<void> Function(List<GestureConfig> configs)? onConfigsChanged;
 
   @override
   State<GestureConfigPage> createState() => _GestureConfigPageState();
@@ -23,6 +27,7 @@ class GestureConfigPage extends StatefulWidget {
 class _GestureConfigPageState extends State<GestureConfigPage> {
   List<GestureConfig> _configs = [];
   bool _loading = true;
+  bool _handledAutoCreate = false;
 
   @override
   void initState() {
@@ -37,6 +42,14 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
         _configs = configs;
         _loading = false;
       });
+      if (widget.autoCreateOnOpen && !_handledAutoCreate) {
+        _handledAutoCreate = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _addOrEdit();
+          }
+        });
+      }
     }
   }
 
@@ -58,6 +71,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       }
       setState(() => _configs = next);
       await widget.repository.saveGestureConfigs(next);
+      await widget.onConfigsChanged?.call(next);
     }
   }
 
@@ -85,6 +99,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       final next = _configs.where((c) => c.id != id).toList();
       setState(() => _configs = next);
       await widget.repository.saveGestureConfigs(next);
+      await widget.onConfigsChanged?.call(next);
     }
   }
 

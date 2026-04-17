@@ -6,3 +6,9 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ScriptAssistantApp());
 }
+
+@pragma('vm:entry-point')
+void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const FloatingAutomationOverlayApp());
+}

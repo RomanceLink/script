@@ -32,6 +32,13 @@ import android.widget.TextView
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import io.flutter.FlutterInjector
+import io.flutter.embedding.android.FlutterView
+import io.flutter.embedding.android.RenderMode
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugins.GeneratedPluginRegistrant
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -47,6 +54,10 @@ class AutoSwipeService : AccessibilityService() {
     private var floatingView: View? = null
     private var floatingLayoutParams: WindowManager.LayoutParams? = null
     private var chooserOverlay: View? = null
+    private var flutterOverlayRoot: FrameLayout? = null
+    private var flutterOverlayParams: WindowManager.LayoutParams? = null
+    private var flutterOverlayEngine: FlutterEngine? = null
+    private var flutterOverlayView: FlutterView? = null
     private var pickerOverlay: View? = null
     private var startMenuButton: TextView? = null
     private var collapsedMenuButton: TextView? = null
@@ -57,6 +68,7 @@ class AutoSwipeService : AccessibilityService() {
     private var scriptName: String? = null
     private var collapsed = false
     private var collapsedEdgeRight = true
+    private var flutterOverlayAttached = false
     private var selectedConfigIndex = -1
 
     private val gestureActions = mutableListOf<Map<String, Any?>>()
@@ -75,6 +87,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val random = Random()
+    private val alarmChannelName = "scriptapp/alarm"
 
     companion object {
         var instance: AutoSwipeService? = null
@@ -298,17 +311,17 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         val configButton = iconButton("⚙", "配置", 0xFF7ED8C3.toInt()) {
-            openFlutterCommand("open_configs")
+            showFlutterAutomationOverlay("configs")
         }
         startMenuButton = iconButton("▶", "启动", 0xFF8EB8FF.toInt()) {
             if (isRunning) {
                 stopScriptRun()
             } else {
-                showConfigChooser()
+                showFlutterAutomationOverlay("run")
             }
         }
         val recordButton = iconButton("●", "录制", 0xFFFFB989.toInt()) {
-            showFloatingRecorder()
+            showFlutterAutomationOverlay("create")
         }
         val closeButton = iconButton("×", "关闭", 0xFFFF8A80.toInt()) {
             closeAutomationMenu()
@@ -602,87 +615,158 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun showConfigChooser() {
+    private fun showFlutterAutomationOverlay(mode: String) {
         removeChooserOverlay()
-        val layoutParams = floatingPanelParams(widthDp = 280)
+        destroyFlutterAutomationOverlay()
 
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBackground(0xF21F252B.toInt(), dp(18).toFloat(), 0x44FFFFFF)
+        val loader = FlutterInjector.instance().flutterLoader()
+        loader.startInitialization(applicationContext)
+        loader.ensureInitializationComplete(applicationContext, null)
+
+        val engine = FlutterEngine(this)
+        GeneratedPluginRegistrant.registerWith(engine)
+        engine.serviceControlSurface.attachToService(this, null, false)
+        engine.navigationChannel.setInitialRoute("/automation-overlay/$mode")
+        installFlutterOverlayChannel(engine)
+        engine.dartExecutor.executeDartEntrypoint(
+            DartExecutor.DartEntrypoint(loader.findAppBundlePath(), "overlayMain"),
+        )
+
+        val flutterView = FlutterView(this, RenderMode.texture).apply {
+            attachToFlutterEngine(engine)
         }
-        panel.addView(TextView(this).apply {
-            text = "选择配置"
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, dp(8))
-        })
-
-        if (availableConfigs.isEmpty()) {
-            panel.addView(TextView(this).apply {
-                text = "还没有配置"
-                textSize = 13f
-                setTextColor(0xFFB8C0C8.toInt())
-                setPadding(0, dp(12), 0, dp(12))
-            })
-            panel.addView(menuButton("新建配置", 0xFF7ED8C3.toInt()) {
-                removeChooserOverlay()
-                showFloatingRecorder()
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)))
-        } else {
-            val list = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-            availableConfigs.forEachIndexed { index, config ->
-                val name = config["name"] as? String ?: "未命名配置"
-                val actions = asMapList(config["actions"])
-                val actionCount = actions.size
-                val duration = estimateActionsDurationLabel(actions)
-                val row = TextView(this).apply {
-                    text = if (index == selectedConfigIndex) {
-                        "$name  ·  $actionCount 个动作 · 约 $duration  ·  已选"
-                    } else {
-                        "$name  ·  $actionCount 个动作 · 约 $duration"
-                    }
-                    textSize = 13f
-                    setTextColor(Color.WHITE)
-                    setPadding(dp(10), dp(9), dp(10), dp(9))
-                    background = roundedBackground(
-                        if (index == selectedConfigIndex) 0x553D7BFF else 0x22111111,
-                        dp(12).toFloat(),
-                        if (index == selectedConfigIndex) 0x888EB8FF.toInt() else 0x22FFFFFF,
-                    )
-                    setOnClickListener {
-                        selectedConfigIndex = index
-                        showConfigChooser()
-                    }
-                }
-                list.addView(
-                    row,
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply {
-                        bottomMargin = dp(6)
-                    },
-                )
-            }
-
-            panel.addView(ScrollView(this).apply {
-                addView(list)
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(180)))
-            panel.addView(menuButton("播放", 0xFF4CAF50.toInt()) {
-                val selected = availableConfigs.getOrNull(selectedConfigIndex)
-                if (selected != null) {
-                    removeChooserOverlay()
-                    startConfig(selected)
-                }
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)).apply {
-                topMargin = dp(8)
-            })
+        flutterOverlayEngine = engine
+        flutterOverlayView = flutterView
+        flutterOverlayRoot = FrameLayout(this).apply {
+            setBackgroundColor(0x33000000)
+            isClickable = true
+            isFocusable = true
+            addView(
+                flutterView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
         }
+        flutterOverlayParams = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
+        showFlutterOverlayWindow()
+    }
 
-        addChooserPanel(panel, layoutParams)
+    private fun installFlutterOverlayChannel(engine: FlutterEngine) {
+        MethodChannel(engine.dartExecutor.binaryMessenger, alarmChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "enterPickerMode" -> {
+                        val type = call.argument<String>("type") ?: "click"
+                        hideFlutterOverlayWindow()
+                        startNativePicker(type) { resultData ->
+                            showFlutterOverlayWindow()
+                            result.success(resultData)
+                        }
+                    }
+                    "syncAutomationConfigs" -> {
+                        val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
+                        setAvailableConfigs(configs)
+                        result.success(true)
+                    }
+                    "performAutoSwipe" -> {
+                        val min = call.argument<Int>("min") ?: 0
+                        val max = call.argument<Int>("max") ?: 0
+                        val name = call.argument<String>("name")
+                        val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        result.success(null)
+                        handler.post {
+                            destroyFlutterAutomationOverlay()
+                            AutoSwipeService.updateConfig(min, max, actions, name)
+                        }
+                    }
+                    "openAppAndRunConfig" -> {
+                        val packageName = call.argument<String>("packageName")
+                        val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
+                        val configName = call.argument<String>("configName")
+                        val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
+                        result.success(
+                            if (packageName.isNullOrBlank()) {
+                                false
+                            } else {
+                                handler.post { destroyFlutterAutomationOverlay() }
+                                AutoSwipeService.openAppAndRunConfig(
+                                    this,
+                                    packageName,
+                                    packageLabel,
+                                    configName,
+                                    actions,
+                                    delaySeconds,
+                                )
+                            },
+                        )
+                    }
+                    "closeAutomationOverlay" -> {
+                        result.success(null)
+                        handler.post { destroyFlutterAutomationOverlay() }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun showFlutterOverlayWindow() {
+        val root = flutterOverlayRoot ?: return
+        val params = flutterOverlayParams ?: return
+        if (flutterOverlayAttached) return
+        try {
+            windowManager?.addView(root, params)
+            flutterOverlayAttached = true
+            flutterOverlayEngine?.lifecycleChannel?.appIsResumed()
+        } catch (_: Exception) {
+            flutterOverlayAttached = false
+        }
+    }
+
+    private fun hideFlutterOverlayWindow() {
+        val root = flutterOverlayRoot ?: return
+        if (!flutterOverlayAttached) return
+        try {
+            windowManager?.removeView(root)
+        } catch (_: Exception) {
+        }
+        flutterOverlayAttached = false
+        flutterOverlayEngine?.lifecycleChannel?.appIsPaused()
+    }
+
+    private fun destroyFlutterAutomationOverlay() {
+        hideFlutterOverlayWindow()
+        flutterOverlayRoot?.removeAllViews()
+        try {
+            flutterOverlayView?.detachFromFlutterEngine()
+        } catch (_: Exception) {
+        }
+        try {
+            flutterOverlayEngine?.serviceControlSurface?.detachFromService()
+            flutterOverlayEngine?.lifecycleChannel?.appIsDetached()
+            flutterOverlayEngine?.destroy()
+        } catch (_: Exception) {
+        }
+        flutterOverlayRoot = null
+        flutterOverlayParams = null
+        flutterOverlayEngine = null
+        flutterOverlayView = null
+    }
+
+    private fun showConfigChooser() {
+        showFlutterAutomationOverlay("run")
     }
 
     private fun showFloatingRecorder() {
@@ -2800,6 +2884,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun closeAutomationMenu() {
         stopScriptRun()
+        destroyFlutterAutomationOverlay()
         removeChooserOverlay()
         removeFloatingWindow()
         collapsed = false
@@ -2816,21 +2901,6 @@ class AutoSwipeService : AccessibilityService() {
             button.text = "▶"
             button.contentDescription = "启动"
         }
-    }
-
-    private fun openFlutterCommand(command: String) {
-        removeChooserOverlay()
-        if (!collapsed) {
-            showFloatingWindow(expanded = false)
-        }
-        AlarmLaunchStore.setPendingOverlayCommand(this, command)
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("overlayCommand", command)
-        }
-        startActivity(intent)
     }
 
     private fun roundedBackground(color: Int, radius: Float, strokeColor: Int): GradientDrawable {
@@ -2986,6 +3056,7 @@ class AutoSwipeService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         removeFloatingWindow()
+        destroyFlutterAutomationOverlay()
         removeChooserOverlay()
         removePickerOverlay()
         instance = null

@@ -14,6 +14,72 @@ import 'services/task_repository.dart';
 
 enum ToastType { success, error, info, warning }
 
+const _appSeed = Color(0xFF4A9D8F);
+const _lightSurface = Color(0xFFF7FAF8);
+const _darkSurface = Color(0xFF0F1718);
+
+ThemeData _scriptAssistantTheme(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _appSeed,
+      brightness: brightness,
+    ),
+    scaffoldBackgroundColor: isDark ? _darkSurface : _lightSurface,
+    cardTheme: CardThemeData(
+      color: (isDark ? const Color(0xFF162122) : Colors.white).withValues(
+        alpha: isDark ? 0.9 : 0.84,
+      ),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF223334) : const Color(0xFFE2ECE7),
+        ),
+      ),
+    ),
+    appBarTheme: const AppBarTheme(
+      centerTitle: false,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 42),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: isDark ? const Color(0xFF132123) : const Color(0xFFF2F6F3),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(
+          color: isDark ? const Color(0xFF79C6B8) : _appSeed,
+        ),
+      ),
+    ),
+  );
+}
+
 class VibrantHUD {
   static void show(
     BuildContext context,
@@ -47,127 +113,199 @@ class ScriptAssistantApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF4A9D8F);
-    const lightSurface = Color(0xFFF7FAF8);
-    const darkSurface = Color(0xFF0F1718);
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '自律时钟',
       themeMode: ThemeMode.system,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seed,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: lightSurface,
-        cardTheme: CardThemeData(
-          color: Colors.white.withValues(alpha: 0.84),
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(26),
-            side: const BorderSide(color: Color(0xFFE2ECE7)),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 42),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFFF2F6F3),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: seed),
-          ),
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seed,
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: darkSurface,
-        cardTheme: CardThemeData(
-          color: const Color(0xFF162122).withValues(alpha: 0.9),
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(26),
-            side: const BorderSide(color: Color(0xFF223334)),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 42),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF132123),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFF79C6B8)),
-          ),
-        ),
-      ),
+      theme: _scriptAssistantTheme(Brightness.light),
+      darkTheme: _scriptAssistantTheme(Brightness.dark),
       home: DashboardPage(enablePlatformServices: enablePlatformServices),
+    );
+  }
+}
+
+class FloatingAutomationOverlayApp extends StatelessWidget {
+  const FloatingAutomationOverlayApp({super.key});
+
+  String get _initialMode {
+    final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+    final segments = route.split('/').where((part) => part.isNotEmpty);
+    return segments.isEmpty ? 'configs' : segments.last;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.system,
+      theme: _scriptAssistantTheme(Brightness.light),
+      darkTheme: _scriptAssistantTheme(Brightness.dark),
+      home: _FloatingAutomationOverlayShell(initialMode: _initialMode),
+    );
+  }
+}
+
+class _FloatingAutomationOverlayShell extends StatefulWidget {
+  const _FloatingAutomationOverlayShell({required this.initialMode});
+
+  final String initialMode;
+
+  @override
+  State<_FloatingAutomationOverlayShell> createState() =>
+      _FloatingAutomationOverlayShellState();
+}
+
+class _FloatingAutomationOverlayShellState
+    extends State<_FloatingAutomationOverlayShell> {
+  final TaskRepository _repository = TaskRepository();
+  final DouyinLauncher _launcher = DouyinLauncher();
+  final AlarmBridge _alarmBridge = AlarmBridge();
+
+  Future<void> _syncConfigs(List<GestureConfig> configs) {
+    return _alarmBridge.syncAutomationConfigs(
+      configs: configs.map((config) => config.toJson()).toList(),
+    );
+  }
+
+  Future<void> _close() => _alarmBridge.closeAutomationOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    final content = widget.initialMode == 'run'
+        ? _GestureRunChooserPage(
+            repository: _repository,
+            alarmBridge: _alarmBridge,
+          )
+        : GestureConfigPage(
+            repository: _repository,
+            launcher: _launcher,
+            autoCreateOnOpen: widget.initialMode == 'create',
+            onConfigsChanged: _syncConfigs,
+          );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth < 548
+                ? (constraints.maxWidth - 24).clamp(280.0, constraints.maxWidth)
+                : 520.0;
+            final height = (constraints.maxHeight - 48).clamp(
+              360.0,
+              constraints.maxHeight,
+            );
+            return Stack(
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: content,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 12,
+                  child: IconButton.filledTonal(
+                    tooltip: '关闭',
+                    onPressed: _close,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _GestureRunChooserPage extends StatefulWidget {
+  const _GestureRunChooserPage({
+    required this.repository,
+    required this.alarmBridge,
+  });
+
+  final TaskRepository repository;
+  final AlarmBridge alarmBridge;
+
+  @override
+  State<_GestureRunChooserPage> createState() => _GestureRunChooserPageState();
+}
+
+class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
+  List<GestureConfig> _configs = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final configs = await widget.repository.loadGestureConfigs();
+    if (!mounted) return;
+    setState(() {
+      _configs = configs;
+      _loading = false;
+    });
+  }
+
+  Future<void> _run(GestureConfig config) async {
+    await widget.alarmBridge.runGestureConfig(
+      name: config.name,
+      actions: config.actions.map((action) => action.toJson()).toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('选择配置')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _configs.isEmpty
+          ? const Center(
+              child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _configs.length,
+              itemBuilder: (context, index) {
+                final config = _configs[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    title: Text(
+                      config.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      '${config.actions.length} 个动作 · 约 ${estimateGestureActionsDuration(config.actions).label}',
+                    ),
+                    trailing: IconButton.filledTonal(
+                      tooltip: '播放',
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      onPressed: () => _run(config),
+                    ),
+                    onTap: () => _run(config),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
