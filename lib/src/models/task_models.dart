@@ -99,7 +99,9 @@ class AssistantTaskDefinition {
       ringtoneSource: ringtoneSource ?? this.ringtoneSource,
       ringtoneValue: ringtoneValue ?? this.ringtoneValue,
       showQuickLaunch: showQuickLaunch ?? this.showQuickLaunch,
-      gestureConfigId: clearGesture ? null : (gestureConfigId ?? this.gestureConfigId),
+      gestureConfigId: clearGesture
+          ? null
+          : (gestureConfigId ?? this.gestureConfigId),
     );
   }
 
@@ -151,7 +153,7 @@ class AssistantTaskDefinition {
   String _two(int value) => value.toString().padLeft(2, '0');
 }
 
-enum GestureActionType { swipe, click, nav, wait, launchApp }
+enum GestureActionType { swipe, click, recorded, nav, wait, launchApp }
 
 sealed class GestureAction {
   const GestureAction({required this.type});
@@ -164,6 +166,7 @@ sealed class GestureAction {
     return switch (type) {
       GestureActionType.swipe => SwipeAction.fromJson(json),
       GestureActionType.click => ClickAction.fromJson(json),
+      GestureActionType.recorded => RecordedGestureAction.fromJson(json),
       GestureActionType.nav => NavAction.fromJson(json),
       GestureActionType.wait => WaitAction.fromJson(json),
       GestureActionType.launchApp => LaunchAppAction.fromJson(json),
@@ -188,29 +191,26 @@ class SwipeAction extends GestureAction {
 
   @override
   Map<String, Object?> toJson() => {
-        'type': type.name,
-        'x1': x1,
-        'y1': y1,
-        'x2': x2,
-        'y2': y2,
-        'duration': duration,
-      };
+    'type': type.name,
+    'x1': x1,
+    'y1': y1,
+    'x2': x2,
+    'y2': y2,
+    'duration': duration,
+  };
 
   factory SwipeAction.fromJson(Map<String, Object?> json) => SwipeAction(
-        x1: (json['x1'] as num).toDouble(),
-        y1: (json['y1'] as num).toDouble(),
-        x2: (json['x2'] as num).toDouble(),
-        y2: (json['y2'] as num).toDouble(),
-        duration: json['duration'] as int? ?? 400,
-      );
+    x1: (json['x1'] as num).toDouble(),
+    y1: (json['y1'] as num).toDouble(),
+    x2: (json['x2'] as num).toDouble(),
+    y2: (json['y2'] as num).toDouble(),
+    duration: json['duration'] as int? ?? 400,
+  );
 }
 
 class ClickAction extends GestureAction {
-  const ClickAction({
-    required this.x1,
-    required this.y1,
-    this.duration = 50,
-  }) : super(type: GestureActionType.click);
+  const ClickAction({required this.x1, required this.y1, this.duration = 50})
+    : super(type: GestureActionType.click);
 
   final double x1;
   final double y1;
@@ -218,17 +218,89 @@ class ClickAction extends GestureAction {
 
   @override
   Map<String, Object?> toJson() => {
-        'type': type.name,
-        'x1': x1,
-        'y1': y1,
-        'duration': duration,
-      };
+    'type': type.name,
+    'x1': x1,
+    'y1': y1,
+    'duration': duration,
+  };
 
   factory ClickAction.fromJson(Map<String, Object?> json) => ClickAction(
-        x1: (json['x1'] as num).toDouble(),
-        y1: (json['y1'] as num).toDouble(),
-        duration: json['duration'] as int? ?? 50,
-      );
+    x1: (json['x1'] as num).toDouble(),
+    y1: (json['y1'] as num).toDouble(),
+    duration: json['duration'] as int? ?? 50,
+  );
+}
+
+class GesturePoint {
+  const GesturePoint({required this.x, required this.y, required this.t});
+
+  final double x;
+  final double y;
+  final int t;
+
+  Map<String, Object?> toJson() => {'x': x, 'y': y, 't': t};
+
+  factory GesturePoint.fromJson(Map<Object?, Object?> json) => GesturePoint(
+    x: (json['x'] as num).toDouble(),
+    y: (json['y'] as num).toDouble(),
+    t: (json['t'] as num?)?.toInt() ?? 0,
+  );
+}
+
+class GestureSegment {
+  const GestureSegment({
+    required this.start,
+    required this.duration,
+    required this.points,
+  });
+
+  final int start;
+  final int duration;
+  final List<GesturePoint> points;
+
+  Map<String, Object?> toJson() => {
+    'start': start,
+    'duration': duration,
+    'points': points.map((p) => p.toJson()).toList(),
+  };
+
+  factory GestureSegment.fromJson(Map<Object?, Object?> json) {
+    final rawPoints = (json['points'] as List<Object?>?) ?? const [];
+    return GestureSegment(
+      start: (json['start'] as num?)?.toInt() ?? 0,
+      duration: (json['duration'] as num?)?.toInt() ?? 80,
+      points: rawPoints
+          .whereType<Map<Object?, Object?>>()
+          .map(GesturePoint.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class RecordedGestureAction extends GestureAction {
+  const RecordedGestureAction({required this.segments, required this.duration})
+    : super(type: GestureActionType.recorded);
+
+  final List<GestureSegment> segments;
+  final int duration;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': type.name,
+    'duration': duration,
+    'segments': segments.map((s) => s.toJson()).toList(),
+  };
+
+  factory RecordedGestureAction.fromJson(Map<String, Object?> json) {
+    final rawSegments = (json['segments'] as List<Object?>?) ?? const [];
+    return RecordedGestureAction(
+      duration: (json['duration'] as num?)?.toInt() ?? 0,
+      segments: rawSegments
+          .whereType<Map<Object?, Object?>>()
+          .map(GestureSegment.fromJson)
+          .toList(),
+    );
+  }
 }
 
 enum NavType { back, home, recents }
@@ -238,46 +310,39 @@ class NavAction extends GestureAction {
   final NavType navType;
 
   @override
-  Map<String, Object?> toJson() => {
-        'type': type.name,
-        'navType': navType.name,
-      };
+  Map<String, Object?> toJson() => {'type': type.name, 'navType': navType.name};
 
-  factory NavAction.fromJson(Map<String, Object?> json) => NavAction(
-        navType: NavType.values.byName(json['navType'] as String),
-      );
+  factory NavAction.fromJson(Map<String, Object?> json) =>
+      NavAction(navType: NavType.values.byName(json['navType'] as String));
 }
 
 class WaitAction extends GestureAction {
   const WaitAction({required this.seconds})
-      : super(type: GestureActionType.wait);
+    : super(type: GestureActionType.wait);
   final int seconds;
 
   @override
-  Map<String, Object?> toJson() => {
-        'type': type.name,
-        'seconds': seconds,
-      };
+  Map<String, Object?> toJson() => {'type': type.name, 'seconds': seconds};
 
-  factory WaitAction.fromJson(Map<String, Object?> json) => WaitAction(
-        seconds: json['seconds'] as int,
-      );
+  factory WaitAction.fromJson(Map<String, Object?> json) =>
+      WaitAction(seconds: json['seconds'] as int);
 }
 
 class LaunchAppAction extends GestureAction {
   const LaunchAppAction({required this.packageName, required this.label})
-      : super(type: GestureActionType.launchApp);
+    : super(type: GestureActionType.launchApp);
   final String packageName;
   final String label;
 
   @override
   Map<String, Object?> toJson() => {
-        'type': type.name,
-        'packageName': packageName,
-        'label': label,
-      };
+    'type': type.name,
+    'packageName': packageName,
+    'label': label,
+  };
 
-  factory LaunchAppAction.fromJson(Map<String, Object?> json) => LaunchAppAction(
+  factory LaunchAppAction.fromJson(Map<String, Object?> json) =>
+      LaunchAppAction(
         packageName: json['packageName'] as String,
         label: json['label'] as String? ?? '应用',
       );
@@ -295,10 +360,10 @@ class GestureConfig {
   final List<GestureAction> actions;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'actions': actions.map((a) => a.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'actions': actions.map((a) => a.toJson()).toList(),
+  };
 
   factory GestureConfig.fromJson(Map<String, Object?> json) {
     return GestureConfig(

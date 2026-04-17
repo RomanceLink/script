@@ -52,7 +52,9 @@ class AlarmBridge {
   }
 
   Future<({String uri, String label})?> pickSystemRingtone() async {
-    final result = await _channel.invokeMapMethod<String, String>('pickSystemRingtone');
+    final result = await _channel.invokeMapMethod<String, String>(
+      'pickSystemRingtone',
+    );
     if (result == null) return null;
     return (uri: result['uri']!, label: result['label']!);
   }
@@ -82,12 +84,40 @@ class AlarmBridge {
   }
 
   Future<void> scheduleSelfTest(AlarmReminder reminder) async {
-    await _channel.invokeMethod('scheduleSelfTest', {'reminder': reminder.toJson()});
+    await _channel.invokeMethod('scheduleSelfTest', {
+      'reminder': reminder.toJson(),
+    });
   }
 
   Future<Map<String, Object?>?> enterPickerMode(String type) async {
-    final result = await _channel.invokeMapMethod<String, Object?>('enterPickerMode', {'type': type});
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'enterPickerMode',
+      {'type': type},
+    );
     return result;
+  }
+
+  Future<String?> consumeOverlayCommand() async {
+    final value = await _channel.invokeMethod<String>('consumeOverlayCommand');
+    return value;
+  }
+
+  Future<bool> showAutomationMenu({
+    required List<Map<String, Object?>> configs,
+  }) async {
+    final result = await _channel.invokeMethod<bool>('showAutomationMenu', {
+      'configs': configs,
+    });
+    return result ?? false;
+  }
+
+  Future<bool> syncAutomationConfigs({
+    required List<Map<String, Object?>> configs,
+  }) async {
+    final result = await _channel.invokeMethod<bool>('syncAutomationConfigs', {
+      'configs': configs,
+    });
+    return result ?? false;
   }
 
   Future<void> runGestureConfig({
@@ -95,7 +125,8 @@ class AlarmBridge {
     required List<Map<String, Object?>> actions,
   }) async {
     await _channel.invokeMethod('performAutoSwipe', {
-      'min': 0, // In scripted mode, we might not use random intervals at the top level
+      'min':
+          0, // In scripted mode, we might not use random intervals at the top level
       'max': 0,
       'actions': actions,
       'name': name,
@@ -105,7 +136,7 @@ class AlarmBridge {
   Future<void> performAutoSwipe({
     required int min,
     required int max,
-    required List<Map<String, Object>> actions,
+    required List<Map<String, Object?>> actions,
   }) async {
     await _channel.invokeMethod('performAutoSwipe', {
       'min': min,

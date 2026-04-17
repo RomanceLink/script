@@ -17,7 +17,7 @@
         <service
             android:name=".AutoSwipeService"
             android:exported="true"
-            android:label="自律时钟-自动滑屏助手"
+            android:label="自律时钟-自动化助手"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

@@ -31,6 +31,9 @@ class MainActivity : FlutterActivity() {
                     "consumeLaunchTaskId" -> {
                         result.success(consumeLaunchTaskId())
                     }
+                    "consumeOverlayCommand" -> {
+                        result.success(consumeOverlayCommand())
+                    }
                     "pickSystemRingtone" -> {
                         ringtoneResult = result
                         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
@@ -71,16 +74,28 @@ class MainActivity : FlutterActivity() {
                         val type = call.argument<String>("type") ?: "click"
                         AutoSwipeService.onPickerResult = { resultData ->
                             runOnUiThread {
+                                AutoSwipeService.onPickerResult = null
                                 result.success(resultData)
                             }
                         }
-                        AutoSwipeService.enterPickerMode(type)
+                        if (!AutoSwipeService.enterPickerMode(type)) {
+                            AutoSwipeService.onPickerResult = null
+                            result.success(null)
+                        }
+                    }
+                    "showAutomationMenu" -> {
+                        val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
+                        result.success(AutoSwipeService.showAutomationMenu(configs))
+                    }
+                    "syncAutomationConfigs" -> {
+                        val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
+                        result.success(AutoSwipeService.syncAutomationConfigs(configs))
                     }
                     "performAutoSwipe" -> {
                         val min = call.argument<Int>("min") ?: 30
                         val max = call.argument<Int>("max") ?: 60
                         val name = call.argument<String>("name")
-                        val actions = call.argument<List<Map<String, Any>>>("actions") ?: emptyList()
+                        val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         AutoSwipeService.updateConfig(min, max, actions, name)
                         result.success(null)
                     }
@@ -131,6 +146,13 @@ class MainActivity : FlutterActivity() {
         return value
     }
 
+    private fun consumeOverlayCommand(): String? {
+        val stored = AlarmLaunchStore.consumePendingOverlayCommand(this)
+        val value = intent?.getStringExtra("overlayCommand") ?: stored
+        intent?.removeExtra("overlayCommand")
+        return value
+    }
+
     private fun openExactAlarmSettings() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
@@ -170,6 +192,7 @@ class MainActivity : FlutterActivity() {
 object AlarmLaunchStore {
     private const val prefsName = "alarm_bridge"
     private const val taskKey = "pending_task_id"
+    private const val overlayCommandKey = "pending_overlay_command"
 
     fun setPendingTaskId(context: Context, taskId: String) {
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
@@ -182,6 +205,20 @@ object AlarmLaunchStore {
         val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         val value = prefs.getString(taskKey, null)
         prefs.edit().remove(taskKey).apply()
+        return value
+    }
+
+    fun setPendingOverlayCommand(context: Context, command: String) {
+        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            .edit()
+            .putString(overlayCommandKey, command)
+            .apply()
+    }
+
+    fun consumePendingOverlayCommand(context: Context): String? {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val value = prefs.getString(overlayCommandKey, null)
+        prefs.edit().remove(overlayCommandKey).apply()
         return value
     }
 }
