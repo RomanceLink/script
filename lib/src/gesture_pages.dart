@@ -728,39 +728,44 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<ButtonMatchMode>(
-                      initialValue: matchMode,
-                      decoration: const InputDecoration(labelText: '识别方式'),
-                      items: const [
-                        DropdownMenuItem(
+                    _ChoiceField<ButtonMatchMode>(
+                      label: '识别方式',
+                      title: '选择识别方式',
+                      value: matchMode,
+                      options: const [
+                        _ChoiceOption(
                           value: ButtonMatchMode.exact,
-                          child: Text('完全相同'),
+                          label: '完全相同',
+                          icon: Icons.drag_handle_rounded,
                         ),
-                        DropdownMenuItem(
+                        _ChoiceOption(
                           value: ButtonMatchMode.contains,
-                          child: Text('包含'),
+                          label: '包含文字',
+                          icon: Icons.subject_rounded,
                         ),
                       ],
                       onChanged: (value) =>
-                          setDialogState(() => matchMode = value ?? matchMode),
+                          setDialogState(() => matchMode = value),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<ButtonRegionMode>(
-                      initialValue: regionMode,
-                      decoration: const InputDecoration(labelText: '识别区域'),
-                      items: const [
-                        DropdownMenuItem(
+                    _ChoiceField<ButtonRegionMode>(
+                      label: '识别区域',
+                      title: '选择识别区域',
+                      value: regionMode,
+                      options: const [
+                        _ChoiceOption(
                           value: ButtonRegionMode.full,
-                          child: Text('全屏'),
+                          label: '全屏',
+                          icon: Icons.fullscreen_rounded,
                         ),
-                        DropdownMenuItem(
+                        _ChoiceOption(
                           value: ButtonRegionMode.custom,
-                          child: Text('自定义：使用当前按钮区域'),
+                          label: '自定义：使用当前按钮区域',
+                          icon: Icons.crop_free_rounded,
                         ),
                       ],
-                      onChanged: (value) => setDialogState(
-                        () => regionMode = value ?? regionMode,
-                      ),
+                      onChanged: (value) =>
+                          setDialogState(() => regionMode = value),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -798,6 +803,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       title: '识别失败后的动作',
                       mode: ButtonResultActionMode.custom,
                       actions: retryActions,
+                      canChangeMode: false,
                       onModeChanged: (_) {},
                       onRecord: () async {
                         final actions = await _pickNestedGestureActions();
@@ -846,26 +852,29 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<ButtonFailAction>(
-                      initialValue: failAction,
-                      decoration: const InputDecoration(labelText: '重试失败后'),
-                      items: const [
-                        DropdownMenuItem(
+                    _ChoiceField<ButtonFailAction>(
+                      label: '重试失败后',
+                      title: '选择失败处理',
+                      value: failAction,
+                      options: const [
+                        _ChoiceOption(
                           value: ButtonFailAction.notify,
-                          child: Text('全屏通知脚本执行失败'),
+                          label: '全屏通知脚本执行失败',
+                          icon: Icons.notification_important_rounded,
                         ),
-                        DropdownMenuItem(
+                        _ChoiceOption(
                           value: ButtonFailAction.lockScreen,
-                          child: Text('锁屏'),
+                          label: '锁屏',
+                          icon: Icons.lock_rounded,
                         ),
-                        DropdownMenuItem(
+                        _ChoiceOption(
                           value: ButtonFailAction.none,
-                          child: Text('不处理'),
+                          label: '不处理',
+                          icon: Icons.block_rounded,
                         ),
                       ],
-                      onChanged: (value) => setDialogState(
-                        () => failAction = value ?? failAction,
-                      ),
+                      onChanged: (value) =>
+                          setDialogState(() => failAction = value),
                     ),
                   ],
                 ),
@@ -1362,6 +1371,91 @@ class _ActionCategoryHeader extends StatelessWidget {
   }
 }
 
+class _ChoiceOption<T> {
+  const _ChoiceOption({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
+
+  final T value;
+  final String label;
+  final IconData icon;
+}
+
+class _ChoiceField<T> extends StatelessWidget {
+  const _ChoiceField({
+    required this.label,
+    required this.title,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String title;
+  final T value;
+  final List<_ChoiceOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = options.firstWhere(
+      (option) => option.value == value,
+      orElse: () => options.first,
+    );
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        final picked = await showModalBottomSheet<T>(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                for (final option in options)
+                  ListTile(
+                    leading: Icon(option.icon),
+                    title: Text(option.label),
+                    trailing: option.value == value
+                        ? const Icon(Icons.check_rounded)
+                        : null,
+                    onTap: () => Navigator.of(context).pop(option.value),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (picked != null) {
+          onChanged(picked);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.keyboard_arrow_up_rounded),
+        ),
+        child: Row(
+          children: [
+            Icon(selected.icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(selected.label)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InlineActionPicker extends StatelessWidget {
   const _InlineActionPicker({
     required this.title,
@@ -1369,6 +1463,7 @@ class _InlineActionPicker extends StatelessWidget {
     required this.actions,
     required this.onModeChanged,
     required this.onRecord,
+    this.canChangeMode = true,
   });
 
   final String title;
@@ -1376,6 +1471,7 @@ class _InlineActionPicker extends StatelessWidget {
   final List<GestureAction> actions;
   final ValueChanged<ButtonResultActionMode> onModeChanged;
   final VoidCallback onRecord;
+  final bool canChangeMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1391,22 +1487,36 @@ class _InlineActionPicker extends StatelessWidget {
         children: [
           Text(title, style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
-          DropdownButtonFormField<ButtonResultActionMode>(
-            initialValue: mode,
-            decoration: const InputDecoration(labelText: '动作方式'),
-            items: const [
-              DropdownMenuItem(
-                value: ButtonResultActionMode.defaultClick,
-                child: Text('默认点击'),
+          if (canChangeMode)
+            _ChoiceField<ButtonResultActionMode>(
+              label: '动作方式',
+              title: '选择动作方式',
+              value: mode,
+              options: const [
+                _ChoiceOption(
+                  value: ButtonResultActionMode.defaultClick,
+                  label: '默认点击',
+                  icon: Icons.touch_app_rounded,
+                ),
+                _ChoiceOption(
+                  value: ButtonResultActionMode.custom,
+                  label: '自定义录制动作',
+                  icon: Icons.fiber_manual_record_rounded,
+                ),
+              ],
+              onChanged: onModeChanged,
+            )
+          else
+            const InputDecorator(
+              decoration: InputDecoration(labelText: '动作方式'),
+              child: Row(
+                children: [
+                  Icon(Icons.fiber_manual_record_rounded, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('自定义录制动作')),
+                ],
               ),
-              DropdownMenuItem(
-                value: ButtonResultActionMode.custom,
-                child: Text('自定义录制动作'),
-              ),
-            ],
-            onChanged: (value) =>
-                onModeChanged(value ?? ButtonResultActionMode.defaultClick),
-          ),
+            ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: onRecord,
