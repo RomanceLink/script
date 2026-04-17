@@ -13,11 +13,13 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.text.InputType
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -51,6 +53,7 @@ class AutoSwipeService : AccessibilityService() {
     private val runtimeActions = mutableListOf<Map<String, Any?>>()
     private val availableConfigs = mutableListOf<Map<String, Any?>>()
     private val floatingRecordActions = mutableListOf<Map<String, Any?>>()
+    private var floatingRecordName = ""
     private val pickerData: MutableMap<String, Float> = mutableMapOf()
     private var pickerMode: String? = null
     private var nativePickerResult: ((Map<String, Any?>) -> Unit)? = null
@@ -355,6 +358,35 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun floatingPanelParams(
+        widthDp: Int,
+        height: Int = WindowManager.LayoutParams.WRAP_CONTENT,
+        focusable: Boolean = false,
+    ): WindowManager.LayoutParams {
+        return baseOverlayParams().apply {
+            width = dp(widthDp)
+            this.height = height
+            flags = if (focusable) {
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            } else {
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            }
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            x = floatingLayoutParams?.x ?: x
+            y = (floatingLayoutParams?.y ?: y) + dp(60)
+        }
+    }
+
+    private fun addChooserPanel(view: View, layoutParams: WindowManager.LayoutParams) {
+        try {
+            windowManager?.addView(view, layoutParams)
+            chooserOverlay = view
+        } catch (_: Exception) {
+            chooserOverlay = null
+        }
+    }
+
     private fun showConfigChooser() {
         removeChooserOverlay()
         val layoutParams = baseOverlayParams().apply {
@@ -395,7 +427,7 @@ class AutoSwipeService : AccessibilityService() {
                 val name = config["name"] as? String ?: "未命名配置"
                 val actions = asMapList(config["actions"])
                 val actionCount = actions.size
-                val duration = formatElapsed(estimateActionsMillis(actions))
+                val duration = estimateActionsDurationLabel(actions)
                 val row = TextView(this).apply {
                     text = if (index == selectedConfigIndex) {
                         "$name  ·  $actionCount 个动作 · 约 $duration  ·  已选"
@@ -450,40 +482,430 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showFloatingRecorder() {
         removeChooserOverlay()
-        val layoutParams = baseOverlayParams().apply {
-            width = dp(310)
-            height = WindowManager.LayoutParams.WRAP_CONTENT
-            x = floatingLayoutParams?.x ?: x
-            y = (floatingLayoutParams?.y ?: y) + dp(60)
-        }
+        ensureFloatingRecordName()
+
+        val panelHeight = (resources.displayMetrics.heightPixels - dp(120)).coerceIn(dp(360), dp(580))
+        val layoutParams = floatingPanelParams(widthDp = 340, height = panelHeight, focusable = true)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = roundedBackground(0xF21F252B.toInt(), dp(18).toFloat(), 0x44FFFFFF)
         }
+
+        panel.addView(panelTitle("悬浮自动化配置"))
+
+        val nameInput = inputField(
+            value = floatingRecordName,
+            hint = "配置名称",
+            numberOnly = false,
+        )
+        panel.addView(
+            nameInput,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                bottomMargin = dp(8)
+            },
+        )
+
         panel.addView(TextView(this).apply {
-            text = "悬浮录制配置"
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, dp(6))
-        })
-        panel.addView(TextView(this).apply {
-            text = "${floatingRecordActions.size} 个动作 · 约 ${formatElapsed(estimateActionsMillis(floatingRecordActions))}"
+            text = "${floatingRecordActions.size} 个动作 · 预计 ${estimateActionsDurationLabel(floatingRecordActions)}"
             textSize = 12f
             setTextColor(0xFFB8C0C8.toInt())
-            setPadding(0, 0, 0, dp(10))
+            setPadding(0, 0, 0, dp(8))
         })
 
-        val firstRow = LinearLayout(this).apply {
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        if (floatingRecordActions.isEmpty()) {
+            list.addView(TextView(this).apply {
+                text = "点击“添加内容”添加第一个动作"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFB8C0C8.toInt())
+                setPadding(dp(8), dp(34), dp(8), dp(34))
+                background = roundedBackground(0x22111111, dp(12).toFloat(), 0x22FFFFFF)
+            })
+        } else {
+            floatingRecordActions.forEachIndexed { index, action ->
+                list.addView(floatingActionRow(index, action, nameInput))
+            }
+        }
+
+        panel.addView(
+            ScrollView(this).apply {
+                addView(list)
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ),
+        )
+
+        panel.addView(
+            menuButton("添加内容", 0xFF7ED8C3.toInt()) {
+                rememberFloatingRecordName(nameInput)
+                showFloatingAddMenu()
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            ).apply {
+                topMargin = dp(10)
+            },
+        )
+
+        val bottomRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        bottomRow.addView(
+            menuButton("取消", 0xFFFF8A80.toInt()) {
+                floatingRecordActions.clear()
+                floatingRecordName = ""
+                removeChooserOverlay()
+            },
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                marginEnd = dp(8)
+            },
+        )
+        bottomRow.addView(
+            menuButton("保存配置", 0xFF4CAF50.toInt()) {
+                rememberFloatingRecordName(nameInput)
+                if (floatingRecordActions.isNotEmpty()) {
+                    saveFloatingRecordedConfig(floatingRecordName)
+                    floatingRecordActions.clear()
+                    floatingRecordName = ""
+                    removeChooserOverlay()
+                    showFloatingWindow(expanded = true)
+                }
+            },
+            LinearLayout.LayoutParams(0, dp(42), 1f),
+        )
+        panel.addView(bottomRow)
+
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun floatingActionRow(index: Int, action: Map<String, Any?>, nameInput: EditText): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(8), dp(8))
+            background = roundedBackground(0x22111111, dp(12).toFloat(), 0x22FFFFFF)
+        }
+
+        val copy = normalizeMap(action)
+        val textColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        textColumn.addView(TextView(this).apply {
+            text = "${index + 1}. ${nativeActionTitle(copy)}"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+        })
+        textColumn.addView(TextView(this).apply {
+            text = nativeActionSubtitle(copy)
+            textSize = 11f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, dp(2), 0, 0)
+        })
+        row.addView(
+            textColumn,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+
+        val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
-        firstRow.addView(menuButton("点击步骤", 0xFF4A90E2.toInt()) {
-            removeChooserOverlay()
-            startNativePicker("clickSteps") { result ->
-                if (result["cancelled"] == true) {
+        if (isFloatingActionEditable(copy)) {
+            controls.addView(
+                compactButton("改", 0xFF8EB8FF.toInt()) {
+                    rememberFloatingRecordName(nameInput)
+                    editFloatingAction(index)
+                },
+                LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+                    marginStart = dp(4)
+                },
+            )
+        }
+        controls.addView(
+            compactButton("上", 0xFF607D8B.toInt()) {
+                rememberFloatingRecordName(nameInput)
+                moveFloatingAction(index, -1)
+            },
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+                marginStart = dp(4)
+            },
+        )
+        controls.addView(
+            compactButton("下", 0xFF607D8B.toInt()) {
+                rememberFloatingRecordName(nameInput)
+                moveFloatingAction(index, 1)
+            },
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+                marginStart = dp(4)
+            },
+        )
+        controls.addView(
+            compactButton("删", 0xFFFF8A80.toInt()) {
+                rememberFloatingRecordName(nameInput)
+                removeFloatingAction(index)
+            },
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+                marginStart = dp(4)
+            },
+        )
+        row.addView(controls)
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(row)
+            setPadding(0, 0, 0, dp(8))
+        }
+    }
+
+    private fun showFloatingAddMenu() {
+        removeChooserOverlay()
+        val layoutParams = floatingPanelParams(widthDp = 320)
+        val panel = floatingPanel("添加内容")
+        panel.addView(optionRow("录制手势", "添加点击、滑动、完整轨迹", 0xFF4A90E2.toInt()) {
+            showFloatingGestureTypeMenu()
+        })
+        panel.addView(optionRow("导航动作", "返回键、回到桌面、多任务", 0xFF4CAF50.toInt()) {
+            showFloatingNavMenu()
+        })
+        panel.addView(optionRow("随机等待", "在秒数范围内随机等待", 0xFFFFB74D.toInt()) {
+            showFloatingWaitEditor(randomWait = true)
+        })
+        panel.addView(optionRow("固定等待", "固定等待指定秒数，最多 10000 秒", 0xFF8D6E63.toInt()) {
+            showFloatingWaitEditor(randomWait = false)
+        })
+        panel.addView(optionRow("启动应用", "选择任意已安装应用", 0xFFAB47BC.toInt()) {
+            showFloatingAppPicker()
+        })
+        panel.addView(
+            menuButton("返回", 0xFF607D8B.toInt()) {
+                showFloatingRecorder()
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun showFloatingGestureTypeMenu() {
+        removeChooserOverlay()
+        val layoutParams = floatingPanelParams(widthDp = 330)
+        val panel = floatingPanel("录制手势")
+        panel.addView(optionRow("录制完整手势轨迹", "点击开始录制，完成后点保存", 0xFFFF7043.toInt()) {
+            startFloatingGesturePicker("record")
+        })
+        panel.addView(optionRow("录制点击步骤", "每次点击生成编号圆点，保存后变成步骤", 0xFF4A90E2.toInt()) {
+            startFloatingGesturePicker("clickSteps")
+        })
+        panel.addView(optionRow("手动标点：单次点击", "拖动点击点到目标位置", 0xFF8EB8FF.toInt()) {
+            startFloatingGesturePicker("click")
+        })
+        panel.addView(optionRow("手动标点：直线滑动", "拖动起点和终点", 0xFF7ED8C3.toInt()) {
+            startFloatingGesturePicker("swipe")
+        })
+        panel.addView(
+            menuButton("返回", 0xFF607D8B.toInt()) {
+                showFloatingAddMenu()
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun showFloatingNavMenu() {
+        removeChooserOverlay()
+        val layoutParams = floatingPanelParams(widthDp = 300)
+        val panel = floatingPanel("导航动作")
+        panel.addView(optionRow("返回键", "模拟系统返回", 0xFF4CAF50.toInt()) {
+            floatingRecordActions.add(mapOf("type" to "nav", "navType" to "back"))
+            showFloatingRecorder()
+        })
+        panel.addView(optionRow("回到桌面", "模拟系统 Home", 0xFF4CAF50.toInt()) {
+            floatingRecordActions.add(mapOf("type" to "nav", "navType" to "home"))
+            showFloatingRecorder()
+        })
+        panel.addView(optionRow("多任务界面", "模拟系统最近任务", 0xFF4CAF50.toInt()) {
+            floatingRecordActions.add(mapOf("type" to "nav", "navType" to "recents"))
+            showFloatingRecorder()
+        })
+        panel.addView(
+            menuButton("返回", 0xFF607D8B.toInt()) {
+                showFloatingAddMenu()
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun showFloatingWaitEditor(randomWait: Boolean) {
+        removeChooserOverlay()
+        val layoutParams = floatingPanelParams(widthDp = 320, focusable = true)
+        val panel = floatingPanel(if (randomWait) "随机等待" else "固定等待")
+
+        if (randomWait) {
+            val minInput = inputField("30", "最小秒数", numberOnly = true)
+            val maxInput = inputField("120", "最大秒数", numberOnly = true)
+            panel.addView(fieldLabel("最小秒数"))
+            panel.addView(minInput, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ))
+            panel.addView(fieldLabel("最大秒数"), LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(8)
+            })
+            panel.addView(maxInput, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ))
+            panel.addView(actionButtonRow(
+                onCancel = { showFloatingAddMenu() },
+                onConfirm = {
+                    val rawMin = (minInput.text?.toString()?.trim()?.toIntOrNull() ?: 30).coerceIn(1, 10000)
+                    val rawMax = (maxInput.text?.toString()?.trim()?.toIntOrNull() ?: 120).coerceIn(1, 10000)
+                    val min = kotlin.math.min(rawMin, rawMax)
+                    val max = kotlin.math.max(rawMin, rawMax)
+                    floatingRecordActions.add(
+                        mapOf(
+                            "type" to "wait",
+                            "waitMode" to "random",
+                            "seconds" to min,
+                            "minSeconds" to min,
+                            "maxSeconds" to max,
+                        ),
+                    )
                     showFloatingRecorder()
-                    return@startNativePicker
-                }
+                },
+            ))
+        } else {
+            val secondsInput = inputField("5", "等待秒数", numberOnly = true)
+            panel.addView(fieldLabel("等待秒数，最多 10000 秒"))
+            panel.addView(secondsInput, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ))
+            panel.addView(actionButtonRow(
+                onCancel = { showFloatingAddMenu() },
+                onConfirm = {
+                    val seconds = (secondsInput.text?.toString()?.trim()?.toIntOrNull() ?: 5).coerceIn(1, 10000)
+                    floatingRecordActions.add(
+                        mapOf(
+                            "type" to "wait",
+                            "waitMode" to "fixed",
+                            "seconds" to seconds,
+                        ),
+                    )
+                    showFloatingRecorder()
+                },
+            ))
+        }
+
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun showFloatingAppPicker() {
+        removeChooserOverlay()
+        val panelHeight = (resources.displayMetrics.heightPixels - dp(160)).coerceIn(dp(360), dp(560))
+        val layoutParams = floatingPanelParams(widthDp = 340, height = panelHeight)
+        val panel = floatingPanel("启动应用")
+
+        val launchIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val apps = packageManager.queryIntentActivities(launchIntent, 0)
+            .sortedBy { it.loadLabel(packageManager).toString().lowercase(Locale.getDefault()) }
+
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        if (apps.isEmpty()) {
+            list.addView(TextView(this).apply {
+                text = "没有找到可启动应用"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFB8C0C8.toInt())
+                setPadding(dp(8), dp(28), dp(8), dp(28))
+            })
+        } else {
+            apps.forEach { info ->
+                val packageName = info.activityInfo?.packageName ?: return@forEach
+                val label = info.loadLabel(packageManager)?.toString()?.takeIf { it.isNotBlank() } ?: packageName
+                list.addView(optionRow(label, packageName, 0xFFAB47BC.toInt()) {
+                    floatingRecordActions.add(
+                        mapOf(
+                            "type" to "launchApp",
+                            "packageName" to packageName,
+                            "label" to label,
+                        ),
+                    )
+                    showFloatingRecorder()
+                })
+            }
+        }
+
+        panel.addView(
+            ScrollView(this).apply {
+                addView(list)
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ),
+        )
+        panel.addView(
+            menuButton("返回", 0xFF607D8B.toInt()) {
+                showFloatingAddMenu()
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+        addChooserPanel(panel, layoutParams)
+    }
+
+    private fun startFloatingGesturePicker(type: String) {
+        removeChooserOverlay()
+        startNativePicker(type) { result ->
+            if (result["cancelled"] != true) {
+                appendFloatingPickerResult(result)
+            }
+            showFloatingRecorder()
+        }
+    }
+
+    private fun appendFloatingPickerResult(result: Map<String, Any?>) {
+        when (result["type"] as? String) {
+            "clickSteps" -> {
                 val points = result["points"] as? List<*> ?: emptyList<Any?>()
                 points.forEach { point ->
                     val map = point as? Map<*, *> ?: return@forEach
@@ -496,47 +918,253 @@ class AutoSwipeService : AccessibilityService() {
                         ),
                     )
                 }
-                showFloatingRecorder()
             }
-        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-            marginEnd = dp(8)
-        })
-        firstRow.addView(menuButton("轨迹", 0xFFFF7043.toInt()) {
-            removeChooserOverlay()
-            startNativePicker("record") { result ->
-                if (result["cancelled"] != true) {
+            "recorded" -> {
+                if (asMapList(result["segments"]).isNotEmpty()) {
                     floatingRecordActions.add(normalizeMap(result))
                 }
-                showFloatingRecorder()
             }
-        }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        panel.addView(firstRow)
-
-        val secondRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
+            "click" -> {
+                floatingRecordActions.add(
+                    mapOf(
+                        "type" to "click",
+                        "x1" to ((result["x1"] as? Number)?.toDouble() ?: 0.5),
+                        "y1" to ((result["y1"] as? Number)?.toDouble() ?: 0.5),
+                        "duration" to 50,
+                    ),
+                )
+            }
+            "swipe" -> {
+                floatingRecordActions.add(
+                    mapOf(
+                        "type" to "swipe",
+                        "x1" to ((result["x1"] as? Number)?.toDouble() ?: 0.5),
+                        "y1" to ((result["y1"] as? Number)?.toDouble() ?: 0.7),
+                        "x2" to ((result["x2"] as? Number)?.toDouble() ?: 0.5),
+                        "y2" to ((result["y2"] as? Number)?.toDouble() ?: 0.3),
+                        "duration" to 400,
+                    ),
+                )
+            }
         }
-        secondRow.addView(menuButton("保存配置", 0xFF4CAF50.toInt()) {
-            if (floatingRecordActions.isNotEmpty()) {
-                saveFloatingRecordedConfig()
-                floatingRecordActions.clear()
-                removeChooserOverlay()
-                showFloatingWindow(expanded = true)
-            }
-        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-            marginEnd = dp(8)
-        })
-        secondRow.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
-            floatingRecordActions.clear()
-            removeChooserOverlay()
-        }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        panel.addView(secondRow)
+    }
 
-        try {
-            windowManager?.addView(panel, layoutParams)
-            chooserOverlay = panel
-        } catch (_: Exception) {
-            chooserOverlay = null
+    private fun editFloatingAction(index: Int) {
+        val action = floatingRecordActions.getOrNull(index) ?: return
+        val pickerType = when (action["type"] as? String) {
+            "click" -> "click"
+            "swipe" -> "swipe"
+            "recorded" -> "record"
+            else -> return
+        }
+        removeChooserOverlay()
+        startNativePicker(pickerType) { result ->
+            if (result["cancelled"] != true) {
+                val before = floatingRecordActions.size
+                appendFloatingPickerResult(result)
+                if (floatingRecordActions.size > before) {
+                    val replacement = floatingRecordActions.removeAt(floatingRecordActions.lastIndex)
+                    if (index in floatingRecordActions.indices) {
+                        floatingRecordActions[index] = replacement
+                    } else {
+                        floatingRecordActions.add(replacement)
+                    }
+                }
+            }
+            showFloatingRecorder()
+        }
+    }
+
+    private fun moveFloatingAction(index: Int, delta: Int) {
+        val target = index + delta
+        if (index !in floatingRecordActions.indices || target !in floatingRecordActions.indices) {
+            showFloatingRecorder()
+            return
+        }
+        val action = floatingRecordActions.removeAt(index)
+        floatingRecordActions.add(target, action)
+        showFloatingRecorder()
+    }
+
+    private fun removeFloatingAction(index: Int) {
+        if (index in floatingRecordActions.indices) {
+            floatingRecordActions.removeAt(index)
+        }
+        showFloatingRecorder()
+    }
+
+    private fun isFloatingActionEditable(action: Map<String, Any?>): Boolean {
+        return when (action["type"] as? String) {
+            "click", "swipe", "recorded" -> true
+            else -> false
+        }
+    }
+
+    private fun ensureFloatingRecordName() {
+        if (floatingRecordName.isBlank()) {
+            floatingRecordName = "自动化配置 ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}"
+        }
+    }
+
+    private fun rememberFloatingRecordName(input: EditText) {
+        floatingRecordName = input.text?.toString()?.trim().orEmpty()
+    }
+
+    private fun nativeActionTitle(action: Map<String, Any?>): String {
+        if ((action["type"] as? String) == "wait") {
+            return if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
+                "随机等待"
+            } else {
+                "固定等待"
+            }
+        }
+        return when (action["type"] as? String ?: "swipe") {
+            "click" -> "点击手势"
+            "swipe" -> "滑动手势"
+            "recorded" -> "录制轨迹"
+            "nav" -> "导航动作"
+            "launchApp" -> "启动应用"
+            else -> "未知动作"
+        }
+    }
+
+    private fun nativeActionSubtitle(action: Map<String, Any?>): String {
+        return when (action["type"] as? String ?: "swipe") {
+            "click" -> "坐标 (${formatRatio(action["x1"])}, ${formatRatio(action["y1"])})"
+            "swipe" -> "从 (${formatRatio(action["x1"])}, ${formatRatio(action["y1"])}) 到 (${formatRatio(action["x2"])}, ${formatRatio(action["y2"])})"
+            "recorded" -> "${asMapList(action["segments"]).size} 段轨迹，约 ${formatElapsed((action["duration"] as? Number)?.toLong() ?: 0L)}"
+            "nav" -> when (action["navType"] as? String ?: "back") {
+                "home" -> "模拟回到桌面"
+                "recents" -> "模拟多任务"
+                else -> "模拟返回键"
+            }
+            "wait" -> {
+                if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
+                    val min = ((action["minSeconds"] as? Number)?.toInt() ?: (action["seconds"] as? Number)?.toInt() ?: 1)
+                    val max = ((action["maxSeconds"] as? Number)?.toInt() ?: min)
+                    "$min-$max 秒内随机"
+                } else {
+                    "固定等待 ${((action["seconds"] as? Number)?.toInt() ?: 1)} 秒"
+                }
+            }
+            "launchApp" -> "拉起 ${(action["label"] as? String) ?: (action["packageName"] as? String) ?: "应用"}"
+            else -> ""
+        }
+    }
+
+    private fun formatRatio(value: Any?): String {
+        val number = (value as? Number)?.toDouble() ?: 0.0
+        return String.format(Locale.US, "%.3f", number)
+    }
+
+    private fun panelTitle(title: String): TextView {
+        return TextView(this).apply {
+            text = title
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(8))
+        }
+    }
+
+    private fun floatingPanel(title: String): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBackground(0xF21F252B.toInt(), dp(18).toFloat(), 0x44FFFFFF)
+            addView(panelTitle(title))
+        }
+    }
+
+    private fun optionRow(title: String, subtitle: String, color: Int, onClick: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(9), dp(10), dp(9))
+            background = roundedBackground(0x22111111, dp(12).toFloat(), color and 0x88FFFFFF.toInt())
+            setOnClickListener { onClick() }
+        }
+        row.addView(TextView(this).apply {
+            text = ""
+            background = roundedBackground(color and 0xCCFFFFFF.toInt(), dp(8).toFloat(), 0x33FFFFFF)
+        }, LinearLayout.LayoutParams(dp(10), dp(36)).apply {
+            marginEnd = dp(10)
+        })
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        texts.addView(TextView(this).apply {
+            text = title
+            textSize = 13f
+            setTextColor(Color.WHITE)
+        })
+        texts.addView(TextView(this).apply {
+            text = subtitle
+            textSize = 11f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, dp(2), 0, 0)
+        })
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(row)
+            setPadding(0, 0, 0, dp(8))
+        }
+    }
+
+    private fun inputField(value: String, hint: String, numberOnly: Boolean): EditText {
+        return EditText(this).apply {
+            setText(value)
+            setHint(hint)
+            textSize = 13f
+            setSingleLine(true)
+            setSelectAllOnFocus(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(0xFF8F98A3.toInt())
+            setPadding(dp(10), 0, dp(10), 0)
+            background = roundedBackground(0x22111111, dp(10).toFloat(), 0x33FFFFFF)
+            inputType = if (numberOnly) {
+                InputType.TYPE_CLASS_NUMBER
+            } else {
+                InputType.TYPE_CLASS_TEXT
+            }
+        }
+    }
+
+    private fun fieldLabel(label: String): TextView {
+        return TextView(this).apply {
+            text = label
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, 0, 0, dp(5))
+        }
+    }
+
+    private fun actionButtonRow(onCancel: () -> Unit, onConfirm: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        row.addView(
+            menuButton("取消", 0xFFFF8A80.toInt(), onCancel),
+            LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                marginEnd = dp(8)
+            },
+        )
+        row.addView(
+            menuButton("添加", 0xFF4CAF50.toInt(), onConfirm),
+            LinearLayout.LayoutParams(0, dp(42), 1f),
+        )
+        return row
+    }
+
+    private fun compactButton(label: String, color: Int, onClick: () -> Unit): TextView {
+        return TextView(this).apply {
+            text = label
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = roundedBackground(color and 0xCCFFFFFF.toInt(), dp(12).toFloat(), 0x33FFFFFF)
+            setOnClickListener { onClick() }
         }
     }
 
@@ -545,9 +1173,11 @@ class AutoSwipeService : AccessibilityService() {
         showPickerOverlay(type)
     }
 
-    private fun saveFloatingRecordedConfig() {
+    private fun saveFloatingRecordedConfig(rawName: String) {
         val id = "gesture_${System.currentTimeMillis()}"
-        val name = "悬浮录制 ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}"
+        val name = rawName.trim().ifBlank {
+            "自动化配置 ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}"
+        }
         val config = mapOf(
             "id" to id,
             "name" to name,
@@ -1211,6 +1841,59 @@ class AutoSwipeService : AccessibilityService() {
         return (value as? List<*>)?.mapNotNull { item ->
             (item as? Map<*, *>)?.let(::normalizeMap)
         } ?: emptyList()
+    }
+
+    private fun estimateActionsDurationLabel(actions: List<Map<String, Any?>>): String {
+        val (minMillis, maxMillis) = estimateActionsMillisRange(actions)
+        return if (minMillis == maxMillis) {
+            formatElapsed(minMillis)
+        } else {
+            "${formatElapsed(minMillis)}-${formatElapsed(maxMillis)}"
+        }
+    }
+
+    private fun estimateActionsMillisRange(actions: List<Map<String, Any?>>): Pair<Long, Long> {
+        var minMillis = 0L
+        var maxMillis = 0L
+        actions.forEach { action ->
+            val (actionMin, actionMax) = estimateActionMillisRange(action)
+            minMillis += actionMin
+            maxMillis += actionMax
+        }
+        return minMillis to maxMillis
+    }
+
+    private fun estimateActionMillisRange(action: Map<String, Any?>): Pair<Long, Long> {
+        return when (action["type"] as? String ?: "swipe") {
+            "click" -> {
+                val millis = ((action["duration"] as? Number)?.toLong() ?: 50L) + 100L
+                millis to millis
+            }
+            "swipe" -> {
+                val millis = ((action["duration"] as? Number)?.toLong() ?: 400L) + 100L
+                millis to millis
+            }
+            "recorded" -> {
+                val millis = ((action["duration"] as? Number)?.toLong() ?: 0L) + 100L
+                millis to millis
+            }
+            "nav" -> {
+                val millis = if (action["navType"] == "recents") 900L else 650L
+                millis to millis
+            }
+            "wait" -> {
+                val seconds = ((action["seconds"] as? Number)?.toLong() ?: 1L).coerceIn(1L, 10000L)
+                if (action["waitMode"] == "random" || action["minSeconds"] != null || action["maxSeconds"] != null) {
+                    val rawMin = ((action["minSeconds"] as? Number)?.toLong() ?: seconds).coerceIn(1L, 10000L)
+                    val rawMax = ((action["maxSeconds"] as? Number)?.toLong() ?: rawMin).coerceIn(1L, 10000L)
+                    kotlin.math.min(rawMin, rawMax) * 1000L to kotlin.math.max(rawMin, rawMax) * 1000L
+                } else {
+                    seconds * 1000L to seconds * 1000L
+                }
+            }
+            "launchApp" -> 1000L to 1000L
+            else -> 0L to 0L
+        }
     }
 
     private fun estimateActionsMillis(actions: List<Map<String, Any?>>): Long {
