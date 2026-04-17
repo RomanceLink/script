@@ -58,6 +58,10 @@ object AlarmScheduler {
                 putExtra("ringtoneSource", reminder["ringtoneSource"] as String)
                 putExtra("ringtoneLabel", reminder["ringtoneLabel"] as String)
                 putExtra("ringtoneValue", reminder["ringtoneValue"] as String?)
+                putExtra("targetAppPackage", reminder["targetAppPackage"] as String?)
+                putExtra("targetAppLabel", reminder["targetAppLabel"] as String?)
+                putExtra("gestureConfigName", reminder["gestureConfigName"] as String?)
+                putExtra("gestureActionsJson", reminder["gestureActionsJson"] as String?)
                 putExtra("notificationId", requestCode)
             }
             val pendingIntent = PendingIntent.getBroadcast(
@@ -104,6 +108,10 @@ object AlarmScheduler {
                     "ringtoneSource" to obj.getString("ringtoneSource"),
                     "ringtoneLabel" to obj.getString("ringtoneLabel"),
                     "ringtoneValue" to if (obj.isNull("ringtoneValue")) null else obj.getString("ringtoneValue"),
+                    "targetAppPackage" to if (obj.isNull("targetAppPackage")) null else obj.getString("targetAppPackage"),
+                    "targetAppLabel" to if (obj.isNull("targetAppLabel")) null else obj.getString("targetAppLabel"),
+                    "gestureConfigName" to if (obj.isNull("gestureConfigName")) null else obj.getString("gestureConfigName"),
+                    "gestureActionsJson" to if (obj.isNull("gestureActionsJson")) null else obj.getString("gestureActionsJson"),
                 )
             )
         }

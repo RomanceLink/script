@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -7,11 +8,13 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../models/task_models.dart';
 import 'alarm_bridge.dart';
+import 'task_repository.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   final AlarmBridge _alarmBridge = AlarmBridge();
+  final TaskRepository _repository = TaskRepository();
 
   static const int summaryNotificationId = 10;
 
@@ -47,6 +50,7 @@ class NotificationService {
     final now = DateTime.now();
     var id = 100;
     final reminders = <AlarmReminder>[];
+    final gestureConfigs = await _repository.loadGestureConfigs();
 
     for (final definition in definitions) {
       if (!state.isEnabled(definition.id)) {
@@ -73,6 +77,16 @@ class NotificationService {
                 ringtoneSource: definition.ringtoneSource,
                 ringtoneLabel: definition.ringtoneLabel,
                 ringtoneValue: definition.ringtoneValue,
+                targetAppPackage: state.selectedAppPackage,
+                targetAppLabel: state.selectedAppLabel,
+                gestureConfigName: _gestureConfigName(
+                  definition,
+                  gestureConfigs,
+                ),
+                gestureActionsJson: _gestureActionsJson(
+                  definition,
+                  gestureConfigs,
+                ),
               ),
             );
           }
@@ -97,6 +111,16 @@ class NotificationService {
                   ringtoneSource: definition.ringtoneSource,
                   ringtoneLabel: definition.ringtoneLabel,
                   ringtoneValue: definition.ringtoneValue,
+                  targetAppPackage: state.selectedAppPackage,
+                  targetAppLabel: state.selectedAppLabel,
+                  gestureConfigName: _gestureConfigName(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  gestureActionsJson: _gestureActionsJson(
+                    definition,
+                    gestureConfigs,
+                  ),
                 ),
               );
             }
@@ -120,6 +144,16 @@ class NotificationService {
                   ringtoneSource: definition.ringtoneSource,
                   ringtoneLabel: definition.ringtoneLabel,
                   ringtoneValue: definition.ringtoneValue,
+                  targetAppPackage: state.selectedAppPackage,
+                  targetAppLabel: state.selectedAppLabel,
+                  gestureConfigName: _gestureConfigName(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  gestureActionsJson: _gestureActionsJson(
+                    definition,
+                    gestureConfigs,
+                  ),
                 ),
               );
             }
@@ -131,6 +165,31 @@ class NotificationService {
     if (Platform.isAndroid) {
       await _alarmBridge.replaceAlarms(reminders);
     }
+  }
+
+  GestureConfig? _gestureConfigFor(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    final id = definition.gestureConfigId;
+    if (id == null || id.isEmpty) return null;
+    return configs.where((config) => config.id == id).firstOrNull;
+  }
+
+  String? _gestureConfigName(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(definition, configs)?.name;
+  }
+
+  String? _gestureActionsJson(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    final config = _gestureConfigFor(definition, configs);
+    if (config == null) return null;
+    return jsonEncode(config.actions.map((action) => action.toJson()).toList());
   }
 
   Future<void> _showSummary(DailyTaskState state) async {

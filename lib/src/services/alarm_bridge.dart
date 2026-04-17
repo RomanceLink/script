@@ -12,6 +12,10 @@ class AlarmReminder {
     required this.ringtoneSource,
     this.ringtoneLabel = '默认铃声',
     this.ringtoneValue,
+    this.targetAppPackage,
+    this.targetAppLabel,
+    this.gestureConfigName,
+    this.gestureActionsJson,
   });
 
   final String id;
@@ -22,6 +26,10 @@ class AlarmReminder {
   final RingtoneSource ringtoneSource;
   final String ringtoneLabel;
   final String? ringtoneValue;
+  final String? targetAppPackage;
+  final String? targetAppLabel;
+  final String? gestureConfigName;
+  final String? gestureActionsJson;
 
   Map<String, Object?> toJson() {
     return {
@@ -33,6 +41,10 @@ class AlarmReminder {
       'ringtoneSource': ringtoneSource.name,
       'ringtoneLabel': ringtoneLabel,
       'ringtoneValue': ringtoneValue,
+      'targetAppPackage': targetAppPackage,
+      'targetAppLabel': targetAppLabel,
+      'gestureConfigName': gestureConfigName,
+      'gestureActionsJson': gestureActionsJson,
     };
   }
 }
@@ -116,6 +128,23 @@ class AlarmBridge {
   }) async {
     final result = await _channel.invokeMethod<bool>('syncAutomationConfigs', {
       'configs': configs,
+    });
+    return result ?? false;
+  }
+
+  Future<bool> openAppAndRunConfig({
+    required String packageName,
+    required String packageLabel,
+    String? configName,
+    List<Map<String, Object?>> actions = const [],
+    int delaySeconds = 5,
+  }) async {
+    final result = await _channel.invokeMethod<bool>('openAppAndRunConfig', {
+      'packageName': packageName,
+      'packageLabel': packageLabel,
+      'configName': configName,
+      'actions': actions,
+      'delaySeconds': delaySeconds,
     });
     return result ?? false;
   }

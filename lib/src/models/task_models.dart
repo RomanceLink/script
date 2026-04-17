@@ -438,6 +438,80 @@ class GestureConfig {
   }
 }
 
+class GestureDurationRange {
+  const GestureDurationRange({
+    required this.minMillis,
+    required this.maxMillis,
+  });
+
+  final int minMillis;
+  final int maxMillis;
+
+  GestureDurationRange operator +(GestureDurationRange other) {
+    return GestureDurationRange(
+      minMillis: minMillis + other.minMillis,
+      maxMillis: maxMillis + other.maxMillis,
+    );
+  }
+
+  String get label {
+    String format(int millis) {
+      final seconds = (millis / 1000).ceil();
+      if (seconds < 60) return '$seconds 秒';
+      final minutes = seconds ~/ 60;
+      final rest = seconds % 60;
+      return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
+    }
+
+    if (minMillis == maxMillis) {
+      return format(minMillis);
+    }
+    return '${format(minMillis)}-${format(maxMillis)}';
+  }
+}
+
+GestureDurationRange estimateGestureActionsDuration(
+  List<GestureAction> actions,
+) {
+  var minMillis = 0;
+  var maxMillis = 0;
+  for (final action in actions) {
+    final range = estimateGestureActionDuration(action);
+    minMillis += range.minMillis;
+    maxMillis += range.maxMillis;
+  }
+  return GestureDurationRange(minMillis: minMillis, maxMillis: maxMillis);
+}
+
+GestureDurationRange estimateGestureActionDuration(GestureAction action) {
+  if (action is ClickAction) {
+    final millis = action.duration + 100;
+    return GestureDurationRange(minMillis: millis, maxMillis: millis);
+  }
+  if (action is SwipeAction) {
+    final millis = action.duration + 100;
+    return GestureDurationRange(minMillis: millis, maxMillis: millis);
+  }
+  if (action is RecordedGestureAction) {
+    final millis = action.duration + 100;
+    return GestureDurationRange(minMillis: millis, maxMillis: millis);
+  }
+  if (action is WaitAction) {
+    return GestureDurationRange(
+      minMillis: action.effectiveMinSeconds * 1000,
+      maxMillis: action.effectiveMaxSeconds * 1000,
+    );
+  }
+  if (action is NavAction) {
+    final millis = action.navType == NavType.recents ? 900 : 650;
+    return GestureDurationRange(minMillis: millis, maxMillis: millis);
+  }
+  if (action is LaunchAppAction) {
+    return const GestureDurationRange(minMillis: 1000, maxMillis: 1000);
+  }
+  return const GestureDurationRange(minMillis: 0, maxMillis: 0);
+}
+
 class TaskTemplateGroup {
   const TaskTemplateGroup({
     required this.id,

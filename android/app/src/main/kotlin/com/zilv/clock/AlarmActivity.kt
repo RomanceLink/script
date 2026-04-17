@@ -46,16 +46,37 @@ class AlarmActivity : ComponentActivity() {
 
     private fun renderUi(title: String, body: String) {
         setContentView(R.layout.activity_alarm)
+        val targetAppPackage = intent.getStringExtra("targetAppPackage")
+        val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
+        val configName = intent.getStringExtra("gestureConfigName")
+        val actionsJson = intent.getStringExtra("gestureActionsJson")
         findViewById<TextView>(R.id.alarmTitle).text = title
         findViewById<TextView>(R.id.alarmBody).text = body
+        findViewById<TextView>(R.id.alarmHint).text = if (configName.isNullOrBlank()) {
+            "提醒已触发，点击下方按钮打开 $targetAppLabel。"
+        } else {
+            "绑定配置：$configName，打开 $targetAppLabel 后 5 秒自动执行。"
+        }
+        findViewById<TextView>(R.id.openTaskButton).text = "打开$targetAppLabel"
         findViewById<TextView>(R.id.openTaskButton).setOnClickListener {
             stopSound()
-            AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
-            val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("taskId", taskId)
+            if (!targetAppPackage.isNullOrBlank()) {
+                AutoSwipeService.openAppAndRunConfig(
+                    this@AlarmActivity,
+                    targetAppPackage,
+                    targetAppLabel,
+                    configName,
+                    AutoSwipeService.parseActionsJson(actionsJson),
+                    5
+                )
+            } else {
+                AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
+                val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("taskId", taskId)
+                }
+                startActivity(launchIntent)
             }
-            startActivity(launchIntent)
             finishAlarm()
         }
         findViewById<TextView>(R.id.dismissButton).setOnClickListener {

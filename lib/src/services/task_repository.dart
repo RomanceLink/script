@@ -10,6 +10,7 @@ class TaskRepository {
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final raw = prefs.getString(_gestureConfigsKey);
     if (raw == null) return [];
     try {

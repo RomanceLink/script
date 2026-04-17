@@ -195,6 +195,7 @@ class _DashboardPageState extends State<DashboardPage>
   bool _loading = true;
   String? _focusTaskId;
   int _currentTaskPage = 0;
+  List<GestureConfig> _gestureConfigs = [];
   bool _handlingOverlayCommand = false;
 
   @override
@@ -228,11 +229,13 @@ class _DashboardPageState extends State<DashboardPage>
         await _notifications.scheduleForState(state, state.taskDefinitions);
         _focusTaskId = await _alarmBridge.consumeLaunchTaskId();
       }
+      final gestureConfigs = await _repository.loadGestureConfigs();
       if (!mounted) {
         return;
       }
       setState(() {
         _state = state;
+        _gestureConfigs = gestureConfigs;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -363,8 +366,18 @@ class _DashboardPageState extends State<DashboardPage>
       return;
     }
 
-    // 1. 打开应用
-    final ok = await _launcher.openPackage(state.selectedAppPackage);
+    final configs = await _repository.loadGestureConfigs();
+    final configId = task.gestureConfigId;
+    final config = configId == null
+        ? null
+        : configs.where((c) => c.id == configId).firstOrNull;
+    final ok = await _alarmBridge.openAppAndRunConfig(
+      packageName: state.selectedAppPackage,
+      packageLabel: state.selectedAppLabel,
+      configName: config?.name,
+      actions: config?.actions.map((a) => a.toJson()).toList() ?? const [],
+      delaySeconds: 5,
+    );
     if (!mounted) {
       return;
     }
@@ -374,22 +387,12 @@ class _DashboardPageState extends State<DashboardPage>
       return;
     }
 
-    _showMessage('已尝试打开 ${state.selectedAppLabel}', type: ToastType.info);
-
-    // 2. 如果关联了脚本，执行脚本
-    final configId = task.gestureConfigId;
-    if (configId != null && configId.isNotEmpty) {
-      final configs = await _repository.loadGestureConfigs();
-      final config = configs.where((c) => c.id == configId).firstOrNull;
-      if (config != null) {
-        // 等待应用拉起稳定一点再发指令
-        await Future.delayed(const Duration(seconds: 2));
-        await _alarmBridge.runGestureConfig(
-          name: config.name,
-          actions: config.actions.map((a) => a.toJson()).toList(),
-        );
-      }
-    }
+    _showMessage(
+      config == null
+          ? '已打开 ${state.selectedAppLabel}'
+          : '已打开 ${state.selectedAppLabel}，5 秒后执行 ${config.name}',
+      type: ToastType.info,
+    );
   }
 
   Future<void> _startAutomationMenu() async {
@@ -410,6 +413,13 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> _syncAutomationConfigs() async {
     final configs = await _repository.loadGestureConfigs();
+    if (mounted) {
+      setState(() => _gestureConfigs = configs);
+    }
+    final state = _state;
+    if (widget.enablePlatformServices && state != null) {
+      await _notifications.scheduleForState(state, state.taskDefinitions);
+    }
     await _alarmBridge.syncAutomationConfigs(
       configs: configs.map((config) => config.toJson()).toList(),
     );
@@ -484,6 +494,10 @@ class _DashboardPageState extends State<DashboardPage>
     );
 
     if (next != null) {
+      final configs = await _repository.loadGestureConfigs();
+      if (mounted) {
+        setState(() => _gestureConfigs = configs);
+      }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
     }
   }
@@ -525,6 +539,18 @@ class _DashboardPageState extends State<DashboardPage>
             Color(0xFFD38FF2),
             Color(0xFFE5C45A),
           ];
+  }
+
+  String? _configLabelFor(AssistantTaskDefinition task) {
+    final id = task.gestureConfigId;
+    if (id == null || id.isEmpty) {
+      return null;
+    }
+    final config = _gestureConfigs.where((item) => item.id == id).firstOrNull;
+    if (config == null) {
+      return '配置已删除';
+    }
+    return '${config.name} · 约 ${estimateGestureActionsDuration(config.actions).label}';
   }
 
   @override
@@ -738,8 +764,11 @@ class _DashboardPageState extends State<DashboardPage>
                                   state.isEnabled(task.id) &&
                                   !state.isCompleted(task.id) &&
                                   (isActive || isExpired),
-                              showQuickLaunch: task.showQuickLaunch,
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                             );
                           case AssistantTaskKind.fixedPoint:
@@ -775,8 +804,11 @@ class _DashboardPageState extends State<DashboardPage>
                                   state.isEnabled(task.id) &&
                                   !state.isCompleted(task.id) &&
                                   isDue,
-                              showQuickLaunch: task.showQuickLaunch,
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                             );
                           case AssistantTaskKind.adCooldown:
@@ -812,8 +844,11 @@ class _DashboardPageState extends State<DashboardPage>
                                     state,
                                     task,
                                   ),
-                              showQuickLaunch: task.showQuickLaunch,
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                             );
                         }
@@ -3322,6 +3357,7 @@ class _TaskDeckCard extends StatelessWidget {
     required this.primaryEnabled,
     required this.showQuickLaunch,
     required this.appLabel,
+    required this.configLabel,
     required this.onOpenApp,
   });
 
@@ -3338,6 +3374,7 @@ class _TaskDeckCard extends StatelessWidget {
   final bool primaryEnabled;
   final bool showQuickLaunch;
   final String appLabel;
+  final String? configLabel;
   final Future<void> Function() onOpenApp;
 
   @override
@@ -3407,6 +3444,16 @@ class _TaskDeckCard extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                          if (configLabel != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              '绑定配置：$configLabel',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -91,6 +91,27 @@ class MainActivity : FlutterActivity() {
                         val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
                         result.success(AutoSwipeService.syncAutomationConfigs(configs))
                     }
+                    "openAppAndRunConfig" -> {
+                        val packageName = call.argument<String>("packageName")
+                        val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
+                        val configName = call.argument<String>("configName")
+                        val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
+                        val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
+                        if (packageName.isNullOrBlank()) {
+                            result.success(false)
+                        } else {
+                            result.success(
+                                AutoSwipeService.openAppAndRunConfig(
+                                    this,
+                                    packageName,
+                                    packageLabel,
+                                    configName,
+                                    actions,
+                                    delaySeconds
+                                )
+                            )
+                        }
+                    }
                     "performAutoSwipe" -> {
                         val min = call.argument<Int>("min") ?: 30
                         val max = call.argument<Int>("max") ?: 60

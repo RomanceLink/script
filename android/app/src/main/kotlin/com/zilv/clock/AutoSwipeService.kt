@@ -22,6 +22,11 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.max
@@ -43,9 +48,15 @@ class AutoSwipeService : AccessibilityService() {
     private var selectedConfigIndex = -1
 
     private val gestureActions = mutableListOf<Map<String, Any?>>()
+    private val runtimeActions = mutableListOf<Map<String, Any?>>()
     private val availableConfigs = mutableListOf<Map<String, Any?>>()
+    private val floatingRecordActions = mutableListOf<Map<String, Any?>>()
     private val pickerData: MutableMap<String, Float> = mutableMapOf()
     private var pickerMode: String? = null
+    private var nativePickerResult: ((Map<String, Any?>) -> Unit)? = null
+    private var runStartedAt = 0L
+    private var runTotalMillis = 0L
+    private var playbackTicker: Runnable? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private val random = Random()
@@ -96,8 +107,77 @@ class AutoSwipeService : AccessibilityService() {
             return true
         }
 
+        fun openAppAndRunConfig(
+            context: Context,
+            packageName: String,
+            packageLabel: String,
+            configName: String?,
+            actions: List<Map<String, Any?>>,
+            delaySeconds: Int = 5,
+        ): Boolean {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                ?: return false
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launchIntent)
+
+            val service = instance ?: return true
+            service.handler.postDelayed({
+                service.showFloatingWindow(expanded = true)
+                if (actions.isNotEmpty()) {
+                    updateConfig(0, 0, actions, configName ?: packageLabel)
+                }
+            }, delaySeconds.coerceAtLeast(0) * 1000L)
+            return true
+        }
+
+        fun parseActionsJson(raw: String?): List<Map<String, Any?>> {
+            if (raw.isNullOrBlank()) return emptyList()
+            return try {
+                jsonArrayToList(JSONArray(raw))
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
         private fun normalizeMap(map: Map<*, *>): Map<String, Any?> {
             return map.entries.associate { entry -> entry.key.toString() to entry.value }
+        }
+
+        private fun jsonArrayToList(array: JSONArray): List<Map<String, Any?>> {
+            val out = mutableListOf<Map<String, Any?>>()
+            for (index in 0 until array.length()) {
+                val obj = array.optJSONObject(index) ?: continue
+                out.add(jsonObjectToMap(obj))
+            }
+            return out
+        }
+
+        private fun jsonObjectToMap(obj: JSONObject): Map<String, Any?> {
+            val map = mutableMapOf<String, Any?>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = when (val value = obj.get(key)) {
+                    is JSONObject -> jsonObjectToMap(value)
+                    is JSONArray -> {
+                        val list = mutableListOf<Any?>()
+                        for (index in 0 until value.length()) {
+                            list.add(
+                                when (val item = value.get(index)) {
+                                    is JSONObject -> jsonObjectToMap(item)
+                                    is JSONArray -> item.toString()
+                                    JSONObject.NULL -> null
+                                    else -> item
+                                },
+                            )
+                        }
+                        list
+                    }
+                    JSONObject.NULL -> null
+                    else -> value
+                }
+            }
+            return map
         }
     }
 
@@ -185,7 +265,7 @@ class AutoSwipeService : AccessibilityService() {
             }
         }
         val recordButton = menuButton("录制", 0xFFFFB989.toInt()) {
-            openFlutterCommand("new_config")
+            showFloatingRecorder()
         }
         val closeButton = menuButton("关闭", 0xFFFF8A80.toInt()) {
             closeAutomationMenu()
@@ -197,7 +277,7 @@ class AutoSwipeService : AccessibilityService() {
         listOf(configButton, startMenuButton, recordButton, closeButton, foldButton).forEach { button ->
             row.addView(
                 button,
-                LinearLayout.LayoutParams(dp(58), dp(42)).apply {
+                LinearLayout.LayoutParams(if (button == startMenuButton) dp(82) else dp(58), dp(46)).apply {
                     marginStart = dp(3)
                     marginEnd = dp(3)
                 },
@@ -305,7 +385,7 @@ class AutoSwipeService : AccessibilityService() {
             })
             panel.addView(menuButton("新建配置", 0xFF7ED8C3.toInt()) {
                 removeChooserOverlay()
-                openFlutterCommand("new_config")
+                showFloatingRecorder()
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)))
         } else {
             val list = LinearLayout(this).apply {
@@ -313,12 +393,14 @@ class AutoSwipeService : AccessibilityService() {
             }
             availableConfigs.forEachIndexed { index, config ->
                 val name = config["name"] as? String ?: "未命名配置"
-                val actionCount = asMapList(config["actions"]).size
+                val actions = asMapList(config["actions"])
+                val actionCount = actions.size
+                val duration = formatElapsed(estimateActionsMillis(actions))
                 val row = TextView(this).apply {
                     text = if (index == selectedConfigIndex) {
-                        "$name  ·  $actionCount 个动作  ·  已选"
+                        "$name  ·  $actionCount 个动作 · 约 $duration  ·  已选"
                     } else {
-                        "$name  ·  $actionCount 个动作"
+                        "$name  ·  $actionCount 个动作 · 约 $duration"
                     }
                     textSize = 13f
                     setTextColor(Color.WHITE)
@@ -366,6 +448,124 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun showFloatingRecorder() {
+        removeChooserOverlay()
+        val layoutParams = baseOverlayParams().apply {
+            width = dp(310)
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            x = floatingLayoutParams?.x ?: x
+            y = (floatingLayoutParams?.y ?: y) + dp(60)
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBackground(0xF21F252B.toInt(), dp(18).toFloat(), 0x44FFFFFF)
+        }
+        panel.addView(TextView(this).apply {
+            text = "悬浮录制配置"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(6))
+        })
+        panel.addView(TextView(this).apply {
+            text = "${floatingRecordActions.size} 个动作 · 约 ${formatElapsed(estimateActionsMillis(floatingRecordActions))}"
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, 0, 0, dp(10))
+        })
+
+        val firstRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        firstRow.addView(menuButton("点击步骤", 0xFF4A90E2.toInt()) {
+            removeChooserOverlay()
+            startNativePicker("clickSteps") { result ->
+                if (result["cancelled"] == true) {
+                    showFloatingRecorder()
+                    return@startNativePicker
+                }
+                val points = result["points"] as? List<*> ?: emptyList<Any?>()
+                points.forEach { point ->
+                    val map = point as? Map<*, *> ?: return@forEach
+                    floatingRecordActions.add(
+                        mapOf(
+                            "type" to "click",
+                            "x1" to ((map["x"] as? Number)?.toDouble() ?: 0.5),
+                            "y1" to ((map["y"] as? Number)?.toDouble() ?: 0.5),
+                            "duration" to 50,
+                        ),
+                    )
+                }
+                showFloatingRecorder()
+            }
+        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(8)
+        })
+        firstRow.addView(menuButton("轨迹", 0xFFFF7043.toInt()) {
+            removeChooserOverlay()
+            startNativePicker("record") { result ->
+                if (result["cancelled"] != true) {
+                    floatingRecordActions.add(normalizeMap(result))
+                }
+                showFloatingRecorder()
+            }
+        }, LinearLayout.LayoutParams(0, dp(42), 1f))
+        panel.addView(firstRow)
+
+        val secondRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        secondRow.addView(menuButton("保存配置", 0xFF4CAF50.toInt()) {
+            if (floatingRecordActions.isNotEmpty()) {
+                saveFloatingRecordedConfig()
+                floatingRecordActions.clear()
+                removeChooserOverlay()
+                showFloatingWindow(expanded = true)
+            }
+        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(8)
+        })
+        secondRow.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            floatingRecordActions.clear()
+            removeChooserOverlay()
+        }, LinearLayout.LayoutParams(0, dp(42), 1f))
+        panel.addView(secondRow)
+
+        try {
+            windowManager?.addView(panel, layoutParams)
+            chooserOverlay = panel
+        } catch (_: Exception) {
+            chooserOverlay = null
+        }
+    }
+
+    private fun startNativePicker(type: String, callback: (Map<String, Any?>) -> Unit) {
+        nativePickerResult = callback
+        showPickerOverlay(type)
+    }
+
+    private fun saveFloatingRecordedConfig() {
+        val id = "gesture_${System.currentTimeMillis()}"
+        val name = "悬浮录制 ${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}"
+        val config = mapOf(
+            "id" to id,
+            "name" to name,
+            "actions" to floatingRecordActions.map(::normalizeMap),
+        )
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val key = "flutter.gesture_configs_v1"
+        val array = try {
+            JSONArray(prefs.getString(key, "[]") ?: "[]")
+        } catch (_: Exception) {
+            JSONArray()
+        }
+        array.put(mapToJson(config))
+        prefs.edit().putString(key, array.toString()).apply()
+        availableConfigs.add(config)
+        selectedConfigIndex = availableConfigs.lastIndex
+    }
+
     private fun repositionChooser() {
         val chooser = chooserOverlay ?: return
         val params = chooser.layoutParams as? WindowManager.LayoutParams ?: return
@@ -392,21 +592,28 @@ class AutoSwipeService : AccessibilityService() {
         if (gestureActions.isEmpty()) {
             return
         }
+        runtimeActions.clear()
+        runtimeActions.addAll(gestureActions.map(::planRuntimeAction))
+        runStartedAt = SystemClock.uptimeMillis()
+        runTotalMillis = estimateActionsMillis(runtimeActions)
         isRunning = true
         updateStatusText()
+        startPlaybackTicker()
         executeActionIndex(0)
     }
 
     private fun stopScriptRun() {
         isRunning = false
         handler.removeCallbacksAndMessages(null)
+        playbackTicker = null
+        runtimeActions.clear()
         updateStatusText()
     }
 
     private fun executeActionIndex(index: Int) {
         if (!isRunning) return
 
-        if (index >= gestureActions.size) {
+        if (index >= runtimeActions.size) {
             if (minSeconds > 0 || maxSeconds > 0) {
                 val delay = if (maxSeconds > minSeconds) {
                     (random.nextInt(maxSeconds - minSeconds + 1) + minSeconds) * 1000L
@@ -416,12 +623,14 @@ class AutoSwipeService : AccessibilityService() {
                 handler.postDelayed({ executeActionIndex(0) }, delay)
             } else {
                 isRunning = false
+                playbackTicker = null
+                runtimeActions.clear()
                 updateStatusText()
             }
             return
         }
 
-        val action = gestureActions[index]
+        val action = runtimeActions[index]
         when (action["type"] as? String ?: "swipe") {
             "swipe", "click", "recorded" -> {
                 performGestureAction(action) {
@@ -450,6 +659,28 @@ class AutoSwipeService : AccessibilityService() {
             }
             else -> executeActionIndex(index + 1)
         }
+    }
+
+    private fun planRuntimeAction(action: Map<String, Any?>): Map<String, Any?> {
+        if ((action["type"] as? String) != "wait") {
+            return action
+        }
+        return action + mapOf(
+            "waitMode" to "fixed",
+            "seconds" to resolveWaitSeconds(action),
+        )
+    }
+
+    private fun startPlaybackTicker() {
+        val ticker = object : Runnable {
+            override fun run() {
+                if (!isRunning) return
+                updateStatusText()
+                handler.postDelayed(this, 500)
+            }
+        }
+        playbackTicker = ticker
+        handler.post(ticker)
     }
 
     private fun resolveWaitSeconds(action: Map<String, Any?>): Long {
@@ -642,7 +873,7 @@ class AutoSwipeService : AccessibilityService() {
             pickerOverlay = container
         } catch (_: Exception) {
             pickerMode = null
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
         }
     }
 
@@ -659,7 +890,7 @@ class AutoSwipeService : AccessibilityService() {
             marginEnd = dp(8)
         })
         row.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
         }, LinearLayout.LayoutParams(dp(72), dp(40)))
         return row
@@ -671,8 +902,18 @@ class AutoSwipeService : AccessibilityService() {
         pickerData.forEach { (key, value) ->
             result[key] = value.toDouble()
         }
-        onPickerResult?.invoke(result)
+        publishPickerResult(result)
         removePickerOverlay()
+    }
+
+    private fun publishPickerResult(result: Map<String, Any?>) {
+        val nativeCallback = nativePickerResult
+        if (nativeCallback != null) {
+            nativePickerResult = null
+            nativeCallback(result)
+            return
+        }
+        onPickerResult?.invoke(result)
     }
 
     private fun showRecordingOverlay() {
@@ -703,7 +944,7 @@ class AutoSwipeService : AccessibilityService() {
         }
         val recordButton = menuButton("开始录制", 0xFFFF4444.toInt()) {}
         val cancelButton = menuButton("取消", 0xFF607D8B.toInt()) {
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
         }
         var recording = false
@@ -731,7 +972,7 @@ class AutoSwipeService : AccessibilityService() {
                     return@setOnClickListener
                 }
                 recording = false
-                onPickerResult?.invoke(surface.exportResult())
+                publishPickerResult(surface.exportResult())
                 removePickerOverlay()
             }
         }
@@ -752,7 +993,7 @@ class AutoSwipeService : AccessibilityService() {
             pickerOverlay = container
         } catch (_: Exception) {
             pickerMode = null
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
         }
     }
 
@@ -786,7 +1027,7 @@ class AutoSwipeService : AccessibilityService() {
             if (!surface.hasPoints()) {
                 return@menuButton
             }
-            onPickerResult?.invoke(
+            publishPickerResult(
                 mapOf(
                     "type" to "clickSteps",
                     "points" to surface.exportPoints(),
@@ -798,7 +1039,7 @@ class AutoSwipeService : AccessibilityService() {
             surface.deleteSelectedOrLast()
         }
         val cancelButton = menuButton("取消", 0xFFFF8A80.toInt()) {
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
         }
         controls.addView(saveButton, LinearLayout.LayoutParams(dp(72), dp(40)).apply {
@@ -821,7 +1062,7 @@ class AutoSwipeService : AccessibilityService() {
             pickerOverlay = container
         } catch (_: Exception) {
             pickerMode = null
-            onPickerResult?.invoke(mapOf("cancelled" to true))
+            publishPickerResult(mapOf("cancelled" to true))
         }
     }
 
@@ -914,7 +1155,10 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun updateStatusText() {
         startMenuButton?.text = when {
-            isRunning -> "停止"
+            isRunning -> {
+                val elapsed = (SystemClock.uptimeMillis() - runStartedAt).coerceAtLeast(0L)
+                "停止\n${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+            }
             scriptName != null -> "启动"
             else -> "启动"
         }
@@ -944,10 +1188,43 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun mapToJson(map: Map<String, Any?>): JSONObject {
+        val obj = JSONObject()
+        map.forEach { (key, value) ->
+            obj.put(key, toJsonValue(value))
+        }
+        return obj
+    }
+
+    private fun toJsonValue(value: Any?): Any? {
+        return when (value) {
+            null -> JSONObject.NULL
+            is Map<*, *> -> mapToJson(normalizeMap(value))
+            is List<*> -> JSONArray().apply {
+                value.forEach { put(toJsonValue(it)) }
+            }
+            else -> value
+        }
+    }
+
     private fun asMapList(value: Any?): List<Map<String, Any?>> {
         return (value as? List<*>)?.mapNotNull { item ->
             (item as? Map<*, *>)?.let(::normalizeMap)
         } ?: emptyList()
+    }
+
+    private fun estimateActionsMillis(actions: List<Map<String, Any?>>): Long {
+        return actions.sumOf { action ->
+            when (action["type"] as? String ?: "swipe") {
+                "click" -> ((action["duration"] as? Number)?.toLong() ?: 50L) + 100L
+                "swipe" -> ((action["duration"] as? Number)?.toLong() ?: 400L) + 100L
+                "recorded" -> ((action["duration"] as? Number)?.toLong() ?: 0L) + 100L
+                "nav" -> if (action["navType"] == "recents") 900L else 650L
+                "wait" -> resolveWaitSeconds(action) * 1000L
+                "launchApp" -> 1000L
+                else -> 0L
+            }
+        }
     }
 
     private fun dp(value: Int): Int {
@@ -959,6 +1236,15 @@ class AutoSwipeService : AccessibilityService() {
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
         return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+    }
+
+    private fun formatShortElapsed(milliseconds: Long): String {
+        val seconds = (milliseconds / 1000).coerceAtLeast(0L)
+        return if (seconds < 60) {
+            "${seconds}s"
+        } else {
+            "${seconds / 60}m${seconds % 60}s"
+        }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {

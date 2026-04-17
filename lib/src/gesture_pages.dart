@@ -122,7 +122,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                       config.name,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text('${config.actions.length} 个动作'),
+                    subtitle: Text(
+                      '${config.actions.length} 个动作 · 约 ${estimateGestureActionsDuration(config.actions).label}',
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -597,6 +599,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '预计执行时长：${estimateGestureActionsDuration(_actions).label}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           const Divider(),
           Expanded(
             child: _actions.isEmpty
@@ -607,6 +622,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                     ),
                   )
                 : ReorderableListView.builder(
+                    buildDefaultDragHandles: false,
                     itemCount: _actions.length,
                     onReorder: (oldIndex, newIndex) {
                       setState(() {
@@ -631,6 +647,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: const Icon(Icons.drag_handle_rounded),
+                            ),
                             if (_isPositionEditable(action))
                               IconButton(
                                 icon: const Icon(Icons.edit_location_alt),
