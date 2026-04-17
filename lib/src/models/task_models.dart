@@ -317,15 +317,64 @@ class NavAction extends GestureAction {
 }
 
 class WaitAction extends GestureAction {
-  const WaitAction({required this.seconds})
-    : super(type: GestureActionType.wait);
+  const WaitAction({
+    required this.seconds,
+    this.minSeconds,
+    this.maxSeconds,
+    this.isRandom = false,
+  }) : super(type: GestureActionType.wait);
+
+  factory WaitAction.fixed({required int seconds}) {
+    return WaitAction(seconds: seconds.clamp(1, 10000));
+  }
+
+  factory WaitAction.random({
+    required int minSeconds,
+    required int maxSeconds,
+  }) {
+    final min = minSeconds.clamp(1, 10000);
+    final max = maxSeconds.clamp(1, 10000);
+    final orderedMin = min <= max ? min : max;
+    final orderedMax = max >= min ? max : min;
+    return WaitAction(
+      seconds: orderedMin,
+      minSeconds: orderedMin,
+      maxSeconds: orderedMax,
+      isRandom: true,
+    );
+  }
+
   final int seconds;
+  final int? minSeconds;
+  final int? maxSeconds;
+  final bool isRandom;
+
+  int get effectiveMinSeconds => isRandom ? minSeconds ?? seconds : seconds;
+  int get effectiveMaxSeconds => isRandom ? maxSeconds ?? seconds : seconds;
 
   @override
-  Map<String, Object?> toJson() => {'type': type.name, 'seconds': seconds};
+  Map<String, Object?> toJson() => isRandom
+      ? {
+          'type': type.name,
+          'waitMode': 'random',
+          'seconds': seconds,
+          'minSeconds': effectiveMinSeconds,
+          'maxSeconds': effectiveMaxSeconds,
+        }
+      : {'type': type.name, 'waitMode': 'fixed', 'seconds': seconds};
 
-  factory WaitAction.fromJson(Map<String, Object?> json) =>
-      WaitAction(seconds: json['seconds'] as int);
+  factory WaitAction.fromJson(Map<String, Object?> json) {
+    final mode = json['waitMode'] as String?;
+    final min = (json['minSeconds'] as num?)?.toInt();
+    final max = (json['maxSeconds'] as num?)?.toInt();
+    if (mode == 'random' || min != null || max != null) {
+      return WaitAction.random(
+        minSeconds: min ?? (json['seconds'] as num?)?.toInt() ?? 1,
+        maxSeconds: max ?? min ?? (json['seconds'] as num?)?.toInt() ?? 1,
+      );
+    }
+    return WaitAction.fixed(seconds: (json['seconds'] as num?)?.toInt() ?? 1);
+  }
 }
 
 class LaunchAppAction extends GestureAction {

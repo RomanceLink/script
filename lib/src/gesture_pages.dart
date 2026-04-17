@@ -213,7 +213,18 @@ class _GestureEditPageState extends State<GestureEditPage> {
               title: const Text('随机等待'),
               onTap: () {
                 Navigator.of(context).pop();
-                _pickWaitAction();
+                _pickRandomWaitAction();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.hourglass_bottom_rounded,
+                color: Colors.brown,
+              ),
+              title: const Text('固定等待'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickFixedWaitAction();
               },
             ),
             ListTile(
@@ -386,41 +397,95 @@ class _GestureEditPageState extends State<GestureEditPage> {
     );
   }
 
-  void _pickWaitAction() {
-    int seconds = 1;
-    showDialog(
+  Future<void> _pickRandomWaitAction() async {
+    var minText = '30';
+    var maxText = '120';
+    final action = await showDialog<WaitAction>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('设置等待时长'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('$seconds 秒'),
-              Slider(
-                value: seconds.toDouble(),
-                min: 1,
-                max: 30,
-                onChanged: (v) => setDialogState(() => seconds = v.toInt()),
+      builder: (context) => AlertDialog(
+        title: const Text('设置随机等待范围'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              initialValue: minText,
+              onChanged: (value) => minText = value,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '最小秒数',
+                hintText: '例如 30',
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _addAction(WaitAction(seconds: seconds));
-              },
-              child: const Text('添加'),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: maxText,
+              onChanged: (value) => maxText = value,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '最大秒数',
+                hintText: '例如 120',
+              ),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final min = int.tryParse(minText.trim()) ?? 30;
+              final max = int.tryParse(maxText.trim()) ?? 120;
+              Navigator.of(
+                context,
+              ).pop(WaitAction.random(minSeconds: min, maxSeconds: max));
+            },
+            child: const Text('添加'),
+          ),
+        ],
       ),
     );
+    if (!mounted || action == null) {
+      return;
+    }
+    _addAction(action);
+  }
+
+  Future<void> _pickFixedWaitAction() async {
+    var secondsText = '5';
+    final action = await showDialog<WaitAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('设置固定等待'),
+        content: TextFormField(
+          initialValue: secondsText,
+          onChanged: (value) => secondsText = value,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: '等待秒数',
+            helperText: '最多 10000 秒',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final seconds = int.tryParse(secondsText.trim()) ?? 5;
+              Navigator.of(context).pop(WaitAction.fixed(seconds: seconds));
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    _addAction(action);
   }
 
   Future<void> _pickAppAction() async {
@@ -627,12 +692,15 @@ class _GestureEditPageState extends State<GestureEditPage> {
   }
 
   String _actionLabel(GestureAction action) {
+    if (action is WaitAction) {
+      return action.isRandom ? '随机等待' : '固定等待';
+    }
     return switch (action.type) {
       GestureActionType.swipe => '滑动手势',
       GestureActionType.click => '点击手势',
       GestureActionType.recorded => '录制轨迹',
       GestureActionType.nav => '导航动作',
-      GestureActionType.wait => '随机等待',
+      GestureActionType.wait => '等待',
       GestureActionType.launchApp => '启动应用',
     };
   }
@@ -656,7 +724,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
       };
     }
     if (action is WaitAction) {
-      return '等待 ${action.seconds} 秒';
+      if (action.isRandom) {
+        return '${action.effectiveMinSeconds}-${action.effectiveMaxSeconds} 秒内随机';
+      }
+      return '固定等待 ${action.seconds} 秒';
     }
     if (action is LaunchAppAction) {
       return '拉起 ${action.label}';

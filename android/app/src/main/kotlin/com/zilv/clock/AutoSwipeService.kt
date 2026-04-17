@@ -430,16 +430,12 @@ class AutoSwipeService : AccessibilityService() {
             }
             "nav" -> {
                 val navType = action["navType"] as? String ?: "back"
-                val globalAction = when (navType) {
-                    "home" -> GLOBAL_ACTION_HOME
-                    "recents" -> GLOBAL_ACTION_RECENTS
-                    else -> GLOBAL_ACTION_BACK
+                performNavigationAction(navType) {
+                    executeActionIndex(index + 1)
                 }
-                performGlobalAction(globalAction)
-                handler.postDelayed({ executeActionIndex(index + 1) }, 500)
             }
             "wait" -> {
-                val seconds = (action["seconds"] as? Number)?.toInt() ?: 1
+                val seconds = resolveWaitSeconds(action)
                 handler.postDelayed({ executeActionIndex(index + 1) }, seconds * 1000L)
             }
             "launchApp" -> {
@@ -453,6 +449,49 @@ class AutoSwipeService : AccessibilityService() {
                 handler.postDelayed({ executeActionIndex(index + 1) }, 1000)
             }
             else -> executeActionIndex(index + 1)
+        }
+    }
+
+    private fun resolveWaitSeconds(action: Map<String, Any?>): Long {
+        val mode = action["waitMode"] as? String
+        val seconds = ((action["seconds"] as? Number)?.toLong() ?: 1L).coerceIn(1L, 10000L)
+        if (mode != "random" && action["minSeconds"] == null && action["maxSeconds"] == null) {
+            return seconds
+        }
+        val rawMin = ((action["minSeconds"] as? Number)?.toLong() ?: seconds).coerceIn(1L, 10000L)
+        val rawMax = ((action["maxSeconds"] as? Number)?.toLong() ?: rawMin).coerceIn(1L, 10000L)
+        val min = kotlin.math.min(rawMin, rawMax)
+        val max = kotlin.math.max(rawMin, rawMax)
+        if (max <= min) return min
+        return random.nextInt((max - min + 1).toInt()).toLong() + min
+    }
+
+    private fun performNavigationAction(navType: String, onDone: () -> Unit) {
+        val globalAction = when (navType) {
+            "home" -> GLOBAL_ACTION_HOME
+            "recents" -> GLOBAL_ACTION_RECENTS
+            else -> GLOBAL_ACTION_BACK
+        }
+        handler.post {
+            val success = performGlobalAction(globalAction)
+            if (!success) {
+                if (navType == "home") {
+                    launchHomeFallback()
+                }
+                handler.postDelayed({ performGlobalAction(globalAction) }, 250)
+            }
+            handler.postDelayed({ onDone() }, if (navType == "recents") 900L else 650L)
+        }
+    }
+
+    private fun launchHomeFallback() {
+        try {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
         }
     }
 
