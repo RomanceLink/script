@@ -254,8 +254,21 @@ class _GestureEditPageState extends State<GestureEditPage> {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.pin_drop_outlined),
+            title: const Text('录制点击步骤'),
+            subtitle: const Text('点击屏幕生成编号圆点，保存后每个点都是独立步骤'),
+            onTap: () async {
+              Navigator.of(context).pop();
+              final result = await AlarmBridge().enterPickerMode('clickSteps');
+              final actions = _clickActionsFromSteps(result);
+              if (actions.isNotEmpty) {
+                setState(() => _actions.addAll(actions));
+              }
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.touch_app_outlined),
-            title: const Text('手动标点：简单点击'),
+            title: const Text('手动标点：单次点击'),
             subtitle: const Text('拖动标记到目标位置后保存'),
             onTap: () async {
               Navigator.of(context).pop();
@@ -292,6 +305,28 @@ class _GestureEditPageState extends State<GestureEditPage> {
         ],
       ),
     );
+  }
+
+  List<ClickAction> _clickActionsFromSteps(Map<String, Object?>? result) {
+    if (result == null || result['cancelled'] == true) {
+      return const [];
+    }
+    final rawPoints = (result['points'] as List<Object?>?) ?? const [];
+    final actions = rawPoints
+        .whereType<Map<Object?, Object?>>()
+        .map(
+          (point) => ClickAction(
+            x1: (point['x'] as num).toDouble(),
+            y1: (point['y'] as num).toDouble(),
+          ),
+        )
+        .toList();
+    if (actions.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('没有录制到点击步骤')));
+    }
+    return actions;
   }
 
   RecordedGestureAction? _recordedActionFromResult(
@@ -441,6 +476,43 @@ class _GestureEditPageState extends State<GestureEditPage> {
     Navigator.of(context).pop(config);
   }
 
+  Future<void> _editAction(int index) async {
+    final action = _actions[index];
+    if (action is ClickAction) {
+      final result = await AlarmBridge().enterPickerMode('click');
+      if (result == null || result['cancelled'] == true) {
+        return;
+      }
+      setState(() {
+        _actions[index] = ClickAction(
+          x1: (result['x1'] as num).toDouble(),
+          y1: (result['y1'] as num).toDouble(),
+          duration: action.duration,
+        );
+      });
+      return;
+    }
+    if (action is SwipeAction) {
+      final result = await AlarmBridge().enterPickerMode('swipe');
+      if (result == null || result['cancelled'] == true) {
+        return;
+      }
+      setState(() {
+        _actions[index] = SwipeAction(
+          x1: (result['x1'] as num).toDouble(),
+          y1: (result['y1'] as num).toDouble(),
+          x2: (result['x2'] as num).toDouble(),
+          y2: (result['y2'] as num).toDouble(),
+          duration: action.duration,
+        );
+      });
+    }
+  }
+
+  bool _isPositionEditable(GestureAction action) {
+    return action is ClickAction || action is SwipeAction;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -491,13 +563,23 @@ class _GestureEditPageState extends State<GestureEditPage> {
                         ),
                         title: Text(_actionLabel(action)),
                         subtitle: Text(_actionSubtitle(action)),
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle_outline_rounded,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () =>
-                              setState(() => _actions.removeAt(index)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_isPositionEditable(action))
+                              IconButton(
+                                icon: const Icon(Icons.edit_location_alt),
+                                onPressed: () => _editAction(index),
+                              ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline_rounded,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _actions.removeAt(index)),
+                            ),
+                          ],
                         ),
                       );
                     },

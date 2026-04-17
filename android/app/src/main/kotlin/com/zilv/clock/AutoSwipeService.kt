@@ -547,6 +547,10 @@ class AutoSwipeService : AccessibilityService() {
             showRecordingOverlay()
             return
         }
+        if (pickerType == "clickSteps") {
+            showClickStepsOverlay()
+            return
+        }
 
         pickerMode = pickerType
         pickerData.clear()
@@ -625,7 +629,9 @@ class AutoSwipeService : AccessibilityService() {
     private fun finishPositionPicker() {
         val mode = pickerMode ?: return
         val result = mutableMapOf<String, Any?>("type" to mode)
-        result.putAll(pickerData)
+        pickerData.forEach { (key, value) ->
+            result[key] = value.toDouble()
+        }
         onPickerResult?.invoke(result)
         removePickerOverlay()
     }
@@ -691,6 +697,75 @@ class AutoSwipeService : AccessibilityService() {
             }
         }
         controls.addView(recordButton, LinearLayout.LayoutParams(dp(126), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(cancelButton, LinearLayout.LayoutParams(dp(72), dp(40)))
+        container.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            dp(52),
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(36)
+        })
+
+        try {
+            windowManager?.addView(container, lp)
+            pickerOverlay = container
+        } catch (_: Exception) {
+            pickerMode = null
+            onPickerResult?.invoke(mapOf("cancelled" to true))
+        }
+    }
+
+    private fun showClickStepsOverlay() {
+        pickerMode = "clickSteps"
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(0x22000000)
+        }
+        val surface = ClickStepSurface(this)
+        container.addView(surface, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
+        }
+        val saveButton = menuButton("保存", 0xFF4CAF50.toInt()) {
+            if (!surface.hasPoints()) {
+                return@menuButton
+            }
+            onPickerResult?.invoke(
+                mapOf(
+                    "type" to "clickSteps",
+                    "points" to surface.exportPoints(),
+                ),
+            )
+            removePickerOverlay()
+        }
+        val deleteButton = menuButton("删除", 0xFFFFB74D.toInt()) {
+            surface.deleteSelectedOrLast()
+        }
+        val cancelButton = menuButton("取消", 0xFFFF8A80.toInt()) {
+            onPickerResult?.invoke(mapOf("cancelled" to true))
+            removePickerOverlay()
+        }
+        controls.addView(saveButton, LinearLayout.LayoutParams(dp(72), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(deleteButton, LinearLayout.LayoutParams(dp(72), dp(40)).apply {
             marginEnd = dp(8)
         })
         controls.addView(cancelButton, LinearLayout.LayoutParams(dp(72), dp(40)))
@@ -866,6 +941,129 @@ class AutoSwipeService : AccessibilityService() {
         val points: MutableList<RecordedPoint> = mutableListOf(),
     )
 
+    private data class StepPoint(var x: Float, var y: Float)
+
+    private class ClickStepSurface(context: Context) : View(context) {
+        private val points = mutableListOf<StepPoint>()
+        private var selectedIndex = -1
+        private var downIndex = -1
+
+        private val density = resources.displayMetrics.density
+        private val circleRadius = 18f * density
+        private val selectedRadius = 22f * density
+        private val hitRadius = 34f * density
+
+        private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF4A90E2.toInt()
+            style = Paint.Style.FILL
+        }
+        private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFB74D.toInt()
+            style = Paint.Style.FILL
+        }
+        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            strokeWidth = 2f * density
+            style = Paint.Style.STROKE
+        }
+        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
+            textSize = 14f * density
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        fun hasPoints(): Boolean = points.isNotEmpty()
+
+        fun exportPoints(): List<Map<String, Double>> {
+            return points.map { point ->
+                mapOf("x" to point.x.toDouble(), "y" to point.y.toDouble())
+            }
+        }
+
+        fun deleteSelectedOrLast() {
+            if (points.isEmpty()) return
+            val index = if (selectedIndex in points.indices) selectedIndex else points.lastIndex
+            points.removeAt(index)
+            selectedIndex = when {
+                points.isEmpty() -> -1
+                index <= points.lastIndex -> index
+                else -> points.lastIndex
+            }
+            invalidate()
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (width <= 0 || height <= 0) return true
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downIndex = findPoint(event.x, event.y)
+                    selectedIndex = downIndex
+                    invalidate()
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (downIndex >= 0) {
+                        points[downIndex].x = (event.x / width).coerceIn(0f, 1f)
+                        points[downIndex].y = (event.y / height).coerceIn(0f, 1f)
+                        selectedIndex = downIndex
+                        invalidate()
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (downIndex >= 0) {
+                        points[downIndex].x = (event.x / width).coerceIn(0f, 1f)
+                        points[downIndex].y = (event.y / height).coerceIn(0f, 1f)
+                        selectedIndex = downIndex
+                    } else {
+                        points.add(
+                            StepPoint(
+                                (event.x / width).coerceIn(0f, 1f),
+                                (event.y / height).coerceIn(0f, 1f),
+                            ),
+                        )
+                        selectedIndex = points.lastIndex
+                    }
+                    downIndex = -1
+                    invalidate()
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    downIndex = -1
+                    return true
+                }
+            }
+            return true
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            points.forEachIndexed { index, point ->
+                val x = point.x * width
+                val y = point.y * height
+                val radius = if (index == selectedIndex) selectedRadius else circleRadius
+                canvas.drawCircle(x, y, radius, if (index == selectedIndex) selectedPaint else circlePaint)
+                canvas.drawCircle(x, y, radius, strokePaint)
+                val label = "${index + 1}"
+                val baseline = y - (textPaint.ascent() + textPaint.descent()) / 2f
+                canvas.drawText(label, x, baseline, textPaint)
+            }
+        }
+
+        private fun findPoint(x: Float, y: Float): Int {
+            for (index in points.indices.reversed()) {
+                val point = points[index]
+                val dx = x - point.x * width
+                val dy = y - point.y * height
+                if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+                    return index
+                }
+            }
+            return -1
+        }
+    }
+
     private class RecordingSurface(context: Context) : View(context) {
         private val segments = mutableListOf<RecordedSegment>()
         private var currentSegment: RecordedSegment? = null
@@ -915,7 +1113,11 @@ class AutoSwipeService : AccessibilityService() {
                         "start" to segment.start,
                         "duration" to segment.duration.coerceAtLeast(50L),
                         "points" to segment.points.map { point ->
-                            mapOf("x" to point.x, "y" to point.y, "t" to point.t)
+                            mapOf(
+                                "x" to point.x.toDouble(),
+                                "y" to point.y.toDouble(),
+                                "t" to point.t,
+                            )
                         },
                     )
                 },

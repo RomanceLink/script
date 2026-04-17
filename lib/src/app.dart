@@ -3373,48 +3373,48 @@ class _TaskDeckCard extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(18),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(icon, color: accent, size: 28),
                     ),
-                    child: Icon(icon, color: accent, size: 28),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.title,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          const SizedBox(height: 6),
+                          Text(
+                            '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  _StatusBadge(label: status, accent: accent),
-                ],
-              ),
-              const SizedBox(height: 22),
-              Expanded(
-                child: LayoutBuilder(
+                    _StatusBadge(label: status, accent: accent),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                LayoutBuilder(
                   builder: (context, constraints) {
                     final useTwoColumns = constraints.maxWidth >= 520;
                     if (useTwoColumns) {
@@ -3441,75 +3441,71 @@ class _TaskDeckCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 14),
-                          Expanded(
-                            child: _DetailPanel(detail: detail, accent: accent),
-                          ),
+                          _DetailPanel(detail: detail, accent: accent),
                         ],
                       );
                     }
-                    return SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          _InfoPanel(
-                            title: '任务时间',
-                            value: headline,
-                            accent: accent,
-                          ),
-                          const SizedBox(height: 12),
-                          _InfoPanel(
-                            title: progressLabel,
-                            value: progressValue,
-                            accent: accent,
-                          ),
-                          const SizedBox(height: 14),
-                          _DetailPanel(detail: detail, accent: accent),
-                        ],
-                      ),
+                    return Column(
+                      children: [
+                        _InfoPanel(
+                          title: '任务时间',
+                          value: headline,
+                          accent: accent,
+                        ),
+                        const SizedBox(height: 12),
+                        _InfoPanel(
+                          title: progressLabel,
+                          value: progressValue,
+                          accent: accent,
+                        ),
+                        const SizedBox(height: 14),
+                        _DetailPanel(detail: detail, accent: accent),
+                      ],
                     );
                   },
                 ),
-              ),
-              const SizedBox(height: 14),
-              if (showQuickLaunch)
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: primaryButtonFill,
-                          foregroundColor: primaryButtonText,
+                const SizedBox(height: 14),
+                if (showQuickLaunch)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: primaryButtonFill,
+                            foregroundColor: primaryButtonText,
+                          ),
+                          onPressed: primaryEnabled ? onPrimary : null,
+                          child: Text(primaryLabel),
                         ),
-                        onPressed: primaryEnabled ? onPrimary : null,
-                        child: Text(primaryLabel),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.tonal(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: secondaryButtonFill,
-                          foregroundColor: secondaryButtonText,
-                          side: BorderSide.none,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: secondaryButtonFill,
+                            foregroundColor: secondaryButtonText,
+                            side: BorderSide.none,
+                          ),
+                          onPressed: onOpenApp,
+                          child: Text('打开$appLabel'),
                         ),
-                        onPressed: onOpenApp,
-                        child: Text('打开$appLabel'),
                       ),
+                    ],
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: primaryButtonFill,
+                        foregroundColor: primaryButtonText,
+                      ),
+                      onPressed: primaryEnabled ? onPrimary : null,
+                      child: Text(primaryLabel),
                     ),
-                  ],
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: primaryButtonFill,
-                      foregroundColor: primaryButtonText,
-                    ),
-                    onPressed: primaryEnabled ? onPrimary : null,
-                    child: Text(primaryLabel),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
