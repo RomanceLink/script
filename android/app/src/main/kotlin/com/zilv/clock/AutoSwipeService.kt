@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -17,6 +18,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
 import android.view.Gravity
+import android.view.Display
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -27,6 +29,9 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -749,6 +754,9 @@ class AutoSwipeService : AccessibilityService() {
         panel.addView(optionRow("按钮识别", "识别屏幕按钮，找不到可重试", 0xFF5C6BC0.toInt()) {
             startFloatingButtonDetect()
         })
+        panel.addView(optionRow("图片按钮识别", "截图 OCR 识别图片按钮文字", 0xFF26A69A.toInt()) {
+            startFloatingImageButtonDetect()
+        })
         panel.addView(sectionLabel("等待"))
         panel.addView(optionRow("随机等待", "在秒数范围内随机等待", 0xFFFFB74D.toInt()) {
             showFloatingWaitEditor(randomWait = true)
@@ -1050,23 +1058,54 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun startFloatingImageButtonDetect() {
+        removeChooserOverlay()
+        startNativePicker("imageButtonDetect") { result ->
+            if (result["cancelled"] == true) {
+                showFloatingRecorder()
+                return@startNativePicker
+            }
+            showFloatingButtonEditor(normalizeMap(result) + mapOf("source" to "imageText"))
+        }
+    }
+
     private fun showFloatingButtonEditor(seed: Map<String, Any?>, editIndex: Int? = null) {
         removeChooserOverlay()
         val layoutParams = floatingPanelParams(widthDp = 340, focusable = true)
         val panel = floatingPanel("按钮识别")
+        val source = seed["source"] as? String ?: "accessibility"
+        var selectedMatchMode = seed["matchMode"] as? String ?: "contains"
+        var selectedFailAction = seed["failAction"] as? String ?: "notify"
         val textInput = inputField(seed["buttonText"] as? String ?: "", "按钮文字", numberOnly = false)
         val idInput = inputField(seed["buttonId"] as? String ?: "", "按钮ID", numberOnly = false)
         val descInput = inputField(seed["buttonDescription"] as? String ?: "", "按钮描述", numberOnly = false)
         val retryInput = inputField(((seed["retryCount"] as? Number)?.toInt() ?: 3).toString(), "重试次数", numberOnly = true)
         val waitInput = inputField(((seed["retryWaitMillis"] as? Number)?.toInt() ?: 800).toString(), "重试等待毫秒", numberOnly = true)
 
-        panel.addView(fieldLabel("识别方式"))
         panel.addView(TextView(this).apply {
-            text = "保存时选择：完全相同 / 包含"
+            text = if (source == "imageText") "识别来源：图片文字 OCR" else "识别来源：无障碍按钮"
             textSize = 12f
             setTextColor(0xFFB8C0C8.toInt())
             setPadding(0, 0, 0, dp(8))
         })
+        panel.addView(fieldLabel("识别方式"))
+        val matchStatus = TextView(this).apply {
+            text = if (selectedMatchMode == "exact") "当前：完全相同" else "当前：包含文字"
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, 0, 0, dp(6))
+        }
+        panel.addView(matchStatus)
+        val matchRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        matchRow.addView(menuButton("完全相同", 0xFF8EB8FF.toInt()) {
+            selectedMatchMode = "exact"
+            matchStatus.text = "当前：完全相同"
+        }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(8) })
+        matchRow.addView(menuButton("包含文字", 0xFF4CAF50.toInt()) {
+            selectedMatchMode = "contains"
+            matchStatus.text = "当前：包含文字"
+        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        panel.addView(matchRow)
         panel.addView(fieldLabel("按钮文字"))
         panel.addView(textInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)))
         panel.addView(fieldLabel("按钮ID"), LinearLayout.LayoutParams(
@@ -1096,20 +1135,39 @@ class AutoSwipeService : AccessibilityService() {
             setTextColor(0xFFB8C0C8.toInt())
             setPadding(0, dp(8), 0, dp(8))
         })
+        panel.addView(fieldLabel("重试失败后"))
+        val failStatus = TextView(this).apply {
+            text = if (selectedFailAction == "lockScreen") "当前：锁屏" else "当前：全屏通知脚本执行失败"
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, 0, 0, dp(6))
+        }
+        panel.addView(failStatus)
+        val failRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        failRow.addView(menuButton("通知失败", 0xFF8EB8FF.toInt()) {
+            selectedFailAction = "notify"
+            failStatus.text = "当前：全屏通知脚本执行失败"
+        }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(8) })
+        failRow.addView(menuButton("锁屏", 0xFFFF5252.toInt()) {
+            selectedFailAction = "lockScreen"
+            failStatus.text = "当前：锁屏"
+        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        panel.addView(failRow)
 
-        fun save(matchMode: String, failAction: String) {
+        fun save() {
             val action = mapOf(
                     "type" to "buttonRecognize",
+                    "source" to source,
                     "buttonText" to textInput.text?.toString()?.trim().orEmpty(),
                     "buttonId" to idInput.text?.toString()?.trim().orEmpty(),
                     "buttonDescription" to descInput.text?.toString()?.trim().orEmpty(),
-                    "matchMode" to matchMode,
+                    "matchMode" to selectedMatchMode,
                     "regionMode" to "full",
                     "successMode" to "defaultClick",
                     "retryCount" to ((retryInput.text?.toString()?.trim()?.toIntOrNull() ?: 3).coerceIn(0, 20)),
                     "retryWaitMillis" to ((waitInput.text?.toString()?.trim()?.toIntOrNull() ?: 800).coerceIn(0, 10_000_000)),
                     "retrySuccessMode" to "defaultClick",
-                    "failAction" to failAction,
+                    "failAction" to selectedFailAction,
             )
             if (editIndex != null && editIndex in floatingRecordActions.indices) {
                 floatingRecordActions[editIndex] = action
@@ -1126,20 +1184,10 @@ class AutoSwipeService : AccessibilityService() {
         row.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
             showFloatingRecorder()
         }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(8) })
-        row.addView(menuButton("包含保存", 0xFF4CAF50.toInt()) {
-            save("contains", "notify")
+        row.addView(menuButton("保存", 0xFF4CAF50.toInt()) {
+            save()
         }, LinearLayout.LayoutParams(0, dp(42), 1f))
         panel.addView(row)
-        panel.addView(menuButton("完全相同保存", 0xFF8EB8FF.toInt()) {
-            save("exact", "notify")
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)).apply {
-            topMargin = dp(8)
-        })
-        panel.addView(menuButton("失败锁屏保存", 0xFFFF5252.toInt()) {
-            save("contains", "lockScreen")
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)).apply {
-            topMargin = dp(8)
-        })
 
         addChooserPanel(panel, layoutParams)
     }
@@ -1355,7 +1403,8 @@ class AutoSwipeService : AccessibilityService() {
             "buttonRecognize" -> {
                 val mode = if ((action["matchMode"] as? String) == "exact") "完全相同" else "包含"
                 val text = action["buttonText"] as? String ?: "按钮"
-                "识别“$text” · $mode · 失败重试 ${((action["retryCount"] as? Number)?.toInt() ?: 3)} 次"
+                val source = if ((action["source"] as? String) == "imageText") "图片文字" else "无障碍"
+                "$source · 识别“$text” · $mode · 失败重试 ${((action["retryCount"] as? Number)?.toInt() ?: 3)} 次"
             }
             "lockScreen" -> "执行到这里时锁定屏幕"
             else -> ""
@@ -1694,7 +1743,7 @@ class AutoSwipeService : AccessibilityService() {
         val retryActions = asMapList(action["retryActions"])
 
         fun attempt(remaining: Int, afterRetry: Boolean) {
-            val match = findMatchingButton(action)
+            findMatchingButtonTarget(action) { match ->
             if (match != null) {
                 val modeKey = if (afterRetry) "retrySuccessMode" else "successMode"
                 val actionsKey = if (afterRetry) "retrySuccessActions" else "successActions"
@@ -1707,14 +1756,14 @@ class AutoSwipeService : AccessibilityService() {
                         handler.postDelayed(onDone, 250)
                     }
                 }
-                return
+                return@findMatchingButtonTarget
             }
 
             if (remaining > 0) {
                 executeInlineActions(retryActions) {
                     handler.postDelayed({ attempt(remaining - 1, afterRetry = true) }, retryWait)
                 }
-                return
+                return@findMatchingButtonTarget
             }
 
             when (action["failAction"] as? String ?: "notify") {
@@ -1724,6 +1773,7 @@ class AutoSwipeService : AccessibilityService() {
                     onDone()
                 }
                 else -> onDone()
+            }
             }
         }
 
@@ -1756,6 +1806,32 @@ class AutoSwipeService : AccessibilityService() {
             }
         }
         runAt(0)
+    }
+
+    private fun findMatchingButtonTarget(action: Map<String, Any?>, onResult: (Rect?) -> Unit) {
+        if ((action["source"] as? String) == "imageText") {
+            findMatchingOcrText(action, onResult)
+            return
+        }
+        onResult(findMatchingButton(action)?.bounds)
+    }
+
+    private fun findMatchingOcrText(action: Map<String, Any?>, onResult: (Rect?) -> Unit) {
+        recognizeScreenText(
+            onSuccess = { nodes ->
+                val targetText = ((action["buttonText"] as? String) ?: (action["text"] as? String) ?: "").trim()
+                val exact = (action["matchMode"] as? String) == "exact"
+                val region = actionRegionRect(action)
+                val match = nodes.firstOrNull { node ->
+                    if (region != null && !Rect.intersects(region, node.bounds)) {
+                        return@firstOrNull false
+                    }
+                    textMatches(node.text, targetText, exact)
+                }
+                onResult(match?.bounds)
+            },
+            onFailure = { onResult(null) },
+        )
     }
 
     private fun findMatchingButton(action: Map<String, Any?>): ButtonNodeInfo? {
@@ -1798,9 +1874,9 @@ class AutoSwipeService : AccessibilityService() {
         return Rect(left, top, right, bottom)
     }
 
-    private fun performButtonClick(node: ButtonNodeInfo, onDone: () -> Unit) {
+    private fun performButtonClick(bounds: Rect, onDone: () -> Unit) {
         val path = Path().apply {
-            moveTo(node.bounds.centerX().toFloat(), node.bounds.centerY().toFloat())
+            moveTo(bounds.centerX().toFloat(), bounds.centerY().toFloat())
         }
         try {
             dispatchGesture(
@@ -1970,6 +2046,10 @@ class AutoSwipeService : AccessibilityService() {
         }
         if (pickerType == "buttonDetect") {
             showButtonDetectOverlay()
+            return
+        }
+        if (pickerType == "imageButtonDetect") {
+            showImageButtonDetectOverlay()
             return
         }
 
@@ -2273,6 +2353,178 @@ class AutoSwipeService : AccessibilityService() {
         } catch (_: Exception) {
             pickerMode = null
             publishPickerResult(mapOf("cancelled" to true))
+        }
+    }
+
+    private fun showImageButtonDetectOverlay() {
+        pickerMode = "imageButtonDetect"
+        showLoadingPickerOverlay("正在识别图片文字")
+        recognizeScreenText(
+            onSuccess = { nodes ->
+                removePickerOverlay()
+                showOcrTextDetectOverlay(nodes)
+            },
+            onFailure = {
+                removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
+            },
+        )
+    }
+
+    private fun showLoadingPickerOverlay(message: String) {
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(0x22000000)
+        }
+        container.addView(TextView(this).apply {
+            text = message
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+        }, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            dp(52),
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(36)
+        })
+        try {
+            windowManager?.addView(container, lp)
+            pickerOverlay = container
+        } catch (_: Exception) {
+            pickerOverlay = null
+        }
+    }
+
+    private fun showOcrTextDetectOverlay(nodes: List<OcrTextInfo>) {
+        pickerMode = "imageButtonDetect"
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(0x11000000)
+        }
+        val surface = OcrTextDetectSurface(this, nodes) { node ->
+            publishPickerResult(node.toResult(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels))
+            removePickerOverlay()
+        }
+        container.addView(surface, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
+        }
+        controls.addView(TextView(this).apply {
+            text = if (nodes.isEmpty()) "未识别到文字" else "点击文字红框"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(dp(118), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            publishPickerResult(mapOf("cancelled" to true))
+            removePickerOverlay()
+        }, LinearLayout.LayoutParams(dp(72), dp(40)))
+        container.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            dp(52),
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(36)
+        })
+        try {
+            windowManager?.addView(container, lp)
+            pickerOverlay = container
+        } catch (_: Exception) {
+            pickerMode = null
+            publishPickerResult(mapOf("cancelled" to true))
+        }
+    }
+
+    private fun recognizeScreenText(
+        onSuccess: (List<OcrTextInfo>) -> Unit,
+        onFailure: () -> Unit,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            onFailure()
+            return
+        }
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: ScreenshotResult) {
+                        val bitmap = try {
+                            val hardwareBitmap = Bitmap.wrapHardwareBuffer(
+                                screenshot.hardwareBuffer,
+                                screenshot.colorSpace,
+                            )
+                            val copy = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
+                            screenshot.hardwareBuffer.close()
+                            copy
+                        } catch (_: Exception) {
+                            try {
+                                screenshot.hardwareBuffer.close()
+                            } catch (_: Exception) {
+                            }
+                            null
+                        }
+                        if (bitmap == null) {
+                            onFailure()
+                            return
+                        }
+                        val image = InputImage.fromBitmap(bitmap, 0)
+                        TextRecognition.getClient(
+                            ChineseTextRecognizerOptions.Builder().build(),
+                        ).process(image)
+                            .addOnSuccessListener { text ->
+                                val nodes = mutableListOf<OcrTextInfo>()
+                                text.textBlocks.forEach { block ->
+                                    block.lines.forEach { line ->
+                                        val rect = line.boundingBox ?: return@forEach
+                                        val value = line.text.trim()
+                                        if (value.isNotBlank() && rect.width() > dp(8) && rect.height() > dp(8)) {
+                                            nodes.add(OcrTextInfo(rect, value))
+                                        }
+                                    }
+                                }
+                                onSuccess(nodes)
+                            }
+                            .addOnFailureListener {
+                                onFailure()
+                            }
+                            .addOnCompleteListener {
+                                bitmap.recycle()
+                            }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        onFailure()
+                    }
+                },
+            )
+        } catch (_: Exception) {
+            onFailure()
         }
     }
 
@@ -2610,12 +2862,41 @@ class AutoSwipeService : AccessibilityService() {
         fun toResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
             return mapOf(
                 "type" to "buttonRecognize",
+                "source" to "accessibility",
                 "buttonText" to text,
                 "buttonId" to viewId,
                 "buttonDescription" to description,
                 "className" to className,
                 "matchMode" to "contains",
                 "regionMode" to "full",
+                "successMode" to "defaultClick",
+                "retryCount" to 3,
+                "retryWaitMillis" to 800,
+                "retrySuccessMode" to "defaultClick",
+                "failAction" to "notify",
+                "bounds" to mapOf(
+                    "left" to (bounds.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "top" to (bounds.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                    "right" to (bounds.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                ),
+            )
+        }
+    }
+
+    private data class OcrTextInfo(
+        val bounds: Rect,
+        val text: String,
+    ) {
+        fun toResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
+            return mapOf(
+                "type" to "buttonRecognize",
+                "source" to "imageText",
+                "buttonText" to text,
+                "buttonId" to "",
+                "buttonDescription" to text,
+                "matchMode" to "contains",
+                "regionMode" to "custom",
                 "successMode" to "defaultClick",
                 "retryCount" to 3,
                 "retryWaitMillis" to 800,
@@ -2659,7 +2940,7 @@ class AutoSwipeService : AccessibilityService() {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val selected = nodes.firstOrNull {
-                    it.bounds.contains(event.rawX.toInt(), event.rawY.toInt())
+                    localRect(it.bounds).contains(event.x.toInt(), event.y.toInt())
                 }
                 if (selected != null) {
                     onSelect(selected)
@@ -2672,19 +2953,89 @@ class AutoSwipeService : AccessibilityService() {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             nodes.forEachIndexed { index, node ->
-                canvas.drawRect(node.bounds, fillPaint)
-                canvas.drawRect(node.bounds, rectPaint)
+                val rect = localRect(node.bounds)
+                canvas.drawRect(rect, fillPaint)
+                canvas.drawRect(rect, rectPaint)
                 val label = (node.text.ifBlank { node.description }.ifBlank { "${index + 1}" }).take(12)
                 val labelWidth = labelPaint.measureText(label) + 10f * density
-                val top = (node.bounds.top - 20f * density).coerceAtLeast(0f)
+                val top = (rect.top - 20f * density).coerceAtLeast(0f)
                 canvas.drawRect(
-                    node.bounds.left.toFloat(),
+                    rect.left.toFloat(),
                     top,
-                    node.bounds.left + labelWidth,
+                    rect.left + labelWidth,
                     top + 18f * density,
                     labelBgPaint,
                 )
-                canvas.drawText(label, node.bounds.left + 5f * density, top + 13f * density, labelPaint)
+                canvas.drawText(label, rect.left + 5f * density, top + 13f * density, labelPaint)
+            }
+        }
+
+        private fun localRect(screenRect: Rect): Rect {
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            return Rect(screenRect).apply {
+                offset(-location[0], -location[1])
+            }
+        }
+    }
+
+    private class OcrTextDetectSurface(
+        context: Context,
+        private val nodes: List<OcrTextInfo>,
+        private val onSelect: (OcrTextInfo) -> Unit,
+    ) : View(context) {
+        private val density = resources.displayMetrics.density
+        private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 2.5f * density
+            style = Paint.Style.STROKE
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x22FF3B30
+            style = Paint.Style.FILL
+        }
+        private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 11f * density
+            style = Paint.Style.FILL
+        }
+        private val labelBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xCCFF3B30.toInt()
+            style = Paint.Style.FILL
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val selected = nodes.firstOrNull {
+                    localRect(it.bounds).contains(event.x.toInt(), event.y.toInt())
+                }
+                if (selected != null) {
+                    onSelect(selected)
+                }
+                return true
+            }
+            return true
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            nodes.forEachIndexed { index, node ->
+                val rect = localRect(node.bounds)
+                canvas.drawRect(rect, fillPaint)
+                canvas.drawRect(rect, rectPaint)
+                val label = node.text.ifBlank { "${index + 1}" }.take(12)
+                val labelWidth = labelPaint.measureText(label) + 10f * density
+                val top = (rect.top - 20f * density).coerceAtLeast(0f)
+                canvas.drawRect(rect.left.toFloat(), top, rect.left + labelWidth, top + 18f * density, labelBgPaint)
+                canvas.drawText(label, rect.left + 5f * density, top + 13f * density, labelPaint)
+            }
+        }
+
+        private fun localRect(screenRect: Rect): Rect {
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            return Rect(screenRect).apply {
+                offset(-location[0], -location[1])
             }
         }
     }

@@ -251,6 +251,20 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   _pickButtonRecognizeAction();
                 },
               ),
+              ListTile(
+                leading: const Icon(
+                  Icons.image_search_rounded,
+                  color: Colors.teal,
+                ),
+                title: const Text('图片按钮识别'),
+                subtitle: const Text('截图 OCR 识别图片按钮上的文字'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickButtonRecognizeAction(
+                    source: ButtonRecognizeSource.imageText,
+                  );
+                },
+              ),
               _ActionCategoryHeader(
                 title: '等待',
                 icon: Icons.timer_rounded,
@@ -650,8 +664,14 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
   }
 
-  Future<void> _pickButtonRecognizeAction() async {
-    final result = await AlarmBridge().enterPickerMode('buttonDetect');
+  Future<void> _pickButtonRecognizeAction({
+    ButtonRecognizeSource source = ButtonRecognizeSource.accessibility,
+  }) async {
+    final result = await AlarmBridge().enterPickerMode(
+      source == ButtonRecognizeSource.imageText
+          ? 'imageButtonDetect'
+          : 'buttonDetect',
+    );
     if (!mounted || result == null || result['cancelled'] == true) {
       return;
     }
@@ -691,6 +711,23 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Chip(
+                        avatar: Icon(
+                          source == ButtonRecognizeSource.imageText
+                              ? Icons.image_search_rounded
+                              : Icons.select_all_rounded,
+                          size: 18,
+                        ),
+                        label: Text(
+                          source == ButtonRecognizeSource.imageText
+                              ? '图片文字 OCR'
+                              : '无障碍按钮',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<ButtonMatchMode>(
                       initialValue: matchMode,
                       decoration: const InputDecoration(labelText: '识别方式'),
@@ -844,6 +881,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   Navigator.of(context).pop(
                     ButtonRecognizeAction(
                       buttonText: textController.text.trim(),
+                      source: source,
                       matchMode: matchMode,
                       regionMode: regionMode,
                       region: regionMode == ButtonRegionMode.custom
@@ -1265,8 +1303,11 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
     if (action is ButtonRecognizeAction) {
       final mode = action.matchMode == ButtonMatchMode.exact ? '完全相同' : '包含';
+      final source = action.source == ButtonRecognizeSource.imageText
+          ? '图片文字'
+          : '无障碍';
       final retry = action.retryCount > 0 ? '，失败重试 ${action.retryCount} 次' : '';
-      return '文字“${action.buttonText}” · $mode$retry';
+      return '$source · 文字“${action.buttonText}” · $mode$retry';
     }
     if (action is LockScreenAction) {
       return '执行到这里时锁定屏幕';

@@ -455,6 +455,8 @@ class LaunchAppAction extends GestureAction {
 
 enum ButtonMatchMode { exact, contains }
 
+enum ButtonRecognizeSource { accessibility, imageText }
+
 enum ButtonRegionMode { full, custom }
 
 enum ButtonResultActionMode { defaultClick, custom }
@@ -464,6 +466,7 @@ enum ButtonFailAction { notify, lockScreen, none }
 class ButtonRecognizeAction extends GestureAction {
   const ButtonRecognizeAction({
     required this.buttonText,
+    this.source = ButtonRecognizeSource.accessibility,
     this.matchMode = ButtonMatchMode.contains,
     this.regionMode = ButtonRegionMode.full,
     this.region,
@@ -480,6 +483,7 @@ class ButtonRecognizeAction extends GestureAction {
   }) : super(type: GestureActionType.buttonRecognize);
 
   final String buttonText;
+  final ButtonRecognizeSource source;
   final ButtonMatchMode matchMode;
   final ButtonRegionMode regionMode;
   final Map<String, double>? region;
@@ -498,6 +502,7 @@ class ButtonRecognizeAction extends GestureAction {
   Map<String, Object?> toJson() => {
     'type': type.name,
     'buttonText': buttonText,
+    'source': source.name,
     'matchMode': matchMode.name,
     'regionMode': regionMode.name,
     'region': region,
@@ -531,6 +536,9 @@ class ButtonRecognizeAction extends GestureAction {
     return ButtonRecognizeAction(
       buttonText:
           json['buttonText'] as String? ?? json['text'] as String? ?? '',
+      source: ButtonRecognizeSource.values.byName(
+        json['source'] as String? ?? ButtonRecognizeSource.accessibility.name,
+      ),
       matchMode: ButtonMatchMode.values.byName(
         json['matchMode'] as String? ?? ButtonMatchMode.contains.name,
       ),
