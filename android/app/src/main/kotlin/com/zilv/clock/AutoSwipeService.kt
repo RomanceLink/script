@@ -2021,8 +2021,10 @@ class AutoSwipeService : AccessibilityService() {
                 if (mode == "custom" && customActions.isNotEmpty()) {
                     executeInlineActions(customActions, onDone)
                 } else {
-                    performButtonClick(match) {
-                        handler.postDelayed(onDone, 250)
+                    showMatchedButtonPreview(match) {
+                        performButtonClick(match) {
+                            handler.postDelayed(onDone, 250)
+                        }
                     }
                 }
                 return@findMatchingButtonTarget
@@ -2105,22 +2107,37 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun findMatchingButton(action: Map<String, Any?>): ButtonNodeInfo? {
         val nodes = collectButtonNodes(rootInActiveWindow)
+        val idCounts = nodes.groupingBy { it.viewId }.eachCount()
         val targetText = ((action["buttonText"] as? String) ?: (action["text"] as? String) ?: "").trim()
         val targetId = ((action["buttonId"] as? String) ?: (action["viewId"] as? String) ?: "").trim()
         val targetDescription = ((action["buttonDescription"] as? String) ?: (action["description"] as? String) ?: "").trim()
         val exact = (action["matchMode"] as? String) == "exact"
         val region = actionRegionRect(action)
-        return nodes.firstOrNull { node ->
-            if (region != null && !Rect.intersects(region, node.bounds)) {
-                return@firstOrNull false
+        val savedBounds = actionSavedBoundsRect(action)
+        return nodes
+            .asSequence()
+            .filter { node ->
+                if (region != null && !Rect.intersects(region, node.bounds)) {
+                    return@filter false
+                }
+                val textMatched = targetText.isNotEmpty() &&
+                    textMatches(node.text.ifBlank { node.description }, targetText, exact)
+                val idMatched = targetId.isNotEmpty() && idMatches(node.viewId, targetId)
+                val descriptionMatched = targetDescription.isNotEmpty() &&
+                    textMatches(node.description, targetDescription, exact)
+                textMatched || idMatched || descriptionMatched
             }
-            val textMatched = targetText.isNotEmpty() &&
-                textMatches(node.text.ifBlank { node.description }, targetText, exact)
-            val idMatched = targetId.isNotEmpty() && textMatches(node.viewId, targetId, exact)
-            val descriptionMatched = targetDescription.isNotEmpty() &&
-                textMatches(node.description, targetDescription, exact)
-            textMatched || idMatched || descriptionMatched
-        }
+            .maxByOrNull { node ->
+                buttonMatchScore(
+                    node = node,
+                    idCounts = idCounts,
+                    targetText = targetText,
+                    targetId = targetId,
+                    targetDescription = targetDescription,
+                    exact = exact,
+                    savedBounds = savedBounds,
+                )
+            }
     }
 
     private fun textMatches(value: String, target: String, exact: Boolean): Boolean {
@@ -2132,15 +2149,143 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun idMatches(value: String, target: String): Boolean {
+        if (value.isBlank() || target.isBlank()) return false
+        val normalizedValue = value.trim()
+        val normalizedTarget = target.trim()
+        return normalizedValue.equals(normalizedTarget, ignoreCase = true) ||
+            normalizedValue.endsWith("/${normalizedTarget.substringAfterLast('/')}") ||
+            normalizedValue.contains(normalizedTarget, ignoreCase = true)
+    }
+
+    private fun buttonMatchScore(
+        node: ButtonNodeInfo,
+        idCounts: Map<String, Int>,
+        targetText: String,
+        targetId: String,
+        targetDescription: String,
+        exact: Boolean,
+        savedBounds: Rect?,
+    ): Long {
+        var score = 0L
+        if (targetId.isNotBlank()) {
+            val idCount = idCounts[node.viewId] ?: 1
+            if (node.viewId.equals(targetId, ignoreCase = true)) {
+                score += if (idCount == 1) 420_000L else 90_000L
+            } else if (idMatches(node.viewId, targetId)) {
+                score += if (idCount == 1) 180_000L else 40_000L
+            }
+        }
+        if (targetText.isNotBlank()) {
+            val nodeText = node.text.ifBlank { node.description }
+            if (nodeText.equals(targetText, ignoreCase = true)) {
+                score += 700_000L
+            } else if (textMatches(nodeText, targetText, exact)) {
+                score += 220_000L
+            }
+        }
+        if (targetDescription.isNotBlank()) {
+            if (node.description.equals(targetDescription, ignoreCase = true)) {
+                score += 80_000L
+            } else if (textMatches(node.description, targetDescription, exact)) {
+                score += 40_000L
+            }
+        }
+        if (savedBounds != null) {
+            val overlap = overlapArea(savedBounds, node.bounds)
+            score += overlap.toLong() * 20L
+            val centerDistance = centerDistanceSquared(savedBounds, node.bounds)
+            score -= centerDistance.toLong()
+        }
+        score -= (node.bounds.width() * node.bounds.height()).toLong() / 20L
+        return score
+    }
+
+    private fun actionSavedBoundsRect(action: Map<String, Any?>): Rect? {
+        val region = normalizeMap(
+            (action["region"] as? Map<*, *>)
+                ?: (action["bounds"] as? Map<*, *>)
+                ?: return null,
+        )
+        val (screenWidth, screenHeight) = screenSize()
+        val left = (((region["left"] as? Number)?.toFloat() ?: 0f) * screenWidth).toInt()
+        val top = (((region["top"] as? Number)?.toFloat() ?: 0f) * screenHeight).toInt()
+        val right = (((region["right"] as? Number)?.toFloat() ?: 1f) * screenWidth).toInt()
+        val bottom = (((region["bottom"] as? Number)?.toFloat() ?: 1f) * screenHeight).toInt()
+        return Rect(left, top, right, bottom)
+    }
+
+    private fun overlapArea(first: Rect, second: Rect): Int {
+        val left = kotlin.math.max(first.left, second.left)
+        val top = kotlin.math.max(first.top, second.top)
+        val right = kotlin.math.min(first.right, second.right)
+        val bottom = kotlin.math.min(first.bottom, second.bottom)
+        return if (right > left && bottom > top) {
+            (right - left) * (bottom - top)
+        } else {
+            0
+        }
+    }
+
+    private fun centerDistanceSquared(first: Rect, second: Rect): Int {
+        val dx = first.centerX() - second.centerX()
+        val dy = first.centerY() - second.centerY()
+        return dx * dx + dy * dy
+    }
+
     private fun actionRegionRect(action: Map<String, Any?>): Rect? {
         if ((action["regionMode"] as? String ?: "full") != "custom") return null
-        val region = normalizeMap(action["region"] as? Map<*, *> ?: return null)
-        val dm = resources.displayMetrics
-        val left = (((region["left"] as? Number)?.toFloat() ?: 0f) * dm.widthPixels).toInt()
-        val top = (((region["top"] as? Number)?.toFloat() ?: 0f) * dm.heightPixels).toInt()
-        val right = (((region["right"] as? Number)?.toFloat() ?: 1f) * dm.widthPixels).toInt()
-        val bottom = (((region["bottom"] as? Number)?.toFloat() ?: 1f) * dm.heightPixels).toInt()
+        val region = normalizeMap(
+            (action["region"] as? Map<*, *>) ?: (action["bounds"] as? Map<*, *>) ?: return null,
+        )
+        val (screenWidth, screenHeight) = screenSize()
+        val left = (((region["left"] as? Number)?.toFloat() ?: 0f) * screenWidth).toInt()
+        val top = (((region["top"] as? Number)?.toFloat() ?: 0f) * screenHeight).toInt()
+        val right = (((region["right"] as? Number)?.toFloat() ?: 1f) * screenWidth).toInt()
+        val bottom = (((region["bottom"] as? Number)?.toFloat() ?: 1f) * screenHeight).toInt()
         return Rect(left, top, right, bottom)
+    }
+
+    private fun showMatchedButtonPreview(bounds: Rect, onDone: () -> Unit) {
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+        val preview = object : View(this) {
+            private val density = resources.displayMetrics.density
+            private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFF3B30.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 3f * density
+            }
+            private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0x22FF3B30
+                style = Paint.Style.FILL
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                canvas.drawRect(bounds, fill)
+                canvas.drawRect(bounds, stroke)
+            }
+        }
+        try {
+            windowManager?.addView(preview, lp)
+            handler.postDelayed({
+                try {
+                    windowManager?.removeView(preview)
+                } catch (_: Exception) {
+                }
+                onDone()
+            }, 220)
+        } catch (_: Exception) {
+            onDone()
+        }
     }
 
     private fun performButtonClick(bounds: Rect, onDone: () -> Unit) {
@@ -2583,7 +2728,7 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         val container = FrameLayout(this).apply {
-            setBackgroundColor(0x11000000)
+            setBackgroundColor(Color.TRANSPARENT)
         }
         val (screenWidth, screenHeight) = screenSize()
         val surface = ButtonDetectSurface(this, nodes) { node ->
@@ -2656,7 +2801,7 @@ class AutoSwipeService : AccessibilityService() {
             height = WindowManager.LayoutParams.MATCH_PARENT
         }
         val container = FrameLayout(this).apply {
-            setBackgroundColor(0x22000000)
+            setBackgroundColor(Color.TRANSPARENT)
         }
         container.addView(TextView(this).apply {
             text = message
@@ -2692,7 +2837,7 @@ class AutoSwipeService : AccessibilityService() {
             height = WindowManager.LayoutParams.MATCH_PARENT
         }
         val container = FrameLayout(this).apply {
-            setBackgroundColor(0x11000000)
+            setBackgroundColor(Color.TRANSPARENT)
         }
         val (screenWidth, screenHeight) = screenSize()
         val surface = OcrTextDetectSurface(this, nodes) { node ->
@@ -3156,8 +3301,14 @@ class AutoSwipeService : AccessibilityService() {
                 "buttonId" to viewId,
                 "buttonDescription" to description,
                 "className" to className,
-                "matchMode" to "contains",
+                "matchMode" to "exact",
                 "regionMode" to "full",
+                "region" to mapOf(
+                    "left" to (bounds.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "top" to (bounds.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                    "right" to (bounds.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                ),
                 "successMode" to "defaultClick",
                 "retryCount" to 3,
                 "retryWaitMillis" to 800,
@@ -3184,8 +3335,14 @@ class AutoSwipeService : AccessibilityService() {
                 "buttonText" to text,
                 "buttonId" to "",
                 "buttonDescription" to text,
-                "matchMode" to "contains",
-                "regionMode" to "custom",
+                "matchMode" to "exact",
+                "regionMode" to "full",
+                "region" to mapOf(
+                    "left" to (bounds.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "top" to (bounds.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                    "right" to (bounds.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                ),
                 "successMode" to "defaultClick",
                 "retryCount" to 3,
                 "retryWaitMillis" to 800,

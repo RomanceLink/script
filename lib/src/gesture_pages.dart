@@ -719,10 +719,18 @@ class _GestureEditPageState extends State<GestureEditPage> {
     final descriptionController = TextEditingController(
       text: result['buttonDescription'] as String? ?? '',
     );
-    final retryCountController = TextEditingController(text: '3');
-    final retryWaitController = TextEditingController(text: '800');
-    var matchMode = ButtonMatchMode.contains;
-    var regionMode = ButtonRegionMode.full;
+    final retryCountController = TextEditingController(
+      text: '${result['retryCount'] ?? 3}',
+    );
+    final retryWaitController = TextEditingController(
+      text: '${result['retryWaitMillis'] ?? 800}',
+    );
+    var matchMode = ButtonMatchMode.values.byName(
+      result['matchMode'] as String? ?? ButtonMatchMode.exact.name,
+    );
+    var regionMode = ButtonRegionMode.values.byName(
+      result['regionMode'] as String? ?? ButtonRegionMode.custom.name,
+    );
     var successMode = ButtonResultActionMode.defaultClick;
     var retrySuccessMode = ButtonResultActionMode.defaultClick;
     var failAction = ButtonFailAction.notify;
@@ -734,217 +742,256 @@ class _GestureEditPageState extends State<GestureEditPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('识别按钮'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: SingleChildScrollView(
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Chip(
-                        avatar: Icon(
-                          source == ButtonRecognizeSource.imageText
-                              ? Icons.image_search_rounded
-                              : Icons.select_all_rounded,
-                          size: 18,
-                        ),
-                        label: Text(
-                          source == ButtonRecognizeSource.imageText
-                              ? '图片文字 OCR'
-                              : '无障碍按钮',
+                    Text('识别按钮', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Chip(
+                                avatar: Icon(
+                                  source == ButtonRecognizeSource.imageText
+                                      ? Icons.image_search_rounded
+                                      : Icons.select_all_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  source == ButtonRecognizeSource.imageText
+                                      ? '图片文字 OCR'
+                                      : '无障碍按钮',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _ChoiceField<ButtonMatchMode>(
+                              label: '识别方式',
+                              title: '选择识别方式',
+                              value: matchMode,
+                              options: const [
+                                _ChoiceOption(
+                                  value: ButtonMatchMode.exact,
+                                  label: '完全相同',
+                                  icon: Icons.drag_handle_rounded,
+                                ),
+                                _ChoiceOption(
+                                  value: ButtonMatchMode.contains,
+                                  label: '包含文字',
+                                  icon: Icons.subject_rounded,
+                                ),
+                              ],
+                              onChanged: (value) =>
+                                  setDialogState(() => matchMode = value),
+                            ),
+                            const SizedBox(height: 12),
+                            _ChoiceField<ButtonRegionMode>(
+                              label: '识别区域',
+                              title: '选择识别区域',
+                              value: regionMode,
+                              options: const [
+                                _ChoiceOption(
+                                  value: ButtonRegionMode.full,
+                                  label: '全屏',
+                                  icon: Icons.fullscreen_rounded,
+                                ),
+                                _ChoiceOption(
+                                  value: ButtonRegionMode.custom,
+                                  label: '自定义：使用当前按钮区域',
+                                  icon: Icons.crop_free_rounded,
+                                ),
+                              ],
+                              onChanged: (value) =>
+                                  setDialogState(() => regionMode = value),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: textController,
+                              decoration: const InputDecoration(
+                                labelText: '按钮文字',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: idController,
+                              decoration: const InputDecoration(
+                                labelText: '按钮ID',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: descriptionController,
+                              decoration: const InputDecoration(
+                                labelText: '按钮描述',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _InlineActionPicker(
+                              title: '识别成功后的动作',
+                              mode: successMode,
+                              actions: successActions,
+                              onModeChanged: (value) =>
+                                  setDialogState(() => successMode = value),
+                              onRecord: () async {
+                                final actions =
+                                    await _pickNestedGestureActions();
+                                if (!context.mounted || actions.isEmpty) return;
+                                setDialogState(() {
+                                  successMode = ButtonResultActionMode.custom;
+                                  successActions = actions;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _InlineActionPicker(
+                              title: '识别失败后的动作',
+                              mode: ButtonResultActionMode.custom,
+                              actions: retryActions,
+                              canChangeMode: false,
+                              onModeChanged: (_) {},
+                              onRecord: () async {
+                                final actions =
+                                    await _pickNestedGestureActions();
+                                if (!context.mounted || actions.isEmpty) return;
+                                setDialogState(() => retryActions = actions);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: retryCountController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: '重试次数',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: retryWaitController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: '等待毫秒',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _InlineActionPicker(
+                              title: '重试成功后执行',
+                              mode: retrySuccessMode,
+                              actions: retrySuccessActions,
+                              onModeChanged: (value) => setDialogState(
+                                () => retrySuccessMode = value,
+                              ),
+                              onRecord: () async {
+                                final actions =
+                                    await _pickNestedGestureActions();
+                                if (!context.mounted || actions.isEmpty) return;
+                                setDialogState(() {
+                                  retrySuccessMode =
+                                      ButtonResultActionMode.custom;
+                                  retrySuccessActions = actions;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _ChoiceField<ButtonFailAction>(
+                              label: '重试失败后',
+                              title: '选择失败处理',
+                              value: failAction,
+                              options: const [
+                                _ChoiceOption(
+                                  value: ButtonFailAction.notify,
+                                  label: '全屏通知脚本执行失败',
+                                  icon: Icons.notification_important_rounded,
+                                ),
+                                _ChoiceOption(
+                                  value: ButtonFailAction.lockScreen,
+                                  label: '锁屏',
+                                  icon: Icons.lock_rounded,
+                                ),
+                                _ChoiceOption(
+                                  value: ButtonFailAction.none,
+                                  label: '不处理',
+                                  icon: Icons.block_rounded,
+                                ),
+                              ],
+                              onChanged: (value) =>
+                                  setDialogState(() => failAction = value),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _ChoiceField<ButtonMatchMode>(
-                      label: '识别方式',
-                      title: '选择识别方式',
-                      value: matchMode,
-                      options: const [
-                        _ChoiceOption(
-                          value: ButtonMatchMode.exact,
-                          label: '完全相同',
-                          icon: Icons.drag_handle_rounded,
-                        ),
-                        _ChoiceOption(
-                          value: ButtonMatchMode.contains,
-                          label: '包含文字',
-                          icon: Icons.subject_rounded,
-                        ),
-                      ],
-                      onChanged: (value) =>
-                          setDialogState(() => matchMode = value),
-                    ),
-                    const SizedBox(height: 12),
-                    _ChoiceField<ButtonRegionMode>(
-                      label: '识别区域',
-                      title: '选择识别区域',
-                      value: regionMode,
-                      options: const [
-                        _ChoiceOption(
-                          value: ButtonRegionMode.full,
-                          label: '全屏',
-                          icon: Icons.fullscreen_rounded,
-                        ),
-                        _ChoiceOption(
-                          value: ButtonRegionMode.custom,
-                          label: '自定义：使用当前按钮区域',
-                          icon: Icons.crop_free_rounded,
-                        ),
-                      ],
-                      onChanged: (value) =>
-                          setDialogState(() => regionMode = value),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: textController,
-                      decoration: const InputDecoration(labelText: '按钮文字'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: idController,
-                      decoration: const InputDecoration(labelText: '按钮ID'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(labelText: '按钮描述'),
-                    ),
-                    const SizedBox(height: 12),
-                    _InlineActionPicker(
-                      title: '识别成功后的动作',
-                      mode: successMode,
-                      actions: successActions,
-                      onModeChanged: (value) =>
-                          setDialogState(() => successMode = value),
-                      onRecord: () async {
-                        final actions = await _pickNestedGestureActions();
-                        if (!context.mounted || actions.isEmpty) return;
-                        setDialogState(() {
-                          successMode = ButtonResultActionMode.custom;
-                          successActions = actions;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _InlineActionPicker(
-                      title: '识别失败后的动作',
-                      mode: ButtonResultActionMode.custom,
-                      actions: retryActions,
-                      canChangeMode: false,
-                      onModeChanged: (_) {},
-                      onRecord: () async {
-                        final actions = await _pickNestedGestureActions();
-                        if (!context.mounted || actions.isEmpty) return;
-                        setDialogState(() => retryActions = actions);
-                      },
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: retryCountController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: '重试次数',
-                            ),
-                          ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('取消'),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: retryWaitController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: '等待毫秒',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _InlineActionPicker(
-                      title: '重试成功后执行',
-                      mode: retrySuccessMode,
-                      actions: retrySuccessActions,
-                      onModeChanged: (value) =>
-                          setDialogState(() => retrySuccessMode = value),
-                      onRecord: () async {
-                        final actions = await _pickNestedGestureActions();
-                        if (!context.mounted || actions.isEmpty) return;
-                        setDialogState(() {
-                          retrySuccessMode = ButtonResultActionMode.custom;
-                          retrySuccessActions = actions;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _ChoiceField<ButtonFailAction>(
-                      label: '重试失败后',
-                      title: '选择失败处理',
-                      value: failAction,
-                      options: const [
-                        _ChoiceOption(
-                          value: ButtonFailAction.notify,
-                          label: '全屏通知脚本执行失败',
-                          icon: Icons.notification_important_rounded,
-                        ),
-                        _ChoiceOption(
-                          value: ButtonFailAction.lockScreen,
-                          label: '锁屏',
-                          icon: Icons.lock_rounded,
-                        ),
-                        _ChoiceOption(
-                          value: ButtonFailAction.none,
-                          label: '不处理',
-                          icon: Icons.block_rounded,
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(
+                              ButtonRecognizeAction(
+                                buttonText: textController.text.trim(),
+                                source: source,
+                                matchMode: matchMode,
+                                regionMode: regionMode,
+                                region: regionMode == ButtonRegionMode.custom
+                                    ? bounds
+                                    : null,
+                                buttonId: idController.text.trim(),
+                                buttonDescription: descriptionController.text
+                                    .trim(),
+                                successMode: successMode,
+                                successActions: successActions,
+                                retryActions: retryActions,
+                                retryCount:
+                                    int.tryParse(
+                                      retryCountController.text.trim(),
+                                    ) ??
+                                    3,
+                                retryWaitMillis:
+                                    int.tryParse(
+                                      retryWaitController.text.trim(),
+                                    ) ??
+                                    800,
+                                retrySuccessMode: retrySuccessMode,
+                                retrySuccessActions: retrySuccessActions,
+                                failAction: failAction,
+                              ),
+                            );
+                          },
+                          child: const Text('添加'),
                         ),
                       ],
-                      onChanged: (value) =>
-                          setDialogState(() => failAction = value),
                     ),
                   ],
                 ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(
-                    ButtonRecognizeAction(
-                      buttonText: textController.text.trim(),
-                      source: source,
-                      matchMode: matchMode,
-                      regionMode: regionMode,
-                      region: regionMode == ButtonRegionMode.custom
-                          ? bounds
-                          : null,
-                      buttonId: idController.text.trim(),
-                      buttonDescription: descriptionController.text.trim(),
-                      successMode: successMode,
-                      successActions: successActions,
-                      retryActions: retryActions,
-                      retryCount:
-                          int.tryParse(retryCountController.text.trim()) ?? 3,
-                      retryWaitMillis:
-                          int.tryParse(retryWaitController.text.trim()) ?? 800,
-                      retrySuccessMode: retrySuccessMode,
-                      retrySuccessActions: retrySuccessActions,
-                      failAction: failAction,
-                    ),
-                  );
-                },
-                child: const Text('添加'),
-              ),
-            ],
           );
         },
       ),
