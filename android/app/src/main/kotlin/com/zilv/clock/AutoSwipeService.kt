@@ -9,7 +9,9 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -19,6 +21,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -738,12 +741,15 @@ class AutoSwipeService : AccessibilityService() {
         removeChooserOverlay()
         val layoutParams = floatingPanelParams(widthDp = 320)
         val panel = floatingPanel("添加内容")
+        panel.addView(sectionLabel("手势"))
         panel.addView(optionRow("录制手势", "添加点击、滑动、完整轨迹", 0xFF4A90E2.toInt()) {
             showFloatingGestureTypeMenu()
         })
-        panel.addView(optionRow("导航动作", "返回键、回到桌面、多任务", 0xFF4CAF50.toInt()) {
-            showFloatingNavMenu()
+        panel.addView(sectionLabel("逻辑"))
+        panel.addView(optionRow("按钮识别", "识别屏幕按钮，找不到可重试", 0xFF5C6BC0.toInt()) {
+            startFloatingButtonDetect()
         })
+        panel.addView(sectionLabel("等待"))
         panel.addView(optionRow("随机等待", "在秒数范围内随机等待", 0xFFFFB74D.toInt()) {
             showFloatingWaitEditor(randomWait = true)
         })
@@ -752,6 +758,14 @@ class AutoSwipeService : AccessibilityService() {
         })
         panel.addView(optionRow("固定等待", "固定等待指定秒数，最多 10000 秒", 0xFF8D6E63.toInt()) {
             showFloatingWaitEditor(randomWait = false)
+        })
+        panel.addView(sectionLabel("系统"))
+        panel.addView(optionRow("导航动作", "返回键、回到桌面、多任务", 0xFF4CAF50.toInt()) {
+            showFloatingNavMenu()
+        })
+        panel.addView(optionRow("锁屏", "执行到这里时锁定屏幕", 0xFFFF5252.toInt()) {
+            floatingRecordActions.add(mapOf("type" to "lockScreen"))
+            showFloatingRecorder()
         })
         panel.addView(optionRow("启动应用", "选择任意已安装应用", 0xFFAB47BC.toInt()) {
             showFloatingAppPicker()
@@ -1025,6 +1039,111 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun startFloatingButtonDetect() {
+        removeChooserOverlay()
+        startNativePicker("buttonDetect") { result ->
+            if (result["cancelled"] == true) {
+                showFloatingRecorder()
+                return@startNativePicker
+            }
+            showFloatingButtonEditor(normalizeMap(result))
+        }
+    }
+
+    private fun showFloatingButtonEditor(seed: Map<String, Any?>, editIndex: Int? = null) {
+        removeChooserOverlay()
+        val layoutParams = floatingPanelParams(widthDp = 340, focusable = true)
+        val panel = floatingPanel("按钮识别")
+        val textInput = inputField(seed["buttonText"] as? String ?: "", "按钮文字", numberOnly = false)
+        val idInput = inputField(seed["buttonId"] as? String ?: "", "按钮ID", numberOnly = false)
+        val descInput = inputField(seed["buttonDescription"] as? String ?: "", "按钮描述", numberOnly = false)
+        val retryInput = inputField(((seed["retryCount"] as? Number)?.toInt() ?: 3).toString(), "重试次数", numberOnly = true)
+        val waitInput = inputField(((seed["retryWaitMillis"] as? Number)?.toInt() ?: 800).toString(), "重试等待毫秒", numberOnly = true)
+
+        panel.addView(fieldLabel("识别方式"))
+        panel.addView(TextView(this).apply {
+            text = "保存时选择：完全相同 / 包含"
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, 0, 0, dp(8))
+        })
+        panel.addView(fieldLabel("按钮文字"))
+        panel.addView(textInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)))
+        panel.addView(fieldLabel("按钮ID"), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(8) })
+        panel.addView(idInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)))
+        panel.addView(fieldLabel("按钮描述"), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(8) })
+        panel.addView(descInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)))
+
+        val retryRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        retryRow.addView(retryInput, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+            marginEnd = dp(8)
+        })
+        retryRow.addView(waitInput, LinearLayout.LayoutParams(0, dp(42), 1f))
+        panel.addView(retryRow)
+
+        panel.addView(TextView(this).apply {
+            text = "识别成功默认点击；识别失败会按重试次数等待后再找，最终失败默认全屏通知。"
+            textSize = 12f
+            setTextColor(0xFFB8C0C8.toInt())
+            setPadding(0, dp(8), 0, dp(8))
+        })
+
+        fun save(matchMode: String, failAction: String) {
+            val action = mapOf(
+                    "type" to "buttonRecognize",
+                    "buttonText" to textInput.text?.toString()?.trim().orEmpty(),
+                    "buttonId" to idInput.text?.toString()?.trim().orEmpty(),
+                    "buttonDescription" to descInput.text?.toString()?.trim().orEmpty(),
+                    "matchMode" to matchMode,
+                    "regionMode" to "full",
+                    "successMode" to "defaultClick",
+                    "retryCount" to ((retryInput.text?.toString()?.trim()?.toIntOrNull() ?: 3).coerceIn(0, 20)),
+                    "retryWaitMillis" to ((waitInput.text?.toString()?.trim()?.toIntOrNull() ?: 800).coerceIn(0, 10_000_000)),
+                    "retrySuccessMode" to "defaultClick",
+                    "failAction" to failAction,
+            )
+            if (editIndex != null && editIndex in floatingRecordActions.indices) {
+                floatingRecordActions[editIndex] = action
+            } else {
+                floatingRecordActions.add(action)
+            }
+            showFloatingRecorder()
+        }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        row.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            showFloatingRecorder()
+        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(8) })
+        row.addView(menuButton("包含保存", 0xFF4CAF50.toInt()) {
+            save("contains", "notify")
+        }, LinearLayout.LayoutParams(0, dp(42), 1f))
+        panel.addView(row)
+        panel.addView(menuButton("完全相同保存", 0xFF8EB8FF.toInt()) {
+            save("exact", "notify")
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)).apply {
+            topMargin = dp(8)
+        })
+        panel.addView(menuButton("失败锁屏保存", 0xFFFF5252.toInt()) {
+            save("contains", "lockScreen")
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(42)).apply {
+            topMargin = dp(8)
+        })
+
+        addChooserPanel(panel, layoutParams)
+    }
+
     private fun appendFloatingPickerResult(result: Map<String, Any?>) {
         appendGestureActionsWithBuffers(floatingActionsFromPickerResult(result))
     }
@@ -1136,6 +1255,10 @@ class AutoSwipeService : AccessibilityService() {
             )
             return
         }
+        if ((action["type"] as? String) == "buttonRecognize") {
+            showFloatingButtonEditor(action, editIndex = index)
+            return
+        }
         val pickerType = when (action["type"] as? String) {
             "click" -> "click"
             "swipe" -> "swipe"
@@ -1172,6 +1295,7 @@ class AutoSwipeService : AccessibilityService() {
     private fun isFloatingActionEditable(action: Map<String, Any?>): Boolean {
         return when (action["type"] as? String) {
             "click", "swipe", "recorded", "wait" -> true
+            "buttonRecognize" -> true
             else -> false
         }
     }
@@ -1202,6 +1326,8 @@ class AutoSwipeService : AccessibilityService() {
             "recorded" -> "录制轨迹"
             "nav" -> "导航动作"
             "launchApp" -> "启动应用"
+            "buttonRecognize" -> "按钮识别"
+            "lockScreen" -> "锁屏"
             else -> "未知动作"
         }
     }
@@ -1226,6 +1352,12 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
             "launchApp" -> "拉起 ${(action["label"] as? String) ?: (action["packageName"] as? String) ?: "应用"}"
+            "buttonRecognize" -> {
+                val mode = if ((action["matchMode"] as? String) == "exact") "完全相同" else "包含"
+                val text = action["buttonText"] as? String ?: "按钮"
+                "识别“$text” · $mode · 失败重试 ${((action["retryCount"] as? Number)?.toInt() ?: 3)} 次"
+            }
+            "lockScreen" -> "执行到这里时锁定屏幕"
             else -> ""
         }
     }
@@ -1314,6 +1446,15 @@ class AutoSwipeService : AccessibilityService() {
             textSize = 12f
             setTextColor(0xFFB8C0C8.toInt())
             setPadding(0, 0, 0, dp(5))
+        }
+    }
+
+    private fun sectionLabel(label: String): TextView {
+        return TextView(this).apply {
+            text = label
+            textSize = 12f
+            setTextColor(0xFF8EB8FF.toInt())
+            setPadding(dp(2), dp(8), 0, dp(6))
         }
     }
 
@@ -1471,6 +1612,16 @@ class AutoSwipeService : AccessibilityService() {
                 }
                 handler.postDelayed({ executeActionIndex(index + 1) }, 1000)
             }
+            "buttonRecognize" -> {
+                performButtonRecognizeAction(action) {
+                    executeActionIndex(index + 1)
+                }
+            }
+            "lockScreen" -> {
+                performLockScreenAction {
+                    executeActionIndex(index + 1)
+                }
+            }
             else -> executeActionIndex(index + 1)
         }
     }
@@ -1535,6 +1686,162 @@ class AutoSwipeService : AccessibilityService() {
         return ((action["maxMillis"] as? Number)?.toLong()
             ?: ((action["maxSeconds"] as? Number)?.toLong()?.times(1000L))
             ?: waitMinMillis(action)).coerceIn(1L, 10_000_000L)
+    }
+
+    private fun performButtonRecognizeAction(action: Map<String, Any?>, onDone: () -> Unit) {
+        val retryCount = ((action["retryCount"] as? Number)?.toInt() ?: 3).coerceIn(0, 20)
+        val retryWait = ((action["retryWaitMillis"] as? Number)?.toLong() ?: 800L).coerceIn(0L, 10_000_000L)
+        val retryActions = asMapList(action["retryActions"])
+
+        fun attempt(remaining: Int, afterRetry: Boolean) {
+            val match = findMatchingButton(action)
+            if (match != null) {
+                val modeKey = if (afterRetry) "retrySuccessMode" else "successMode"
+                val actionsKey = if (afterRetry) "retrySuccessActions" else "successActions"
+                val mode = action[modeKey] as? String ?: "defaultClick"
+                val customActions = asMapList(action[actionsKey])
+                if (mode == "custom" && customActions.isNotEmpty()) {
+                    executeInlineActions(customActions, onDone)
+                } else {
+                    performButtonClick(match) {
+                        handler.postDelayed(onDone, 250)
+                    }
+                }
+                return
+            }
+
+            if (remaining > 0) {
+                executeInlineActions(retryActions) {
+                    handler.postDelayed({ attempt(remaining - 1, afterRetry = true) }, retryWait)
+                }
+                return
+            }
+
+            when (action["failAction"] as? String ?: "notify") {
+                "lockScreen" -> performLockScreenAction(onDone)
+                "notify" -> {
+                    showScriptFailureNotice(action)
+                    onDone()
+                }
+                else -> onDone()
+            }
+        }
+
+        attempt(retryCount, afterRetry = false)
+    }
+
+    private fun executeInlineActions(actions: List<Map<String, Any?>>, onDone: () -> Unit) {
+        fun runAt(index: Int) {
+            if (index >= actions.size) {
+                onDone()
+                return
+            }
+            val action = actions[index]
+            when (action["type"] as? String ?: "swipe") {
+                "swipe", "click", "recorded" -> performGestureAction(action) { runAt(index + 1) }
+                "nav" -> performNavigationAction(action["navType"] as? String ?: "back") { runAt(index + 1) }
+                "wait" -> handler.postDelayed({ runAt(index + 1) }, resolveWaitMillis(action))
+                "launchApp" -> {
+                    val packageName = action["packageName"] as? String
+                    if (packageName != null) {
+                        packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        }
+                    }
+                    handler.postDelayed({ runAt(index + 1) }, 1000)
+                }
+                "lockScreen" -> performLockScreenAction { runAt(index + 1) }
+                else -> runAt(index + 1)
+            }
+        }
+        runAt(0)
+    }
+
+    private fun findMatchingButton(action: Map<String, Any?>): ButtonNodeInfo? {
+        val nodes = collectButtonNodes(rootInActiveWindow)
+        val targetText = ((action["buttonText"] as? String) ?: (action["text"] as? String) ?: "").trim()
+        val targetId = ((action["buttonId"] as? String) ?: (action["viewId"] as? String) ?: "").trim()
+        val targetDescription = ((action["buttonDescription"] as? String) ?: (action["description"] as? String) ?: "").trim()
+        val exact = (action["matchMode"] as? String) == "exact"
+        val region = actionRegionRect(action)
+        return nodes.firstOrNull { node ->
+            if (region != null && !Rect.intersects(region, node.bounds)) {
+                return@firstOrNull false
+            }
+            val textMatched = targetText.isNotEmpty() &&
+                textMatches(node.text.ifBlank { node.description }, targetText, exact)
+            val idMatched = targetId.isNotEmpty() && textMatches(node.viewId, targetId, exact)
+            val descriptionMatched = targetDescription.isNotEmpty() &&
+                textMatches(node.description, targetDescription, exact)
+            textMatched || idMatched || descriptionMatched
+        }
+    }
+
+    private fun textMatches(value: String, target: String, exact: Boolean): Boolean {
+        if (value.isBlank() || target.isBlank()) return false
+        return if (exact) {
+            value.trim() == target.trim()
+        } else {
+            value.contains(target, ignoreCase = true)
+        }
+    }
+
+    private fun actionRegionRect(action: Map<String, Any?>): Rect? {
+        if ((action["regionMode"] as? String ?: "full") != "custom") return null
+        val region = normalizeMap(action["region"] as? Map<*, *> ?: return null)
+        val dm = resources.displayMetrics
+        val left = (((region["left"] as? Number)?.toFloat() ?: 0f) * dm.widthPixels).toInt()
+        val top = (((region["top"] as? Number)?.toFloat() ?: 0f) * dm.heightPixels).toInt()
+        val right = (((region["right"] as? Number)?.toFloat() ?: 1f) * dm.widthPixels).toInt()
+        val bottom = (((region["bottom"] as? Number)?.toFloat() ?: 1f) * dm.heightPixels).toInt()
+        return Rect(left, top, right, bottom)
+    }
+
+    private fun performButtonClick(node: ButtonNodeInfo, onDone: () -> Unit) {
+        val path = Path().apply {
+            moveTo(node.bounds.centerX().toFloat(), node.bounds.centerY().toFloat())
+        }
+        try {
+            dispatchGesture(
+                GestureDescription.Builder()
+                    .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
+                    .build(),
+                object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        onDone()
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        onDone()
+                    }
+                },
+                null,
+            )
+        } catch (_: Exception) {
+            onDone()
+        }
+    }
+
+    private fun performLockScreenAction(onDone: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+        }
+        handler.postDelayed(onDone, 500)
+    }
+
+    private fun showScriptFailureNotice(action: Map<String, Any?>) {
+        val text = action["buttonText"] as? String ?: "目标按钮"
+        val intent = Intent(this, AlarmActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("title", "脚本执行失败")
+            putExtra("body", "没有识别到按钮：$text")
+            putExtra("targetAppLabel", "当前应用")
+        }
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+        }
     }
 
     private fun performNavigationAction(navType: String, onDone: () -> Unit) {
@@ -1659,6 +1966,10 @@ class AutoSwipeService : AccessibilityService() {
         }
         if (pickerType == "clickSteps") {
             showClickStepsOverlay()
+            return
+        }
+        if (pickerType == "buttonDetect") {
+            showButtonDetectOverlay()
             return
         }
 
@@ -1906,6 +2217,102 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun showButtonDetectOverlay() {
+        pickerMode = "buttonDetect"
+        val nodes = collectButtonNodes(rootInActiveWindow)
+        val lp = WindowManager.LayoutParams().apply {
+            type = overlayType()
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(0x11000000)
+        }
+        val surface = ButtonDetectSurface(this, nodes) { node ->
+            publishPickerResult(node.toResult(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels))
+            removePickerOverlay()
+        }
+        container.addView(surface, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
+        }
+        controls.addView(TextView(this).apply {
+            text = "点击红框按钮"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(dp(118), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            publishPickerResult(mapOf("cancelled" to true))
+            removePickerOverlay()
+        }, LinearLayout.LayoutParams(dp(72), dp(40)))
+        container.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            dp(52),
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(36)
+        })
+
+        try {
+            windowManager?.addView(container, lp)
+            pickerOverlay = container
+        } catch (_: Exception) {
+            pickerMode = null
+            publishPickerResult(mapOf("cancelled" to true))
+        }
+    }
+
+    private fun collectButtonNodes(root: AccessibilityNodeInfo?): List<ButtonNodeInfo> {
+        if (root == null) return emptyList()
+        val out = mutableListOf<ButtonNodeInfo>()
+        val seen = mutableSetOf<String>()
+
+        fun visit(node: AccessibilityNodeInfo?) {
+            if (node == null) return
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            val text = node.text?.toString().orEmpty()
+            val description = node.contentDescription?.toString().orEmpty()
+            val viewId = node.viewIdResourceName.orEmpty()
+            val className = node.className?.toString().orEmpty()
+            val looksLikeButton = node.isClickable ||
+                className.contains("Button", ignoreCase = true) ||
+                className.contains("TextView", ignoreCase = true) && (text.isNotBlank() || description.isNotBlank())
+            if (node.isVisibleToUser &&
+                looksLikeButton &&
+                rect.width() > dp(16) &&
+                rect.height() > dp(16) &&
+                rect.left >= 0 &&
+                rect.top >= 0
+            ) {
+                val key = "${rect.flattenToString()}|$text|$description|$viewId"
+                if (seen.add(key)) {
+                    out.add(ButtonNodeInfo(rect, text, viewId, description, className))
+                }
+            }
+            for (index in 0 until node.childCount) {
+                visit(node.getChild(index))
+            }
+        }
+
+        visit(root)
+        return out.sortedWith(compareBy<ButtonNodeInfo> { it.bounds.top }.thenBy { it.bounds.left })
+    }
+
     private fun createPickerMarker(label: String, color: Int): View {
         return FrameLayout(this).apply {
             background = GradientDrawable().apply {
@@ -2104,6 +2511,13 @@ class AutoSwipeService : AccessibilityService() {
                 }
             }
             "launchApp" -> 1000L to 1000L
+            "buttonRecognize" -> {
+                val retryCount = ((action["retryCount"] as? Number)?.toLong() ?: 3L).coerceIn(0L, 20L)
+                val retryWait = ((action["retryWaitMillis"] as? Number)?.toLong() ?: 800L).coerceIn(0L, 10_000_000L)
+                val retryMillis = estimateActionsMillis(asMapList(action["retryActions"])) + retryWait
+                300L to (300L + retryMillis * retryCount)
+            }
+            "lockScreen" -> 500L to 500L
             else -> 0L to 0L
         }
     }
@@ -2117,6 +2531,8 @@ class AutoSwipeService : AccessibilityService() {
                 "nav" -> if (action["navType"] == "recents") 900L else 650L
                 "wait" -> resolveWaitMillis(action)
                 "launchApp" -> 1000L
+                "buttonRecognize" -> estimateActionMillisRange(action).second
+                "lockScreen" -> 500L
                 else -> 0L
             }
         }
@@ -2183,6 +2599,95 @@ class AutoSwipeService : AccessibilityService() {
     )
 
     private data class StepPoint(var x: Float, var y: Float)
+
+    private data class ButtonNodeInfo(
+        val bounds: Rect,
+        val text: String,
+        val viewId: String,
+        val description: String,
+        val className: String,
+    ) {
+        fun toResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
+            return mapOf(
+                "type" to "buttonRecognize",
+                "buttonText" to text,
+                "buttonId" to viewId,
+                "buttonDescription" to description,
+                "className" to className,
+                "matchMode" to "contains",
+                "regionMode" to "full",
+                "successMode" to "defaultClick",
+                "retryCount" to 3,
+                "retryWaitMillis" to 800,
+                "retrySuccessMode" to "defaultClick",
+                "failAction" to "notify",
+                "bounds" to mapOf(
+                    "left" to (bounds.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "top" to (bounds.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                    "right" to (bounds.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                ),
+            )
+        }
+    }
+
+    private class ButtonDetectSurface(
+        context: Context,
+        private val nodes: List<ButtonNodeInfo>,
+        private val onSelect: (ButtonNodeInfo) -> Unit,
+    ) : View(context) {
+        private val density = resources.displayMetrics.density
+        private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 2.5f * density
+            style = Paint.Style.STROKE
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x22FF3B30
+            style = Paint.Style.FILL
+        }
+        private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 11f * density
+            style = Paint.Style.FILL
+        }
+        private val labelBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xCCFF3B30.toInt()
+            style = Paint.Style.FILL
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val selected = nodes.firstOrNull {
+                    it.bounds.contains(event.rawX.toInt(), event.rawY.toInt())
+                }
+                if (selected != null) {
+                    onSelect(selected)
+                }
+                return true
+            }
+            return true
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            nodes.forEachIndexed { index, node ->
+                canvas.drawRect(node.bounds, fillPaint)
+                canvas.drawRect(node.bounds, rectPaint)
+                val label = (node.text.ifBlank { node.description }.ifBlank { "${index + 1}" }).take(12)
+                val labelWidth = labelPaint.measureText(label) + 10f * density
+                val top = (node.bounds.top - 20f * density).coerceAtLeast(0f)
+                canvas.drawRect(
+                    node.bounds.left.toFloat(),
+                    top,
+                    node.bounds.left + labelWidth,
+                    top + 18f * density,
+                    labelBgPaint,
+                )
+                canvas.drawText(label, node.bounds.left + 5f * density, top + 13f * density, labelPaint)
+            }
+        }
+    }
 
     private class ClickStepSurface(context: Context) : View(context) {
         private val points = mutableListOf<StepPoint>()

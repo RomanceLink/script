@@ -1308,7 +1308,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           _SettingsSectionCard(
             accent: const Color(0xFFC084FC),
-            title: '自动化脚本管理',
+            title: '脚本配置',
             subtitle: '配置点击、滑动、导航等连招',
             helper: '您可以创建多个自动化方案，并将其绑定到特定的每日任务中。',
             child: Row(
@@ -2147,19 +2147,23 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _EditorPickerTile(
-                      label: '自动化脚本',
-                      value:
-                          _availableConfigs
-                              .where((c) => c.id == _gestureConfigId)
-                              .firstOrNull
-                              ?.name ??
-                          '未关联',
-                      onTap: _pickGestureConfig,
-                    ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _EditorSectionCard(
+              accent: const Color(0xFF8EB8FF),
+              title: '脚本配置',
+              child: _EditorPickerTile(
+                label: '绑定脚本',
+                value:
+                    _availableConfigs
+                        .where((c) => c.id == _gestureConfigId)
+                        .firstOrNull
+                        ?.name ??
+                    '未关联',
+                onTap: _pickGestureConfig,
               ),
             ),
             const SizedBox(height: 12),

@@ -153,7 +153,16 @@ class AssistantTaskDefinition {
   String _two(int value) => value.toString().padLeft(2, '0');
 }
 
-enum GestureActionType { swipe, click, recorded, nav, wait, launchApp }
+enum GestureActionType {
+  swipe,
+  click,
+  recorded,
+  nav,
+  wait,
+  launchApp,
+  buttonRecognize,
+  lockScreen,
+}
 
 sealed class GestureAction {
   const GestureAction({required this.type});
@@ -170,6 +179,8 @@ sealed class GestureAction {
       GestureActionType.nav => NavAction.fromJson(json),
       GestureActionType.wait => WaitAction.fromJson(json),
       GestureActionType.launchApp => LaunchAppAction.fromJson(json),
+      GestureActionType.buttonRecognize => ButtonRecognizeAction.fromJson(json),
+      GestureActionType.lockScreen => LockScreenAction.fromJson(json),
     };
   }
 }
@@ -442,6 +453,127 @@ class LaunchAppAction extends GestureAction {
       );
 }
 
+enum ButtonMatchMode { exact, contains }
+
+enum ButtonRegionMode { full, custom }
+
+enum ButtonResultActionMode { defaultClick, custom }
+
+enum ButtonFailAction { notify, lockScreen, none }
+
+class ButtonRecognizeAction extends GestureAction {
+  const ButtonRecognizeAction({
+    required this.buttonText,
+    this.matchMode = ButtonMatchMode.contains,
+    this.regionMode = ButtonRegionMode.full,
+    this.region,
+    this.buttonId = '',
+    this.buttonDescription = '',
+    this.successMode = ButtonResultActionMode.defaultClick,
+    this.successActions = const [],
+    this.retryActions = const [],
+    this.retryCount = 3,
+    this.retryWaitMillis = 800,
+    this.retrySuccessMode = ButtonResultActionMode.defaultClick,
+    this.retrySuccessActions = const [],
+    this.failAction = ButtonFailAction.notify,
+  }) : super(type: GestureActionType.buttonRecognize);
+
+  final String buttonText;
+  final ButtonMatchMode matchMode;
+  final ButtonRegionMode regionMode;
+  final Map<String, double>? region;
+  final String buttonId;
+  final String buttonDescription;
+  final ButtonResultActionMode successMode;
+  final List<GestureAction> successActions;
+  final List<GestureAction> retryActions;
+  final int retryCount;
+  final int retryWaitMillis;
+  final ButtonResultActionMode retrySuccessMode;
+  final List<GestureAction> retrySuccessActions;
+  final ButtonFailAction failAction;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': type.name,
+    'buttonText': buttonText,
+    'matchMode': matchMode.name,
+    'regionMode': regionMode.name,
+    'region': region,
+    'buttonId': buttonId,
+    'buttonDescription': buttonDescription,
+    'successMode': successMode.name,
+    'successActions': successActions.map((a) => a.toJson()).toList(),
+    'retryActions': retryActions.map((a) => a.toJson()).toList(),
+    'retryCount': retryCount.clamp(0, 20),
+    'retryWaitMillis': retryWaitMillis.clamp(0, 10000000),
+    'retrySuccessMode': retrySuccessMode.name,
+    'retrySuccessActions': retrySuccessActions.map((a) => a.toJson()).toList(),
+    'failAction': failAction.name,
+  };
+
+  factory ButtonRecognizeAction.fromJson(Map<String, Object?> json) {
+    List<GestureAction> readActions(String key) {
+      return ((json[key] as List<Object?>?) ?? const [])
+          .whereType<Map<String, Object?>>()
+          .map(GestureAction.fromJson)
+          .toList();
+    }
+
+    final rawRegion = json['region'];
+    final region = rawRegion is Map
+        ? rawRegion.map(
+            (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+          )
+        : null;
+
+    return ButtonRecognizeAction(
+      buttonText:
+          json['buttonText'] as String? ?? json['text'] as String? ?? '',
+      matchMode: ButtonMatchMode.values.byName(
+        json['matchMode'] as String? ?? ButtonMatchMode.contains.name,
+      ),
+      regionMode: ButtonRegionMode.values.byName(
+        json['regionMode'] as String? ?? ButtonRegionMode.full.name,
+      ),
+      region: region,
+      buttonId: json['buttonId'] as String? ?? json['viewId'] as String? ?? '',
+      buttonDescription:
+          json['buttonDescription'] as String? ??
+          json['description'] as String? ??
+          '',
+      successMode: ButtonResultActionMode.values.byName(
+        json['successMode'] as String? ??
+            ButtonResultActionMode.defaultClick.name,
+      ),
+      successActions: readActions('successActions'),
+      retryActions: readActions('retryActions'),
+      retryCount: (json['retryCount'] as num?)?.toInt() ?? 3,
+      retryWaitMillis: (json['retryWaitMillis'] as num?)?.toInt() ?? 800,
+      retrySuccessMode: ButtonResultActionMode.values.byName(
+        json['retrySuccessMode'] as String? ??
+            ButtonResultActionMode.defaultClick.name,
+      ),
+      retrySuccessActions: readActions('retrySuccessActions'),
+      failAction: ButtonFailAction.values.byName(
+        json['failAction'] as String? ?? ButtonFailAction.notify.name,
+      ),
+    );
+  }
+}
+
+class LockScreenAction extends GestureAction {
+  const LockScreenAction() : super(type: GestureActionType.lockScreen);
+
+  @override
+  Map<String, Object?> toJson() => {'type': type.name};
+
+  factory LockScreenAction.fromJson(Map<String, Object?> json) {
+    return const LockScreenAction();
+  }
+}
+
 class GestureConfig {
   const GestureConfig({
     required this.id,
@@ -557,6 +689,15 @@ GestureDurationRange estimateGestureActionDuration(GestureAction action) {
   }
   if (action is LaunchAppAction) {
     return const GestureDurationRange(minMillis: 1000, maxMillis: 1000);
+  }
+  if (action is ButtonRecognizeAction) {
+    final retryRange = estimateGestureActionsDuration(action.retryActions);
+    final retryMillis =
+        (retryRange.maxMillis + action.retryWaitMillis) * action.retryCount;
+    return GestureDurationRange(minMillis: 300, maxMillis: 300 + retryMillis);
+  }
+  if (action is LockScreenAction) {
+    return const GestureDurationRange(minMillis: 500, maxMillis: 500);
   }
   return const GestureDurationRange(minMillis: 0, maxMillis: 0);
 }

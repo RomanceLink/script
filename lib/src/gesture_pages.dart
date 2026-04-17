@@ -209,71 +209,124 @@ class _GestureEditPageState extends State<GestureEditPage> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.touch_app_rounded, color: Colors.blue),
-              title: const Text('录制手势 (点击/滑动)'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickGestureType();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.navigation_rounded,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 640),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            children: [
+              _ActionCategoryHeader(
+                title: '手势',
+                icon: Icons.gesture_rounded,
+                color: Colors.blue,
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.touch_app_rounded,
+                  color: Colors.blue,
+                ),
+                title: const Text('录制手势'),
+                subtitle: const Text('点击、滑动、完整轨迹'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickGestureType();
+                },
+              ),
+              _ActionCategoryHeader(
+                title: '逻辑',
+                icon: Icons.account_tree_rounded,
+                color: Colors.indigo,
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.select_all_rounded,
+                  color: Colors.indigo,
+                ),
+                title: const Text('按钮识别'),
+                subtitle: const Text('识别屏幕按钮，成功后点击或执行自定义动作'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickButtonRecognizeAction();
+                },
+              ),
+              _ActionCategoryHeader(
+                title: '等待',
+                icon: Icons.timer_rounded,
+                color: Colors.orange,
+              ),
+              ListTile(
+                leading: const Icon(Icons.timer_rounded, color: Colors.orange),
+                title: const Text('随机等待'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickRandomWaitAction();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.more_time_rounded,
+                  color: Colors.deepOrange,
+                ),
+                title: const Text('毫秒等待'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickMillisecondWaitAction();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.hourglass_bottom_rounded,
+                  color: Colors.brown,
+                ),
+                title: const Text('固定等待'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickFixedWaitAction();
+                },
+              ),
+              _ActionCategoryHeader(
+                title: '系统',
+                icon: Icons.settings_suggest_rounded,
                 color: Colors.green,
               ),
-              title: const Text('导航动作 (返回/首页/多任务)'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickNavAction();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.timer_rounded, color: Colors.orange),
-              title: const Text('随机等待'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickRandomWaitAction();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.more_time_rounded,
-                color: Colors.deepOrange,
+              ListTile(
+                leading: const Icon(
+                  Icons.navigation_rounded,
+                  color: Colors.green,
+                ),
+                title: const Text('导航动作'),
+                subtitle: const Text('返回、首页、多任务'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickNavAction();
+                },
               ),
-              title: const Text('毫秒等待'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickMillisecondWaitAction();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.hourglass_bottom_rounded,
-                color: Colors.brown,
+              ListTile(
+                leading: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: const Text('锁屏'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _addAction(const LockScreenAction());
+                },
               ),
-              title: const Text('固定等待'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickFixedWaitAction();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.rocket_launch_rounded,
-                color: Colors.purple,
+              ListTile(
+                leading: const Icon(
+                  Icons.rocket_launch_rounded,
+                  color: Colors.purple,
+                ),
+                title: const Text('启动应用'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickAppAction();
+                },
               ),
-              title: const Text('启动应用'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickAppAction();
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -597,6 +650,301 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
   }
 
+  Future<void> _pickButtonRecognizeAction() async {
+    final result = await AlarmBridge().enterPickerMode('buttonDetect');
+    if (!mounted || result == null || result['cancelled'] == true) {
+      return;
+    }
+
+    final bounds = (result['bounds'] as Map<Object?, Object?>?)?.map(
+      (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+    );
+    final textController = TextEditingController(
+      text: result['buttonText'] as String? ?? '',
+    );
+    final idController = TextEditingController(
+      text: result['buttonId'] as String? ?? '',
+    );
+    final descriptionController = TextEditingController(
+      text: result['buttonDescription'] as String? ?? '',
+    );
+    final retryCountController = TextEditingController(text: '3');
+    final retryWaitController = TextEditingController(text: '800');
+    var matchMode = ButtonMatchMode.contains;
+    var regionMode = ButtonRegionMode.full;
+    var successMode = ButtonResultActionMode.defaultClick;
+    var retrySuccessMode = ButtonResultActionMode.defaultClick;
+    var failAction = ButtonFailAction.notify;
+    var successActions = <GestureAction>[];
+    var retryActions = <GestureAction>[];
+    var retrySuccessActions = <GestureAction>[];
+
+    final action = await showDialog<ButtonRecognizeAction>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('识别按钮'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<ButtonMatchMode>(
+                      initialValue: matchMode,
+                      decoration: const InputDecoration(labelText: '识别方式'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: ButtonMatchMode.exact,
+                          child: Text('完全相同'),
+                        ),
+                        DropdownMenuItem(
+                          value: ButtonMatchMode.contains,
+                          child: Text('包含'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => matchMode = value ?? matchMode),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<ButtonRegionMode>(
+                      initialValue: regionMode,
+                      decoration: const InputDecoration(labelText: '识别区域'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: ButtonRegionMode.full,
+                          child: Text('全屏'),
+                        ),
+                        DropdownMenuItem(
+                          value: ButtonRegionMode.custom,
+                          child: Text('自定义：使用当前按钮区域'),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(
+                        () => regionMode = value ?? regionMode,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: textController,
+                      decoration: const InputDecoration(labelText: '按钮文字'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: idController,
+                      decoration: const InputDecoration(labelText: '按钮ID'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(labelText: '按钮描述'),
+                    ),
+                    const SizedBox(height: 12),
+                    _InlineActionPicker(
+                      title: '识别成功后的动作',
+                      mode: successMode,
+                      actions: successActions,
+                      onModeChanged: (value) =>
+                          setDialogState(() => successMode = value),
+                      onRecord: () async {
+                        final actions = await _pickNestedGestureActions();
+                        if (!context.mounted || actions.isEmpty) return;
+                        setDialogState(() {
+                          successMode = ButtonResultActionMode.custom;
+                          successActions = actions;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _InlineActionPicker(
+                      title: '识别失败后的动作',
+                      mode: ButtonResultActionMode.custom,
+                      actions: retryActions,
+                      onModeChanged: (_) {},
+                      onRecord: () async {
+                        final actions = await _pickNestedGestureActions();
+                        if (!context.mounted || actions.isEmpty) return;
+                        setDialogState(() => retryActions = actions);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: retryCountController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '重试次数',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: retryWaitController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '等待毫秒',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _InlineActionPicker(
+                      title: '重试成功后执行',
+                      mode: retrySuccessMode,
+                      actions: retrySuccessActions,
+                      onModeChanged: (value) =>
+                          setDialogState(() => retrySuccessMode = value),
+                      onRecord: () async {
+                        final actions = await _pickNestedGestureActions();
+                        if (!context.mounted || actions.isEmpty) return;
+                        setDialogState(() {
+                          retrySuccessMode = ButtonResultActionMode.custom;
+                          retrySuccessActions = actions;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<ButtonFailAction>(
+                      initialValue: failAction,
+                      decoration: const InputDecoration(labelText: '重试失败后'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: ButtonFailAction.notify,
+                          child: Text('全屏通知脚本执行失败'),
+                        ),
+                        DropdownMenuItem(
+                          value: ButtonFailAction.lockScreen,
+                          child: Text('锁屏'),
+                        ),
+                        DropdownMenuItem(
+                          value: ButtonFailAction.none,
+                          child: Text('不处理'),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(
+                        () => failAction = value ?? failAction,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    ButtonRecognizeAction(
+                      buttonText: textController.text.trim(),
+                      matchMode: matchMode,
+                      regionMode: regionMode,
+                      region: regionMode == ButtonRegionMode.custom
+                          ? bounds
+                          : null,
+                      buttonId: idController.text.trim(),
+                      buttonDescription: descriptionController.text.trim(),
+                      successMode: successMode,
+                      successActions: successActions,
+                      retryActions: retryActions,
+                      retryCount:
+                          int.tryParse(retryCountController.text.trim()) ?? 3,
+                      retryWaitMillis:
+                          int.tryParse(retryWaitController.text.trim()) ?? 800,
+                      retrySuccessMode: retrySuccessMode,
+                      retrySuccessActions: retrySuccessActions,
+                      failAction: failAction,
+                    ),
+                  );
+                },
+                child: const Text('添加'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    textController.dispose();
+    idController.dispose();
+    descriptionController.dispose();
+    retryCountController.dispose();
+    retryWaitController.dispose();
+
+    if (!mounted || action == null) {
+      return;
+    }
+    _addAction(action);
+  }
+
+  Future<List<GestureAction>> _pickNestedGestureActions() async {
+    final type = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.fiber_manual_record_rounded),
+              title: const Text('录制完整手势轨迹'),
+              onTap: () => Navigator.of(context).pop('record'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.pin_drop_outlined),
+              title: const Text('录制点击步骤'),
+              onTap: () => Navigator.of(context).pop('clickSteps'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.touch_app_outlined),
+              title: const Text('手动标点：单次点击'),
+              onTap: () => Navigator.of(context).pop('click'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.swipe_outlined),
+              title: const Text('手动标点：直线滑动'),
+              onTap: () => Navigator.of(context).pop('swipe'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (type == null) return const [];
+
+    final result = await AlarmBridge().enterPickerMode(type);
+    if (result == null || result['cancelled'] == true) return const [];
+    if (type == 'record') {
+      final action = _recordedActionFromResult(result);
+      return action == null ? const [] : [action];
+    }
+    if (type == 'clickSteps') {
+      return _clickActionsFromSteps(result);
+    }
+    if (type == 'click') {
+      return [
+        ClickAction(
+          x1: (result['x1'] as num).toDouble(),
+          y1: (result['y1'] as num).toDouble(),
+        ),
+      ];
+    }
+    return [
+      SwipeAction(
+        x1: (result['x1'] as num).toDouble(),
+        y1: (result['y1'] as num).toDouble(),
+        x2: (result['x2'] as num).toDouble(),
+        y2: (result['y2'] as num).toDouble(),
+      ),
+    ];
+  }
+
   void _save() {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -883,6 +1231,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
       GestureActionType.nav => '导航动作',
       GestureActionType.wait => '等待',
       GestureActionType.launchApp => '启动应用',
+      GestureActionType.buttonRecognize => '按钮识别',
+      GestureActionType.lockScreen => '锁屏',
     };
   }
 
@@ -913,6 +1263,14 @@ class _GestureEditPageState extends State<GestureEditPage> {
     if (action is LaunchAppAction) {
       return '拉起 ${action.label}';
     }
+    if (action is ButtonRecognizeAction) {
+      final mode = action.matchMode == ButtonMatchMode.exact ? '完全相同' : '包含';
+      final retry = action.retryCount > 0 ? '，失败重试 ${action.retryCount} 次' : '';
+      return '文字“${action.buttonText}” · $mode$retry';
+    }
+    if (action is LockScreenAction) {
+      return '执行到这里时锁定屏幕';
+    }
     return '';
   }
 
@@ -926,5 +1284,98 @@ class _GestureEditPageState extends State<GestureEditPage> {
     final minutes = seconds ~/ 60;
     final rest = seconds % 60;
     return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
+  }
+}
+
+class _ActionCategoryHeader extends StatelessWidget {
+  const _ActionCategoryHeader({
+    required this.title,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Expanded(child: Divider(indent: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineActionPicker extends StatelessWidget {
+  const _InlineActionPicker({
+    required this.title,
+    required this.mode,
+    required this.actions,
+    required this.onModeChanged,
+    required this.onRecord,
+  });
+
+  final String title;
+  final ButtonResultActionMode mode;
+  final List<GestureAction> actions;
+  final ValueChanged<ButtonResultActionMode> onModeChanged;
+  final VoidCallback onRecord;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<ButtonResultActionMode>(
+            initialValue: mode,
+            decoration: const InputDecoration(labelText: '动作方式'),
+            items: const [
+              DropdownMenuItem(
+                value: ButtonResultActionMode.defaultClick,
+                child: Text('默认点击'),
+              ),
+              DropdownMenuItem(
+                value: ButtonResultActionMode.custom,
+                child: Text('自定义录制动作'),
+              ),
+            ],
+            onChanged: (value) =>
+                onModeChanged(value ?? ButtonResultActionMode.defaultClick),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onRecord,
+            icon: const Icon(Icons.fiber_manual_record_rounded),
+            label: Text(
+              actions.isEmpty ? '录制自定义动作' : '已录制 ${actions.length} 个动作',
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
