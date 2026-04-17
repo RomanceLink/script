@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'gesture_pages.dart';
 import 'logic/task_definitions.dart';
 import 'logic/task_engine.dart';
 import 'models/task_models.dart';
@@ -344,19 +345,39 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _openSelectedApp() async {
+  Future<void> _openSelectedApp(AssistantTaskDefinition task) async {
     final state = _state;
     if (state == null) {
       return;
     }
+
+    // 1. 打开应用
     final ok = await _launcher.openPackage(state.selectedAppPackage);
     if (!mounted) {
       return;
     }
-    _showMessage(
-      ok ? '已尝试打开 ${state.selectedAppLabel}' : '应用打开失败，请检查设置',
-      type: ok ? ToastType.info : ToastType.error,
-    );
+
+    if (!ok) {
+      _showMessage('应用打开失败，请检查设置', type: ToastType.error);
+      return;
+    }
+
+    _showMessage('已尝试打开 ${state.selectedAppLabel}', type: ToastType.info);
+
+    // 2. 如果关联了脚本，执行脚本
+    final configId = task.gestureConfigId;
+    if (configId != null && configId.isNotEmpty) {
+      final configs = await _repository.loadGestureConfigs();
+      final config = configs.where((c) => c.id == configId).firstOrNull;
+      if (config != null) {
+        // 等待应用拉起稳定一点再发指令
+        await Future.delayed(const Duration(seconds: 2));
+        await _alarmBridge.runGestureConfig(
+          name: config.name,
+          actions: config.actions.map((a) => a.toJson()).toList(),
+        );
+      }
+    }
   }
 
   Future<void> _openSwipeControl() async {
@@ -378,6 +399,7 @@ class _DashboardPageState extends State<DashboardPage> {
           initialState: state,
           launcher: _launcher,
           alarmBridge: _alarmBridge,
+          repository: _repository,
         ),
       ),
     );
@@ -638,7 +660,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   (isActive || isExpired),
                               showQuickLaunch: task.showQuickLaunch,
                               appLabel: state.selectedAppLabel,
-                              onOpenApp: _openSelectedApp,
+                              onOpenApp: () => _openSelectedApp(task),
+
                             );
                           case AssistantTaskKind.fixedPoint:
                             final isExpired = TaskEngine.isTaskExpired(
@@ -675,7 +698,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   isDue,
                               showQuickLaunch: task.showQuickLaunch,
                               appLabel: state.selectedAppLabel,
-                              onOpenApp: _openSelectedApp,
+                              onOpenApp: () => _openSelectedApp(task),
+
                             );
                           case AssistantTaskKind.adCooldown:
                             final count = state.intervalCompleted(task.id);
@@ -712,7 +736,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   ),
                               showQuickLaunch: task.showQuickLaunch,
                               appLabel: state.selectedAppLabel,
-                              onOpenApp: _openSelectedApp,
+                              onOpenApp: () => _openSelectedApp(task),
+
                             );
                         }
                       },
@@ -754,12 +779,14 @@ class SettingsPage extends StatefulWidget {
     required this.initialState,
     required this.launcher,
     required this.alarmBridge,
+    required this.repository,
     super.key,
   });
 
   final DailyTaskState initialState;
   final DouyinLauncher launcher;
   final AlarmBridge alarmBridge;
+  final TaskRepository repository;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -773,6 +800,17 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _draft = widget.initialState;
+  }
+
+  Future<void> _openGestureConfigs() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GestureConfigPage(
+          repository: widget.repository,
+          launcher: widget.launcher,
+        ),
+      ),
+    );
   }
 
   void _toggleTaskEnabled(String taskId, bool enabled) {
@@ -854,7 +892,10 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => TaskEditorSheet(task: task),
+      builder: (context) => TaskEditorSheet(
+        task: task,
+        repository: widget.repository,
+      ),
     );
     if (edited == null) {
       return;
@@ -1030,7 +1071,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
     final result = await Navigator.of(context).push<TaskTemplateGroup>(
-      MaterialPageRoute(builder: (_) => TemplateTasksPage(group: group)),
+      MaterialPageRoute(
+        builder: (_) => TemplateTasksPage(
+          group: group,
+          repository: widget.repository,
+        ),
+      ),
     );
     if (result == null) return;
     setState(() {
@@ -1124,6 +1170,49 @@ class _SettingsPageState extends State<SettingsPage> {
                       ? const Color(0xFFFFCF8D)
                       : const Color(0xFFB06C22),
                   onPressed: _loadingApps ? null : _pickApp,
+                ),
+              ],
+            ),
+          ),
+          _SettingsSectionCard(
+            accent: const Color(0xFFC084FC),
+            title: '自动化脚本管理',
+            subtitle: '配置点击、滑动、导航等连招',
+            helper: '您可以创建多个自动化方案，并将其绑定到特定的每日任务中。',
+            child: Row(
+              children: [
+                Expanded(
+                  child: _PastelButton(
+                    label: '我的配置',
+                    icon: Icons.auto_fix_high_rounded,
+                    background: theme.brightness == Brightness.dark
+                        ? const Color(0xFF3B2A4A)
+                        : const Color(0xFFF3E8FF),
+                    foreground: theme.brightness == Brightness.dark
+                        ? const Color(0xFFD8B4FE)
+                        : const Color(0xFF7E22CE),
+                    onPressed: _openGestureConfigs,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PastelButton(
+                    label: '滑屏控制',
+                    icon: Icons.swipe_vertical_rounded,
+                    background: theme.brightness == Brightness.dark
+                        ? const Color(0xFF1E3A5F)
+                        : const Color(0xFFDBEAFE),
+                    foreground: theme.brightness == Brightness.dark
+                        ? const Color(0xFF93C5FD)
+                        : const Color(0xFF1E40AF),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AutoSwipePage(
+                          alarmBridge: widget.alarmBridge,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1612,9 +1701,10 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class TaskEditorSheet extends StatefulWidget {
-  const TaskEditorSheet({this.task, super.key});
+  const TaskEditorSheet({this.task, required this.repository, super.key});
 
   final AssistantTaskDefinition? task;
+  final TaskRepository repository;
 
   @override
   State<TaskEditorSheet> createState() => _TaskEditorSheetState();
@@ -1632,6 +1722,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
+  String? _gestureConfigId;
+  List<GestureConfig> _availableConfigs = [];
   bool _showError = false;
 
   @override
@@ -1660,11 +1752,20 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
+    _gestureConfigId = task?.gestureConfigId;
+    _loadConfigs();
     _titleController.addListener(() {
       if (_showError && _titleController.text.trim().isNotEmpty) {
         setState(() => _showError = false);
       }
     });
+  }
+
+  Future<void> _loadConfigs() async {
+    final configs = await widget.repository.loadGestureConfigs();
+    if (mounted) {
+      setState(() => _availableConfigs = configs);
+    }
   }
 
   @override
@@ -1719,6 +1820,35 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       _ringtoneFilePath = picked.uri;
       _ringtoneController.text = picked.label;
     });
+  }
+
+  Future<void> _pickGestureConfig() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('无 (不关联脚本)'),
+              onTap: () => Navigator.of(context).pop('none'),
+            ),
+            if (_availableConfigs.isNotEmpty) const Divider(),
+            ..._availableConfigs.map((c) => ListTile(
+                  title: Text(c.name),
+                  onTap: () => Navigator.of(context).pop(c.id),
+                )),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() {
+        _gestureConfigId = selected == 'none' ? null : selected;
+      });
+    }
   }
 
   @override
@@ -1846,46 +1976,60 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     Colors.transparent,
                   ),
                 ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? const Color(0xFF172425)
-                        : const Color(0xFFF4F8F6),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '显示快捷打开应用',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '任务卡片底部显示一键打开目标应用',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
                       ),
-                      Switch(
-                        value: _showQuickLaunch,
-                        onChanged: (value) =>
-                            setState(() => _showQuickLaunch = value),
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark
+                            ? const Color(0xFF172425)
+                            : const Color(0xFFF4F8F6),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '显示快捷打开应用',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '任务卡片底部显示一键打开目标应用',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _showQuickLaunch,
+                            onChanged: (value) =>
+                                setState(() => _showQuickLaunch = value),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _EditorPickerTile(
+                      label: '自动化脚本',
+                      value: _availableConfigs
+                              .where((c) => c.id == _gestureConfigId)
+                              .firstOrNull
+                              ?.name ??
+                          '未关联',
+                      onTap: _pickGestureConfig,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1964,6 +2108,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     ringtoneSource: _ringtoneSource,
                     ringtoneValue: _ringtoneFilePath,
                     showQuickLaunch: _showQuickLaunch,
+                    gestureConfigId: _gestureConfigId,
                   ),
                 );
               },
@@ -3639,9 +3784,10 @@ class _PastelButton extends StatelessWidget {
 }
 
 class TemplateTasksPage extends StatefulWidget {
-  const TemplateTasksPage({required this.group, super.key});
+  const TemplateTasksPage({required this.group, required this.repository, super.key});
 
   final TaskTemplateGroup group;
+  final TaskRepository repository;
 
   @override
   State<TemplateTasksPage> createState() => _TemplateTasksPageState();
@@ -3703,7 +3849,10 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => TaskEditorSheet(task: task),
+      builder: (context) => TaskEditorSheet(
+        task: task,
+        repository: widget.repository,
+      ),
     );
     if (edited == null) {
       return;
@@ -3949,18 +4098,18 @@ class AutoSwipePage extends StatefulWidget {
 }
 
 class _AutoSwipePageState extends State<AutoSwipePage> {
-  final _minController = TextEditingController(text: '30');
-  final _maxController = TextEditingController(text: '60');
+  final _minController = TextEditingController(text: '5');
+  final _maxController = TextEditingController(text: '10');
 
-  // 默认动作：向上滑动
+  // 默认动作：向上滑动 (模拟刷短视频)
   List<Map<String, Object>> _actions = [
     {
       'type': 'swipe',
       'x1': 0.5,
-      'y1': 0.8,
+      'y1': 0.7,
       'x2': 0.5,
-      'y2': 0.2,
-      'duration': 300,
+      'y2': 0.3,
+      'duration': 400,
     }
   ];
 

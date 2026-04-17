@@ -67,11 +67,21 @@ class MainActivity : FlutterActivity() {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)
                     }
+                    "enterPickerMode" -> {
+                        val type = call.argument<String>("type") ?: "click"
+                        AutoSwipeService.onPickerResult = { resultData ->
+                            runOnUiThread {
+                                result.success(resultData)
+                            }
+                        }
+                        AutoSwipeService.enterPickerMode(type)
+                    }
                     "performAutoSwipe" -> {
                         val min = call.argument<Int>("min") ?: 30
                         val max = call.argument<Int>("max") ?: 60
+                        val name = call.argument<String>("name")
                         val actions = call.argument<List<Map<String, Any>>>("actions") ?: emptyList()
-                        AutoSwipeService.updateConfig(min, max, actions)
+                        AutoSwipeService.updateConfig(min, max, actions, name)
                         result.success(null)
                     }
                     "scheduleSelfTest" -> {

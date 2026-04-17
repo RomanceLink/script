@@ -85,6 +85,23 @@ class AlarmBridge {
     await _channel.invokeMethod('scheduleSelfTest', {'reminder': reminder.toJson()});
   }
 
+  Future<Map<String, Object?>?> enterPickerMode(String type) async {
+    final result = await _channel.invokeMapMethod<String, Object?>('enterPickerMode', {'type': type});
+    return result;
+  }
+
+  Future<void> runGestureConfig({
+    required String name,
+    required List<Map<String, Object?>> actions,
+  }) async {
+    await _channel.invokeMethod('performAutoSwipe', {
+      'min': 0, // In scripted mode, we might not use random intervals at the top level
+      'max': 0,
+      'actions': actions,
+      'name': name,
+    });
+  }
+
   Future<void> performAutoSwipe({
     required int min,
     required int max,

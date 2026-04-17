@@ -6,6 +6,30 @@ import '../models/task_models.dart';
 
 class TaskRepository {
   static const String _storageKey = 'daily_task_state_v1';
+  static const String _gestureConfigsKey = 'gesture_configs_v1';
+
+  Future<List<GestureConfig>> loadGestureConfigs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_gestureConfigsKey);
+    if (raw == null) return [];
+    try {
+      final decoded = jsonDecode(raw) as List<Object?>;
+      return decoded
+          .whereType<Map<String, Object?>>()
+          .map(GestureConfig.fromJson)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveGestureConfigs(List<GestureConfig> configs) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _gestureConfigsKey,
+      jsonEncode(configs.map((c) => c.toJson()).toList()),
+    );
+  }
 
   Future<DailyTaskState> loadOrCreateToday(
     List<AssistantTaskDefinition> definitions,

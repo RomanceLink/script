@@ -20,6 +20,7 @@ class AssistantTaskDefinition {
     this.ringtoneSource = RingtoneSource.systemDefault,
     this.ringtoneValue,
     this.showQuickLaunch = false,
+    this.gestureConfigId,
   });
 
   final String id;
@@ -36,6 +37,7 @@ class AssistantTaskDefinition {
   final RingtoneSource ringtoneSource;
   final String? ringtoneValue;
   final bool showQuickLaunch;
+  final String? gestureConfigId;
 
   String get timeLabel {
     if (endHour != null && endMinute != null) {
@@ -78,7 +80,9 @@ class AssistantTaskDefinition {
     RingtoneSource? ringtoneSource,
     String? ringtoneValue,
     bool? showQuickLaunch,
+    String? gestureConfigId,
     bool clearEnd = false,
+    bool clearGesture = false,
   }) {
     return AssistantTaskDefinition(
       id: id ?? this.id,
@@ -95,6 +99,7 @@ class AssistantTaskDefinition {
       ringtoneSource: ringtoneSource ?? this.ringtoneSource,
       ringtoneValue: ringtoneValue ?? this.ringtoneValue,
       showQuickLaunch: showQuickLaunch ?? this.showQuickLaunch,
+      gestureConfigId: clearGesture ? null : (gestureConfigId ?? this.gestureConfigId),
     );
   }
 
@@ -114,6 +119,7 @@ class AssistantTaskDefinition {
       'ringtoneSource': ringtoneSource.name,
       'ringtoneValue': ringtoneValue,
       'showQuickLaunch': showQuickLaunch,
+      'gestureConfigId': gestureConfigId,
     };
   }
 
@@ -138,10 +144,184 @@ class AssistantTaskDefinition {
           : RingtoneSource.values.byName(json['ringtoneSource'] as String),
       ringtoneValue: json['ringtoneValue'] as String?,
       showQuickLaunch: json['showQuickLaunch'] as bool? ?? false,
+      gestureConfigId: json['gestureConfigId'] as String?,
     );
   }
 
   String _two(int value) => value.toString().padLeft(2, '0');
+}
+
+enum GestureActionType { swipe, click, nav, wait, launchApp }
+
+sealed class GestureAction {
+  const GestureAction({required this.type});
+  final GestureActionType type;
+
+  Map<String, Object?> toJson();
+
+  factory GestureAction.fromJson(Map<String, Object?> json) {
+    final type = GestureActionType.values.byName(json['type'] as String);
+    return switch (type) {
+      GestureActionType.swipe => SwipeAction.fromJson(json),
+      GestureActionType.click => ClickAction.fromJson(json),
+      GestureActionType.nav => NavAction.fromJson(json),
+      GestureActionType.wait => WaitAction.fromJson(json),
+      GestureActionType.launchApp => LaunchAppAction.fromJson(json),
+    };
+  }
+}
+
+class SwipeAction extends GestureAction {
+  const SwipeAction({
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    this.duration = 400,
+  }) : super(type: GestureActionType.swipe);
+
+  final double x1;
+  final double y1;
+  final double x2;
+  final double y2;
+  final int duration;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'type': type.name,
+        'x1': x1,
+        'y1': y1,
+        'x2': x2,
+        'y2': y2,
+        'duration': duration,
+      };
+
+  factory SwipeAction.fromJson(Map<String, Object?> json) => SwipeAction(
+        x1: (json['x1'] as num).toDouble(),
+        y1: (json['y1'] as num).toDouble(),
+        x2: (json['x2'] as num).toDouble(),
+        y2: (json['y2'] as num).toDouble(),
+        duration: json['duration'] as int? ?? 400,
+      );
+}
+
+class ClickAction extends GestureAction {
+  const ClickAction({
+    required this.x1,
+    required this.y1,
+    this.duration = 50,
+  }) : super(type: GestureActionType.click);
+
+  final double x1;
+  final double y1;
+  final int duration;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'type': type.name,
+        'x1': x1,
+        'y1': y1,
+        'duration': duration,
+      };
+
+  factory ClickAction.fromJson(Map<String, Object?> json) => ClickAction(
+        x1: (json['x1'] as num).toDouble(),
+        y1: (json['y1'] as num).toDouble(),
+        duration: json['duration'] as int? ?? 50,
+      );
+}
+
+enum NavType { back, home, recents }
+
+class NavAction extends GestureAction {
+  const NavAction({required this.navType}) : super(type: GestureActionType.nav);
+  final NavType navType;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'type': type.name,
+        'navType': navType.name,
+      };
+
+  factory NavAction.fromJson(Map<String, Object?> json) => NavAction(
+        navType: NavType.values.byName(json['navType'] as String),
+      );
+}
+
+class WaitAction extends GestureAction {
+  const WaitAction({required this.seconds})
+      : super(type: GestureActionType.wait);
+  final int seconds;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'type': type.name,
+        'seconds': seconds,
+      };
+
+  factory WaitAction.fromJson(Map<String, Object?> json) => WaitAction(
+        seconds: json['seconds'] as int,
+      );
+}
+
+class LaunchAppAction extends GestureAction {
+  const LaunchAppAction({required this.packageName, required this.label})
+      : super(type: GestureActionType.launchApp);
+  final String packageName;
+  final String label;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'type': type.name,
+        'packageName': packageName,
+        'label': label,
+      };
+
+  factory LaunchAppAction.fromJson(Map<String, Object?> json) => LaunchAppAction(
+        packageName: json['packageName'] as String,
+        label: json['label'] as String? ?? '应用',
+      );
+}
+
+class GestureConfig {
+  const GestureConfig({
+    required this.id,
+    required this.name,
+    this.actions = const [],
+  });
+
+  final String id;
+  final String name;
+  final List<GestureAction> actions;
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'name': name,
+        'actions': actions.map((a) => a.toJson()).toList(),
+      };
+
+  factory GestureConfig.fromJson(Map<String, Object?> json) {
+    return GestureConfig(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      actions: ((json['actions'] as List<Object?>?) ?? [])
+          .whereType<Map<String, Object?>>()
+          .map(GestureAction.fromJson)
+          .toList(),
+    );
+  }
+
+  GestureConfig copyWith({
+    String? id,
+    String? name,
+    List<GestureAction>? actions,
+  }) {
+    return GestureConfig(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      actions: actions ?? this.actions,
+    );
+  }
 }
 
 class TaskTemplateGroup {
