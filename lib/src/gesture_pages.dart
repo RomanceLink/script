@@ -1281,39 +1281,46 @@ class _GestureEditPageState extends State<GestureEditPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('方案设置'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  initialValue: nameDraft,
-                  autofocus: true,
-                  onChanged: (value) => nameDraft = value,
-                  decoration: const InputDecoration(
-                    labelText: '名称',
-                    hintText: '例如：刷抖音专用',
-                  ),
+            content: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      initialValue: nameDraft,
+                      autofocus: true,
+                      onChanged: (value) => nameDraft = value,
+                      decoration: const InputDecoration(
+                        labelText: '名称',
+                        hintText: '例如：刷抖音专用',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: loopCountDraft,
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) => loopCountDraft = value,
+                      decoration: const InputDecoration(
+                        labelText: '循环次数',
+                        helperText: '最少 1 次',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: loopIntervalDraft,
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) => loopIntervalDraft = value,
+                      decoration: const InputDecoration(
+                        labelText: '循环间隔毫秒',
+                        helperText: '每轮之间等待',
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: loopCountDraft,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) => loopCountDraft = value,
-                  decoration: const InputDecoration(
-                    labelText: '循环次数',
-                    helperText: '最少 1 次',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: loopIntervalDraft,
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) => loopIntervalDraft = value,
-                  decoration: const InputDecoration(
-                    labelText: '循环间隔毫秒',
-                    helperText: '每轮之间等待',
-                  ),
-                ),
-              ],
+              ),
             ),
             actions: [
               TextButton(

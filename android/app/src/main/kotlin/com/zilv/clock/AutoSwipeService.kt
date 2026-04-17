@@ -106,6 +106,13 @@ class AutoSwipeService : AccessibilityService() {
     private var playbackTicker: Runnable? = null
     private var activeRecordingSurface: RecordingSurface? = null
     private var activeRecordingAutoStopOnHome = false
+    private var unlockMotionRecorder: MotionEventRecorder? = null
+    private var unlockMotionControl: View? = null
+    private var unlockMotionControlParams: WindowManager.LayoutParams? = null
+    private var unlockMotionControlVisible = false
+    private var unlockMotionStatusView: TextView? = null
+    private var unlockMotionStartedAt = 0L
+    private var unlockMotionTicker: Runnable? = null
     private var unlockRecordWaitingForRecord = false
     private var unlockRecordFinalizing = false
     private val defaultGestureBeforeWaitMillis = 300
@@ -336,10 +343,6 @@ class AutoSwipeService : AccessibilityService() {
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         lastNightModeMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        handler.post {
-            ensureFlutterAutomationOverlay()
-            hideFlutterOverlayWindow()
-        }
     }
 
     private fun showAutomationMenuInternal(configs: List<Map<String, Any?>>): Boolean {
@@ -859,7 +862,10 @@ class AutoSwipeService : AccessibilityService() {
         removeChooserOverlay()
         ensureFlutterAutomationOverlay()
         updateFlutterOverlayMode(mode)
-        showFlutterOverlayWindow()
+        handler.postDelayed({
+            updateFlutterOverlayMode(mode)
+            showFlutterOverlayWindow()
+        }, 80)
     }
 
     private fun ensureFlutterAutomationOverlay() {
@@ -886,7 +892,7 @@ class AutoSwipeService : AccessibilityService() {
             addOnFirstFrameRenderedListener(
                 object : FlutterUiDisplayListener {
                     override fun onFlutterUiDisplayed() {
-                        flutterOverlayRoot?.setBackgroundColor(0x33000000)
+                        flutterOverlayRoot?.setBackgroundColor(Color.TRANSPARENT)
                         removeOnFirstFrameRenderedListener(this)
                     }
 
@@ -914,8 +920,7 @@ class AutoSwipeService : AccessibilityService() {
             type = overlayType()
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
             gravity = Gravity.TOP or Gravity.START
@@ -923,7 +928,6 @@ class AutoSwipeService : AccessibilityService() {
             y = 0
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
-        showFlutterOverlayWindow()
     }
 
     private fun updateFlutterOverlayMode(mode: String) {
@@ -2999,6 +3003,32 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun replayRecordedSegment(segment: RecordedSegment) {
+        if (segment.points.isEmpty()) return
+        val (screenWidth, screenHeight) = screenSize()
+        val path = Path()
+        segment.points.forEachIndexed { index, point ->
+            val x = point.x.coerceIn(0f, 1f) * screenWidth
+            val y = point.y.coerceIn(0f, 1f) * screenHeight
+            if (index == 0) {
+                path.moveTo(x, y)
+            } else {
+                path.lineTo(x, y)
+            }
+        }
+        val duration = segment.duration.coerceAtLeast(50L)
+        try {
+            dispatchGesture(
+                GestureDescription.Builder()
+                    .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                    .build(),
+                null,
+                null,
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     private fun addRecordedStrokes(
         builder: GestureDescription.Builder,
         action: Map<String, Any?>,
@@ -3142,8 +3172,8 @@ class AutoSwipeService : AccessibilityService() {
             marginEnd = dp(8)
         })
         row.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
-            publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
+            publishPickerResult(mapOf("cancelled" to true))
         }, LinearLayout.LayoutParams(dp(72), dp(40)))
         return row
     }
@@ -3177,8 +3207,8 @@ class AutoSwipeService : AccessibilityService() {
             secondaryText = "取消",
             onPrimary = { showUnlockRecordReadyOverlay() },
             onSecondary = {
-                publishPickerResult(mapOf("cancelled" to true))
                 removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
             },
         )
     }
@@ -3191,8 +3221,8 @@ class AutoSwipeService : AccessibilityService() {
             secondaryText = "取消",
             onPrimary = { showUnlockRecordLockOverlay() },
             onSecondary = {
-                publishPickerResult(mapOf("cancelled" to true))
                 removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
             },
         )
     }
@@ -3208,8 +3238,8 @@ class AutoSwipeService : AccessibilityService() {
                 performLockScreenAction {}
             },
             onSecondary = {
-                publishPickerResult(mapOf("cancelled" to true))
                 removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
             },
         )
     }
@@ -3223,12 +3253,13 @@ class AutoSwipeService : AccessibilityService() {
             secondaryText = "取消",
             onPrimary = {
                 unlockRecordWaitingForRecord = false
-                showRecordingOverlay(autoStart = true, autoStopOnHome = true)
+                detachPickerOverlayView()
+                startUnlockMotionRecording()
             },
             onSecondary = {
                 unlockRecordWaitingForRecord = false
-                publishPickerResult(mapOf("cancelled" to true))
                 removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
             },
         )
     }
@@ -3285,13 +3316,22 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showRecordingOverlay(autoStart: Boolean = false, autoStopOnHome: Boolean = false) {
+        detachPickerOverlayView()
         pickerMode = if (autoStopOnHome) "unlockRecordCapture" else "recorded"
         val lp = fullScreenOverlayParams()
 
         val container = FrameLayout(this).apply {
-            setBackgroundColor(0x33000000)
+            setBackgroundColor(if (autoStopOnHome) Color.TRANSPARENT else 0x33000000)
         }
-        val surface = RecordingSurface(this)
+        val surface = RecordingSurface(
+            context = this,
+            drawEnabled = !autoStopOnHome,
+            onSegmentFinished = { segment ->
+                if (autoStopOnHome) {
+                    handler.postDelayed({ replayRecordedSegment(segment) }, 90)
+                }
+            },
+        )
         activeRecordingSurface = surface
         activeRecordingAutoStopOnHome = autoStopOnHome
         unlockRecordFinalizing = false
@@ -3303,13 +3343,13 @@ class AutoSwipeService : AccessibilityService() {
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setPadding(dp(6), dp(5), dp(6), dp(5))
             background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
         }
         val recordButton = menuButton("开始录制", 0xFFFF4444.toInt()) {}
         val cancelButton = menuButton("取消", 0xFF607D8B.toInt()) {
-            publishPickerResult(mapOf("cancelled" to true))
             removePickerOverlay()
+            publishPickerResult(mapOf("cancelled" to true))
         }
         var recording = autoStart
         val timer = object : Runnable {
@@ -3345,16 +3385,16 @@ class AutoSwipeService : AccessibilityService() {
                 removePickerOverlay()
             }
         }
-        controls.addView(recordButton, LinearLayout.LayoutParams(dp(126), dp(40)).apply {
+        controls.addView(recordButton, LinearLayout.LayoutParams(if (autoStopOnHome) dp(104) else dp(126), dp(38)).apply {
             marginEnd = dp(8)
         })
-        controls.addView(cancelButton, LinearLayout.LayoutParams(dp(72), dp(40)))
+        controls.addView(cancelButton, LinearLayout.LayoutParams(dp(64), dp(38)))
         container.addView(controls, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
-            dp(52),
+            dp(48),
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = dp(36)
+            topMargin = dp(12)
         })
 
         try {
@@ -3371,6 +3411,129 @@ class AutoSwipeService : AccessibilityService() {
             activeRecordingAutoStopOnHome = false
             publishPickerResult(mapOf("cancelled" to true))
         }
+    }
+
+    private fun startUnlockMotionRecording() {
+        removePickerOverlay()
+        pickerMode = "unlockMotionRecord"
+        unlockRecordFinalizing = false
+        unlockMotionRecorder = MotionEventRecorder().apply { startRecording() }
+        unlockMotionStartedAt = SystemClock.uptimeMillis()
+        showUnlockMotionControl()
+        startUnlockMotionTicker()
+    }
+
+    private fun showUnlockMotionControl() {
+        if (unlockMotionControl != null) {
+            attachUnlockMotionControl()
+            return
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(5), dp(8), dp(5))
+            background = roundedBackground(0xDD151A1E.toInt(), dp(18).toFloat(), 0x55FFFFFF)
+        }
+        val status = TextView(this).apply {
+            text = "录制 00:00"
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            includeFontPadding = false
+        }
+        unlockMotionStatusView = status
+        root.addView(status, LinearLayout.LayoutParams(dp(84), dp(32)).apply {
+            marginEnd = dp(8)
+        })
+        root.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            stopUnlockMotionRecording(cancelled = true)
+        }, LinearLayout.LayoutParams(dp(64), dp(34)))
+
+        unlockMotionControl = root
+        unlockMotionControlParams = baseOverlayParams().apply {
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = dp(12)
+        }
+        attachUnlockMotionControl()
+    }
+
+    private fun attachUnlockMotionControl() {
+        val view = unlockMotionControl ?: return
+        val params = unlockMotionControlParams ?: return
+        if (unlockMotionControlVisible) return
+        try {
+            windowManager?.addView(view, params)
+            unlockMotionControlVisible = true
+        } catch (_: Exception) {
+            unlockMotionControlVisible = false
+        }
+    }
+
+    private fun detachUnlockMotionControl() {
+        val view = unlockMotionControl ?: return
+        if (!unlockMotionControlVisible) return
+        try {
+            windowManager?.removeView(view)
+        } catch (_: Exception) {
+        }
+        unlockMotionControlVisible = false
+    }
+
+    private fun stopUnlockMotionRecording(cancelled: Boolean) {
+        stopUnlockMotionTicker()
+        detachUnlockMotionControl()
+        unlockMotionControl = null
+        unlockMotionControlParams = null
+        unlockMotionStatusView = null
+        val recorder = unlockMotionRecorder
+        unlockMotionRecorder = null
+        pickerMode = null
+        unlockRecordFinalizing = false
+        if (cancelled || recorder == null || !recorder.hasGesture()) {
+            publishPickerResult(mapOf("cancelled" to true))
+            return
+        }
+        val result = recorder.exportResult()
+        showCenteredPickerMessage(
+            title = "保存解锁脚本",
+            message = "已经检测到进入桌面，是否保存这次锁屏解锁录制？",
+            primaryText = "保存",
+            secondaryText = "取消",
+            onPrimary = {
+                removePickerOverlay()
+                publishPickerResult(result)
+            },
+            onSecondary = {
+                removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
+            },
+        )
+    }
+
+    private fun startUnlockMotionTicker() {
+        stopUnlockMotionTicker()
+        val ticker = object : Runnable {
+            override fun run() {
+                val started = unlockMotionStartedAt
+                if (unlockMotionRecorder == null || started == 0L) return
+                unlockMotionStatusView?.text =
+                    "录制 ${formatElapsed((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
+                handler.postDelayed(this, 250)
+            }
+        }
+        unlockMotionTicker = ticker
+        handler.post(ticker)
+    }
+
+    private fun stopUnlockMotionTicker() {
+        unlockMotionTicker?.let { handler.removeCallbacks(it) }
+        unlockMotionTicker = null
+        unlockMotionStartedAt = 0L
     }
 
     private fun showClickStepsOverlay() {
@@ -3863,6 +4026,21 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun removePickerOverlay() {
+        detachPickerOverlayView()
+        detachUnlockMotionControl()
+        unlockMotionControl = null
+        unlockMotionControlParams = null
+        unlockMotionStatusView = null
+        unlockMotionRecorder = null
+        stopUnlockMotionTicker()
+        pickerMode = null
+        activeRecordingSurface = null
+        activeRecordingAutoStopOnHome = false
+        unlockRecordWaitingForRecord = false
+        unlockRecordFinalizing = false
+    }
+
+    private fun detachPickerOverlayView() {
         pickerOverlay?.let {
             try {
                 windowManager?.removeView(it)
@@ -3870,11 +4048,6 @@ class AutoSwipeService : AccessibilityService() {
             }
             pickerOverlay = null
         }
-        pickerMode = null
-        activeRecordingSurface = null
-        activeRecordingAutoStopOnHome = false
-        unlockRecordWaitingForRecord = false
-        unlockRecordFinalizing = false
     }
 
     private fun removeChooserOverlay() {
@@ -4126,15 +4299,83 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!activeRecordingAutoStopOnHome || unlockRecordFinalizing) {
+        if (unlockMotionRecorder != null && !unlockRecordFinalizing) {
+            val packageName = event?.packageName?.toString().orEmpty()
+            if (packageName.isNotBlank() && isHomePackage(packageName) && !isDeviceLocked(this)) {
+                unlockRecordFinalizing = true
+                handler.postDelayed({
+                    stopUnlockMotionRecording(cancelled = false)
+                }, 350)
+            }
             return
         }
-        val packageName = event?.packageName?.toString().orEmpty()
-        if (packageName.isNotBlank() && isHomePackage(packageName)) {
-            finishUnlockRecordingForHome()
+        if (activeRecordingAutoStopOnHome && !unlockRecordFinalizing) {
+            val packageName = event?.packageName?.toString().orEmpty()
+            if (packageName.isNotBlank() && isHomePackage(packageName)) {
+                finishUnlockRecordingForHome()
+            }
+        }
+    }
+
+    override fun onMotionEvent(event: MotionEvent) {
+        val recorder = unlockMotionRecorder ?: return
+        val finishedSegment = recorder.onMotionEvent(event, screenSize())
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> detachUnlockMotionControl()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handler.postDelayed({
+                if (finishedSegment != null) {
+                    showUnlockMotionTrail(finishedSegment)
+                }
+                if (unlockMotionRecorder != null && !unlockRecordFinalizing) {
+                    attachUnlockMotionControl()
+                }
+            }, 90)
         }
     }
     override fun onInterrupt() {}
+
+    private fun showUnlockMotionTrail(segment: RecordedSegment) {
+        if (segment.points.isEmpty()) return
+        val lp = fullScreenOverlayParams().apply {
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        val trail = object : View(this) {
+            private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 4f * resources.displayMetrics.density
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            private val point = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFF40C4FF.toInt()
+                style = Paint.Style.FILL
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val path = Path()
+                segment.points.forEachIndexed { index, item ->
+                    val x = item.x * width
+                    val y = item.y * height
+                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                canvas.drawPath(path, stroke)
+                val first = segment.points.first()
+                canvas.drawCircle(first.x * width, first.y * height, 7f * resources.displayMetrics.density, point)
+            }
+        }
+        try {
+            windowManager?.addView(trail, lp)
+            handler.postDelayed({
+                try {
+                    windowManager?.removeView(trail)
+                } catch (_: Exception) {
+                }
+            }, 450)
+        } catch (_: Exception) {
+        }
+    }
 
     private fun isHomePackage(packageName: String): Boolean {
         val intent = Intent(Intent.ACTION_MAIN).apply {
@@ -4159,8 +4400,8 @@ class AutoSwipeService : AccessibilityService() {
                 removePickerOverlay()
             },
             onSecondary = {
-                publishPickerResult(mapOf("cancelled" to true))
                 removePickerOverlay()
+                publishPickerResult(mapOf("cancelled" to true))
             },
         )
     }
@@ -4184,6 +4425,119 @@ class AutoSwipeService : AccessibilityService() {
         var duration: Long = 80L,
         val points: MutableList<RecordedPoint> = mutableListOf(),
     )
+
+    private class MotionEventRecorder {
+        private val segments = mutableListOf<RecordedSegment>()
+        private var currentSegment: RecordedSegment? = null
+        private var recording = false
+        private var startedAt = 0L
+
+        fun startRecording() {
+            segments.clear()
+            currentSegment = null
+            recording = true
+            startedAt = SystemClock.uptimeMillis()
+        }
+
+        fun onMotionEvent(event: MotionEvent, screenSize: Pair<Int, Int>): RecordedSegment? {
+            if (!recording) return null
+            val width = screenSize.first.coerceAtLeast(1).toFloat()
+            val height = screenSize.second.coerceAtLeast(1).toFloat()
+            return when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val start = (event.eventTime - startedAt).coerceAtLeast(0L)
+                    currentSegment = RecordedSegment(start = start).also {
+                        segments.add(it)
+                    }
+                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    null
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    for (index in 0 until event.historySize) {
+                        appendPoint(
+                            event.getHistoricalX(index),
+                            event.getHistoricalY(index),
+                            event.getHistoricalEventTime(index),
+                            width,
+                            height,
+                        )
+                    }
+                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    null
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    finishCurrentSegment(event.eventTime)
+                }
+                else -> null
+            }
+        }
+
+        fun hasGesture(): Boolean {
+            return segments.any { it.points.isNotEmpty() } ||
+                (currentSegment?.points?.isNotEmpty() == true)
+        }
+
+        fun exportResult(): Map<String, Any?> {
+            finishCurrentSegment(SystemClock.uptimeMillis())
+            recording = false
+            val duration = max(
+                SystemClock.uptimeMillis() - startedAt,
+                segments.maxOfOrNull { it.start + it.duration } ?: 0L,
+            )
+            return mapOf(
+                "type" to "recorded",
+                "duration" to duration,
+                "segments" to segments.filter { it.points.isNotEmpty() }.map { segment ->
+                    mapOf(
+                        "start" to segment.start,
+                        "duration" to segment.duration.coerceAtLeast(50L),
+                        "points" to segment.points.map { point ->
+                            mapOf(
+                                "x" to point.x.toDouble(),
+                                "y" to point.y.toDouble(),
+                                "t" to point.t,
+                            )
+                        },
+                    )
+                },
+            )
+        }
+
+        private fun appendPoint(
+            x: Float,
+            y: Float,
+            eventTime: Long,
+            width: Float,
+            height: Float,
+        ) {
+            val segment = currentSegment ?: return
+            val normalizedX = (x / width).coerceIn(0f, 1f)
+            val normalizedY = (y / height).coerceIn(0f, 1f)
+            val t = (eventTime - startedAt).coerceAtLeast(0L)
+            val last = segment.points.lastOrNull()
+            if (last != null &&
+                abs(normalizedX - last.x) < 0.002f &&
+                abs(normalizedY - last.y) < 0.002f &&
+                t - last.t < 16L
+            ) {
+                return
+            }
+            segment.points.add(RecordedPoint(normalizedX, normalizedY, t))
+        }
+
+        private fun finishCurrentSegment(eventTime: Long): RecordedSegment? {
+            val segment = currentSegment ?: return null
+            val end = (eventTime - startedAt).coerceAtLeast(segment.start + 50L)
+            segment.duration = (end - segment.start).coerceAtLeast(50L)
+            currentSegment = null
+            return RecordedSegment(
+                start = segment.start,
+                duration = segment.duration,
+                points = segment.points.toMutableList(),
+            )
+        }
+    }
 
     private data class StepPoint(var x: Float, var y: Float)
 
@@ -4514,7 +4868,11 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private class RecordingSurface(context: Context) : View(context) {
+    private class RecordingSurface(
+        context: Context,
+        private val drawEnabled: Boolean = true,
+        private val onSegmentFinished: ((RecordedSegment) -> Unit)? = null,
+    ) : View(context) {
         private val segments = mutableListOf<RecordedSegment>()
         private var currentSegment: RecordedSegment? = null
         private var recording = false
@@ -4608,6 +4966,7 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         override fun onDraw(canvas: Canvas) {
+            if (!drawEnabled) return
             super.onDraw(canvas)
             segments.forEach { segment ->
                 if (segment.points.isEmpty()) return@forEach
@@ -4647,6 +5006,13 @@ class AutoSwipeService : AccessibilityService() {
             val segment = currentSegment ?: return
             val end = (eventTime - startedAt).coerceAtLeast(segment.start + 50L)
             segment.duration = (end - segment.start).coerceAtLeast(50L)
+            onSegmentFinished?.invoke(
+                RecordedSegment(
+                    start = segment.start,
+                    duration = segment.duration,
+                    points = segment.points.toMutableList(),
+                ),
+            )
             currentSegment = null
         }
     }
