@@ -526,8 +526,8 @@ class AutoSwipeService : AccessibilityService() {
             endMenuButton = endButton
             attachDrag(pauseButton, layoutParams)
             attachDrag(endButton, layoutParams)
-            row.addView(pauseButton, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(4) })
-            row.addView(endButton, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(6) })
+            row.addView(pauseButton, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(4) })
+            row.addView(endButton, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(4) })
             val statusColumn = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -578,8 +578,8 @@ class AutoSwipeService : AccessibilityService() {
             attachDrag(button, layoutParams)
             row.addView(
                 button,
-                LinearLayout.LayoutParams(dp(28), dp(28)).apply {
-                    marginEnd = dp(3)
+                LinearLayout.LayoutParams(dp(32), dp(32)).apply {
+                    marginEnd = dp(4)
                 },
             )
         }
@@ -591,23 +591,24 @@ class AutoSwipeService : AccessibilityService() {
         val darkMode = isDarkModeActive()
         val bubble = TextView(this).apply {
             text = if (collapsedEdgeRight) "‹" else "›"
-            textSize = 28f
+            textSize = 24f
             gravity = Gravity.CENTER
             setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
             contentDescription = "展开"
             includeFontPadding = false
             typeface = Typeface.DEFAULT_BOLD
-            background = roundedBackground(
+            background = sideRoundedBackground(
                 if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-                dp(18).toFloat(),
+                dp(22).toFloat(),
                 if (darkMode) 0x66FFFFFF else 0x33212C2E,
+                isRightSide = collapsedEdgeRight
             )
             setOnClickListener { showFloatingWindow(expanded = true) }
         }
         collapsedMenuButton = bubble
         attachDrag(bubble, layoutParams, snapToEdgeOnRelease = true)
         return FrameLayout(this).apply {
-            addView(bubble, FrameLayout.LayoutParams(dp(40), dp(48)))
+            addView(bubble, FrameLayout.LayoutParams(dp(36), dp(44)))
         }
     }
 
@@ -623,8 +624,12 @@ class AutoSwipeService : AccessibilityService() {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             contentDescription = description
             background = null
-            minimumWidth = dp(28)
-            minimumHeight = dp(28)
+            minimumWidth = dp(32)
+            minimumHeight = dp(32)
+            // 如果是设置图标，多给一点 padding 缩小视觉尺寸
+            val extraPadding = if (iconRes == R.drawable.ic_overlay_settings) dp(2) else 0
+            val p = dp(4) + extraPadding
+            setPadding(p, p, p, p)
             adjustViewBounds = false
             setOnClickListener { onClick() }
         }
@@ -792,7 +797,16 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun updateCollapsedArrow() {
-        collapsedMenuButton?.text = if (collapsedEdgeRight) "‹" else "›"
+        val darkMode = isDarkModeActive()
+        collapsedMenuButton?.apply {
+            text = if (collapsedEdgeRight) "‹" else "›"
+            background = sideRoundedBackground(
+                if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
+                dp(22).toFloat(),
+                if (darkMode) 0x66FFFFFF else 0x33212C2E,
+                isRightSide = collapsedEdgeRight
+            )
+        }
     }
 
     private fun floatingPanelParams(
@@ -4682,6 +4696,22 @@ class AutoSwipeService : AccessibilityService() {
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = radius
+            setColor(color)
+            setStroke(dp(1), strokeColor)
+        }
+    }
+
+    private fun sideRoundedBackground(color: Int, radius: Float, strokeColor: Int, isRightSide: Boolean): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            // corners: [topLeft, topLeft, topRight, topRight, bottomRight, bottomRight, bottomLeft, bottomLeft]
+            cornerRadii = if (isRightSide) {
+                // 靠右：左边圆角，右边直角
+                floatArrayOf(radius, radius, 0f, 0f, 0f, 0f, radius, radius)
+            } else {
+                // 靠左：右边圆角，左边直角
+                floatArrayOf(0f, 0f, radius, radius, radius, radius, 0f, 0f)
+            }
             setColor(color)
             setStroke(dp(1), strokeColor)
         }

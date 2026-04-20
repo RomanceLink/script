@@ -4027,7 +4027,7 @@ class _MiniIconButton extends StatelessWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(14),
       child: Ink(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(
           color: theme.brightness == Brightness.dark
               ? const Color(0xFF213033)
@@ -4036,7 +4036,7 @@ class _MiniIconButton extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          size: 18,
+          size: 20,
           color: theme.brightness == Brightness.dark
               ? const Color(0xFFC7DDD7)
               : const Color(0xFF55776E),
