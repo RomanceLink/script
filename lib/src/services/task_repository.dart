@@ -8,6 +8,7 @@ class TaskRepository {
   static const String _storageKey = 'daily_task_state_v1';
   static const String _gestureConfigsKey = 'gesture_configs_v1';
   static const String _unlockGestureConfigKey = 'unlock_gesture_config_v1';
+  static const String _lastGestureConfigIdKey = 'last_gesture_config_id_v1';
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,6 +32,17 @@ class TaskRepository {
       _gestureConfigsKey,
       jsonEncode(configs.map((c) => c.toJson()).toList()),
     );
+  }
+
+  Future<String?> loadLastGestureConfigId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getString(_lastGestureConfigIdKey);
+  }
+
+  Future<void> saveLastGestureConfigId(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastGestureConfigIdKey, id);
   }
 
   Future<GestureConfig?> loadUnlockGestureConfig() async {

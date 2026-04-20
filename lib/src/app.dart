@@ -125,16 +125,49 @@ class ScriptAssistantApp extends StatelessWidget {
   }
 }
 
-class FloatingAutomationOverlayApp extends StatelessWidget {
+class FloatingAutomationOverlayApp extends StatefulWidget {
   const FloatingAutomationOverlayApp({super.key});
 
   @override
+  State<FloatingAutomationOverlayApp> createState() =>
+      _FloatingAutomationOverlayAppState();
+}
+
+class _FloatingAutomationOverlayAppState
+    extends State<FloatingAutomationOverlayApp> {
+  static const _channel = MethodChannel('scriptapp/alarm');
+  Brightness? _brightness;
+
+  @override
+  void initState() {
+    super.initState();
+    _channel.setMethodCallHandler(_handleNativeCall);
+  }
+
+  @override
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    super.dispose();
+  }
+
+  Future<dynamic> _handleNativeCall(MethodCall call) async {
+    if (call.method == 'setOverlayTheme') {
+      final dark =
+          (call.arguments as Map<Object?, Object?>?)?['dark'] as bool? ?? false;
+      if (mounted) {
+        setState(() => _brightness = dark ? Brightness.dark : Brightness.light);
+      }
+      return null;
+    }
+    return _FloatingAutomationOverlayShellState.handleNativeCall(call);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final brightness = _brightness ?? MediaQuery.platformBrightnessOf(context);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
-      theme: _scriptAssistantTheme(Brightness.light),
-      darkTheme: _scriptAssistantTheme(Brightness.dark),
+      theme: _scriptAssistantTheme(brightness),
       home: const _FloatingAutomationOverlayShell(initialMode: 'configs'),
     );
   }
@@ -152,7 +185,7 @@ class _FloatingAutomationOverlayShell extends StatefulWidget {
 
 class _FloatingAutomationOverlayShellState
     extends State<_FloatingAutomationOverlayShell> {
-  static const _channel = MethodChannel('scriptapp/alarm');
+  static _FloatingAutomationOverlayShellState? _instance;
   final TaskRepository _repository = TaskRepository();
   final DouyinLauncher _launcher = DouyinLauncher();
   final AlarmBridge _alarmBridge = AlarmBridge();
@@ -162,27 +195,31 @@ class _FloatingAutomationOverlayShellState
   @override
   void initState() {
     super.initState();
+    _instance = this;
     _mode = widget.initialMode;
-    _channel.setMethodCallHandler(_handleNativeCall);
   }
 
   @override
   void dispose() {
-    _channel.setMethodCallHandler(null);
+    if (_instance == this) {
+      _instance = null;
+    }
     super.dispose();
   }
 
-  Future<void> _handleNativeCall(MethodCall call) async {
-    if (call.method != 'setOverlayMode' || !mounted) {
-      return;
+  static Future<dynamic> handleNativeCall(MethodCall call) async {
+    final state = _instance;
+    if (state == null || !state.mounted || call.method != 'setOverlayMode') {
+      return null;
     }
     final mode =
         (call.arguments as Map<Object?, Object?>?)?['mode'] as String? ??
-        widget.initialMode;
-    setState(() {
-      _mode = mode;
-      _overlayRevision += 1;
+        state.widget.initialMode;
+    state.setState(() {
+      state._mode = mode;
+      state._overlayRevision += 1;
     });
+    return null;
   }
 
   Future<void> _syncConfigs(List<GestureConfig> configs) {
@@ -191,20 +228,30 @@ class _FloatingAutomationOverlayShellState
     );
   }
 
-  Future<void> _close() => _alarmBridge.closeAutomationOverlay();
+  Future<void> _runConfig(GestureConfig config) async {
+    await _repository.saveLastGestureConfigId(config.id);
+    await _alarmBridge.runGestureConfig(
+      name: config.name,
+      actions: config.actions.map((action) => action.toJson()).toList(),
+      loopCount: config.loopCount,
+      loopIntervalMillis: config.loopIntervalMillis,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final content = _mode == 'run'
         ? _GestureRunChooserPage(
             repository: _repository,
-            alarmBridge: _alarmBridge,
+            onRunConfig: _runConfig,
           )
         : GestureConfigPage(
             repository: _repository,
             launcher: _launcher,
             autoCreateOnOpen: _mode == 'create',
             onConfigsChanged: _syncConfigs,
+            onRunConfig: _runConfig,
+            onClose: _alarmBridge.closeAutomationOverlay,
           );
 
     return Scaffold(
@@ -239,15 +286,6 @@ class _FloatingAutomationOverlayShellState
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 10,
-                  right: 12,
-                  child: IconButton.filledTonal(
-                    tooltip: '关闭',
-                    onPressed: _close,
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ),
               ],
             );
           },
@@ -260,11 +298,11 @@ class _FloatingAutomationOverlayShellState
 class _GestureRunChooserPage extends StatefulWidget {
   const _GestureRunChooserPage({
     required this.repository,
-    required this.alarmBridge,
+    required this.onRunConfig,
   });
 
   final TaskRepository repository;
-  final AlarmBridge alarmBridge;
+  final Future<void> Function(GestureConfig config) onRunConfig;
 
   @override
   State<_GestureRunChooserPage> createState() => _GestureRunChooserPageState();
@@ -272,6 +310,7 @@ class _GestureRunChooserPage extends StatefulWidget {
 
 class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
   List<GestureConfig> _configs = [];
+  GestureConfig? _selected;
   bool _loading = true;
 
   @override
@@ -282,63 +321,104 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
 
   Future<void> _load() async {
     final configs = await widget.repository.loadGestureConfigs();
+    final lastId = await widget.repository.loadLastGestureConfigId();
     if (!mounted) return;
+    final selected = configs.where((config) => config.id == lastId).firstOrNull;
     setState(() {
       _configs = configs;
+      _selected = selected ?? (configs.isNotEmpty ? configs.last : null);
       _loading = false;
     });
   }
 
   Future<void> _run(GestureConfig config) async {
-    await widget.alarmBridge.runGestureConfig(
-      name: config.name,
-      actions: config.actions.map((action) => action.toJson()).toList(),
-      loopCount: config.loopCount,
-      loopIntervalMillis: config.loopIntervalMillis,
+    await widget.onRunConfig(config);
+  }
+
+  Future<void> _switchConfig() async {
+    final selected = await showModalBottomSheet<GestureConfig>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: _configs.length,
+          itemBuilder: (context, index) {
+            final config = _configs[index];
+            return ListTile(
+              leading: Icon(
+                config.id == _selected?.id
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+              ),
+              title: Text(config.name),
+              subtitle: Text(
+                '${config.actions.length} 个动作 · ${estimateGestureConfigDuration(config).label}',
+              ),
+              onTap: () => Navigator.of(context).pop(config),
+            );
+          },
+        ),
+      ),
     );
+    if (selected == null || !mounted) return;
+    setState(() => _selected = selected);
+    await widget.repository.saveLastGestureConfigId(selected.id);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('选择配置')),
+      appBar: AppBar(title: const Text('当前配置')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty
           ? const Center(
               child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
             )
-          : ListView.builder(
+          : Padding(
               padding: const EdgeInsets.all(16),
-              itemCount: _configs.length,
-              itemBuilder: (context, index) {
-                final config = _configs[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _selected?.name ?? '未选择',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: '切换配置',
+                            onPressed: _switchConfig,
+                            icon: const Icon(Icons.swap_horiz_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _selected == null
+                            ? '请选择配置'
+                            : '${_selected!.actions.length} 个动作 · ${_selected!.loopCount} 次 · 间隔 ${_selected!.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(_selected!).label}',
+                      ),
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _selected == null
+                            ? null
+                            : () => _run(_selected!),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('执行当前配置'),
+                      ),
+                    ],
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    title: Text(
-                      config.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '${config.actions.length} 个动作 · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}',
-                    ),
-                    trailing: IconButton.filledTonal(
-                      tooltip: '播放',
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      onPressed: () => _run(config),
-                    ),
-                    onTap: () => _run(config),
-                  ),
-                );
-              },
+                ),
+              ),
             ),
     );
   }

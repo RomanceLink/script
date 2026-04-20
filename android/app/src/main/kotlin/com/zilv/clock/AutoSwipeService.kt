@@ -367,6 +367,10 @@ class AutoSwipeService : AccessibilityService() {
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         lastNightModeMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        handler.postDelayed({
+            ensureFlutterAutomationOverlay()
+            updateFlutterOverlayTheme()
+        }, 800)
     }
 
     private fun showAutomationMenuInternal(configs: List<Map<String, Any?>>): Boolean {
@@ -956,6 +960,11 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun updateFlutterOverlayMode(mode: String) {
         flutterOverlayChannel?.invokeMethod("setOverlayMode", mapOf("mode" to mode))
+        updateFlutterOverlayTheme()
+    }
+
+    private fun updateFlutterOverlayTheme() {
+        flutterOverlayChannel?.invokeMethod("setOverlayTheme", mapOf("dark" to isDarkModeActive()))
     }
 
     private fun installFlutterOverlayChannel(engine: FlutterEngine) {
@@ -4918,6 +4927,7 @@ class AutoSwipeService : AccessibilityService() {
             return
         }
         lastNightModeMask = newNightModeMask
+        updateFlutterOverlayTheme()
         if (floatingView != null) {
             showFloatingWindow(expanded = !collapsed, attachToRightEdge = collapsedEdgeRight)
         }

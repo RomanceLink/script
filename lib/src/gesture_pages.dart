@@ -15,6 +15,8 @@ class GestureConfigPage extends StatefulWidget {
     required this.launcher,
     this.autoCreateOnOpen = false,
     this.onConfigsChanged,
+    this.onRunConfig,
+    this.onClose,
     super.key,
   });
 
@@ -22,6 +24,8 @@ class GestureConfigPage extends StatefulWidget {
   final DouyinLauncher launcher;
   final bool autoCreateOnOpen;
   final Future<void> Function(List<GestureConfig> configs)? onConfigsChanged;
+  final Future<void> Function(GestureConfig config)? onRunConfig;
+  final VoidCallback? onClose;
 
   @override
   State<GestureConfigPage> createState() => _GestureConfigPageState();
@@ -115,6 +119,50 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
     );
   }
 
+  Future<void> _showUnlockMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.lock_open_rounded),
+              title: Text(_unlockConfig == null ? '录制锁屏解锁' : '重新录制锁屏解锁'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _recordUnlockConfig();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: const Text('验证锁屏解锁'),
+              enabled: _unlockConfig != null,
+              onTap: () {
+                Navigator.of(context).pop();
+                _verifyUnlockConfig();
+              },
+            ),
+            if (_unlockConfig != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('删除锁屏脚本'),
+                textColor: Colors.redAccent,
+                iconColor: Colors.redAccent,
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await widget.repository.saveUnlockGestureConfig(null);
+                  if (!mounted) return;
+                  setState(() => _unlockConfig = null);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<GestureAction> _unlockActionsFromResult(Map<String, Object?>? result) {
     final rawSegments = (result?['segments'] as List<Object?>?) ?? const [];
     if (result == null || result['cancelled'] == true || rawSegments.isEmpty) {
@@ -173,35 +221,75 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
     }
   }
 
+  Future<void> _showConfigActions(GestureConfig config) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑'),
+              onTap: () => Navigator.of(context).pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              title: const Text('删除'),
+              textColor: Colors.redAccent,
+              onTap: () => Navigator.of(context).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'edit') {
+      _addOrEdit(config);
+    } else if (action == 'delete') {
+      _delete(config.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('自动化配置中心')),
+      appBar: AppBar(
+        title: const Text('自动化配置中心'),
+        actions: [
+          IconButton(
+            tooltip: '锁屏脚本',
+            onPressed: _showUnlockMenu,
+            icon: Icon(
+              _unlockConfig == null
+                  ? Icons.lock_open_rounded
+                  : Icons.lock_rounded,
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(12, 6, 12, 10),
         child: Row(
           children: [
             Expanded(
               child: _ConfigBottomAction(
-                icon: Icons.lock_open_rounded,
-                label: _unlockConfig == null ? '锁屏录制' : '重录锁屏',
-                onPressed: _recordUnlockConfig,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ConfigBottomAction(
-                icon: Icons.verified_user_outlined,
-                label: '验证锁屏',
-                onPressed: _unlockConfig == null ? null : _verifyUnlockConfig,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ConfigBottomAction(
                 icon: Icons.add_rounded,
-                label: '新建方案',
+                label: '新建',
                 onPressed: () => _addOrEdit(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ConfigBottomAction(
+                icon: Icons.close_rounded,
+                label: '关闭',
+                onPressed: widget.onClose,
+                tone: _ConfigActionTone.neutral,
               ),
             ),
           ],
@@ -218,10 +306,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
               itemCount: _configs.length,
               itemBuilder: (context, index) {
                 final config = _configs[index];
+                final theme = Theme.of(context);
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
+                  color: theme.colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
@@ -239,19 +329,27 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _addOrEdit(config),
+                          tooltip: '执行',
+                          style: IconButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            foregroundColor:
+                                theme.colorScheme.onPrimaryContainer,
+                          ),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          onPressed: widget.onRunConfig == null
+                              ? null
+                              : () => widget.onRunConfig!(config),
                         ),
                         IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () => _delete(config.id),
+                          tooltip: '更多',
+                          icon: const Icon(Icons.more_vert_rounded),
+                          onPressed: () => _showConfigActions(config),
                         ),
                       ],
                     ),
-                    onTap: () => _addOrEdit(config),
+                    onTap: widget.onRunConfig == null
+                        ? () => _addOrEdit(config)
+                        : () => widget.onRunConfig!(config),
                   ),
                 );
               },
@@ -265,27 +363,44 @@ class _ConfigBottomAction extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.tone = _ConfigActionTone.primary,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final _ConfigActionTone tone;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = switch (tone) {
+      _ConfigActionTone.primary => (
+        bg: theme.colorScheme.primaryContainer,
+        fg: theme.colorScheme.onPrimaryContainer,
+      ),
+      _ConfigActionTone.neutral => (
+        bg: theme.colorScheme.surfaceContainerHighest,
+        fg: theme.colorScheme.onSurfaceVariant,
+      ),
+    };
     return FilledButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
       label: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1)),
       style: FilledButton.styleFrom(
+        backgroundColor: colors.bg,
+        foregroundColor: colors.fg,
         minimumSize: const Size(0, 42),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 }
+
+enum _ConfigActionTone { primary, neutral }
 
 class _SchemeSettingsDialog extends StatefulWidget {
   const _SchemeSettingsDialog({
