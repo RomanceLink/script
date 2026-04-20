@@ -1448,12 +1448,6 @@ class _GestureEditPageState extends State<GestureEditPage> {
       ),
     );
 
-    textController.dispose();
-    idController.dispose();
-    descriptionController.dispose();
-    retryCountController.dispose();
-    retryWaitController.dispose();
-
     if (!mounted || action == null) {
       return;
     }
