@@ -2587,10 +2587,22 @@ class AutoSwipeService : AccessibilityService() {
         }
         captureScreenBitmap(
             onSuccess = { screen ->
-                val match = findBestTemplateMatch(screen, template, actionRegionRect(action))
-                screen.recycle()
-                template.recycle()
-                onResult(match)
+                Thread {
+                    val match = try {
+                        findBestTemplateMatch(screen, template, actionRegionRect(action))
+                    } catch (_: Exception) {
+                        null
+                    }
+                    try {
+                        screen.recycle()
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        template.recycle()
+                    } catch (_: Exception) {
+                    }
+                    handler.post { onResult(match) }
+                }.start()
             },
             onFailure = {
                 template.recycle()
@@ -4216,10 +4228,10 @@ class AutoSwipeService : AccessibilityService() {
         if (tplW <= 0 || tplH <= 0 || search.width() < tplW || search.height() < tplH) {
             return null
         }
-        val stepX = kotlin.math.max(4, tplW / 6)
-        val stepY = kotlin.math.max(4, tplH / 6)
-        val samplesX = 6
-        val samplesY = 6
+        val stepX = kotlin.math.max(3, tplW / 8)
+        val stepY = kotlin.math.max(3, tplH / 8)
+        val samplesX = 12
+        val samplesY = 12
         val templateSamples = mutableListOf<IntArray>()
         for (sy in 0 until samplesY) {
             for (sx in 0 until samplesX) {
@@ -4229,8 +4241,16 @@ class AutoSwipeService : AccessibilityService() {
                 templateSamples.add(intArrayOf(Color.red(c), Color.green(c), Color.blue(c), tx, ty))
             }
         }
-        var bestScore = Double.MAX_VALUE
-        var bestRect: Rect? = null
+        val coarseCandidates = mutableListOf<Pair<Double, Rect>>()
+
+        fun addCandidate(score: Double, rect: Rect) {
+            coarseCandidates.add(score to rect)
+            coarseCandidates.sortBy { it.first }
+            if (coarseCandidates.size > 8) {
+                coarseCandidates.removeAt(coarseCandidates.lastIndex)
+            }
+        }
+
         var y = search.top.coerceAtLeast(0)
         while (y <= (search.bottom - tplH).coerceAtMost(screen.height - tplH)) {
             var x = search.left.coerceAtLeast(0)
@@ -4243,15 +4263,66 @@ class AutoSwipeService : AccessibilityService() {
                     diff += abs(Color.blue(c) - sample[2])
                 }
                 val score = diff / (templateSamples.size * 3.0 * 255.0)
-                if (score < bestScore) {
-                    bestScore = score
-                    bestRect = Rect(x, y, x + tplW, y + tplH)
-                }
+                addCandidate(score, Rect(x, y, x + tplW, y + tplH))
                 x += stepX
             }
             y += stepY
         }
-        return if (bestScore <= 0.22) bestRect?.let { ButtonMatchTarget(it) } else null
+
+        var bestScore = Double.MAX_VALUE
+        var bestRect: Rect? = null
+        val refineRadiusX = kotlin.math.max(2, stepX / 2)
+        val refineRadiusY = kotlin.math.max(2, stepY / 2)
+        coarseCandidates.forEach { (_, candidate) ->
+            val minY = (candidate.top - refineRadiusY).coerceAtLeast(search.top).coerceAtLeast(0)
+            val maxY = (candidate.top + refineRadiusY)
+                .coerceAtMost(search.bottom - tplH)
+                .coerceAtMost(screen.height - tplH)
+            val minX = (candidate.left - refineRadiusX).coerceAtLeast(search.left).coerceAtLeast(0)
+            val maxX = (candidate.left + refineRadiusX)
+                .coerceAtMost(search.right - tplW)
+                .coerceAtMost(screen.width - tplW)
+            var fy = minY
+            while (fy <= maxY) {
+                var fx = minX
+                while (fx <= maxX) {
+                    val score = templateDifferenceScore(screen, template, fx, fy)
+                    if (score < bestScore) {
+                        bestScore = score
+                        bestRect = Rect(fx, fy, fx + tplW, fy + tplH)
+                        if (bestScore == 0.0) {
+                            return ButtonMatchTarget(bestRect!!)
+                        }
+                    }
+                    fx += 2
+                }
+                fy += 2
+            }
+        }
+        return if (bestScore <= 0.045) bestRect?.let { ButtonMatchTarget(it) } else null
+    }
+
+    private fun templateDifferenceScore(screen: Bitmap, template: Bitmap, left: Int, top: Int): Double {
+        val targetSamples = 4096.0
+        val area = (template.width * template.height).coerceAtLeast(1).toDouble()
+        val stride = kotlin.math.max(1, kotlin.math.ceil(kotlin.math.sqrt(area / targetSamples)).toInt())
+        var diff = 0.0
+        var count = 0
+        var y = 0
+        while (y < template.height) {
+            var x = 0
+            while (x < template.width) {
+                val a = template.getPixel(x, y)
+                val b = screen.getPixel(left + x, top + y)
+                diff += abs(Color.red(a) - Color.red(b))
+                diff += abs(Color.green(a) - Color.green(b))
+                diff += abs(Color.blue(a) - Color.blue(b))
+                count += 1
+                x += stride
+            }
+            y += stride
+        }
+        return diff / (count.coerceAtLeast(1) * 3.0 * 255.0)
     }
 
     private fun recognizeScreenTextFromBitmap(
