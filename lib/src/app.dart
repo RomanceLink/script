@@ -402,7 +402,9 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty
@@ -411,63 +413,133 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
             )
           : Column(
               children: [
-                const SizedBox(height: 16),
-                Text(
-                  '当前执行配置',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '当前执行配置',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: theme.colorScheme.primary,
+                        ),
+                  ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.dark
+                          ? const Color(0xFF1E2628)
+                          : const Color(0xFFF1F6F4),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant.withOpacity(0.5),
                       ),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Row(
                             children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.auto_fix_high_rounded,
+                                  color: theme.colorScheme.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Text(
                                   _selected?.name ?? '未选择',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              IconButton.filled(
-                                tooltip: '执行',
-                                onPressed: _selected == null
-                                    ? null
-                                    : () => _run(_selected!),
-                                icon: const Icon(Icons.play_arrow_rounded),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              children: [
+                                _InfoRow(
+                                  icon: Icons.ads_click_rounded,
+                                  label: '动作步骤',
+                                  value: '${_selected?.actions.length ?? 0} 个步骤',
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: Divider(height: 1, thickness: 0.5),
+                                ),
+                                _InfoRow(
+                                  icon: Icons.loop_rounded,
+                                  label: '循环执行',
+                                  value: '${_selected?.loopCount ?? 0} 次',
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: Divider(height: 1, thickness: 0.5),
+                                ),
+                                _InfoRow(
+                                  icon: Icons.timer_outlined,
+                                  label: '预估耗时',
+                                  value: _selected == null ? '-' : estimateGestureConfigDuration(_selected!).label,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: _selected == null
+                                      ? null
+                                      : () => _run(_selected!),
+                                  icon: const Icon(Icons.play_arrow_rounded),
+                                  label: const Text('立即执行', style: TextStyle(fontWeight: FontWeight.w900)),
+                                ),
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 12),
                               IconButton.filledTonal(
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
                                 tooltip: '切换配置',
                                 onPressed: _switchConfig,
                                 icon: const Icon(Icons.swap_horiz_rounded),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _selected == null
-                                ? '请选择配置'
-                                : '${_selected!.actions.length}个步骤 · ${_selected!.loopCount}次循环 · 约${estimateGestureConfigDuration(_selected!).label}',
-                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -478,16 +550,56 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                 SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 16),
                     child: TextButton.icon(
                       onPressed: widget.alarmBridge.closeAutomationOverlay,
                       icon: const Icon(Icons.close_rounded, size: 18),
-                      label: const Text('关闭弹窗'),
+                      label: const Text('关闭悬浮窗', style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

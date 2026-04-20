@@ -257,9 +257,15 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('自动化配置中心'),
+        centerTitle: true,
+        title: Text(
+          '自动化配置中心',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
         actions: [
           IconButton(
             tooltip: '锁屏脚本',
@@ -268,29 +274,45 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
               _unlockConfig == null
                   ? Icons.lock_open_rounded
                   : Icons.lock_rounded,
+              color: _unlockConfig == null ? null : theme.colorScheme.primary,
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.fromLTRB(20, 10, 20, MediaQuery.paddingOf(context).bottom + 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             Expanded(
-              child: _ConfigBottomAction(
-                icon: Icons.add_rounded,
-                label: '新建',
+              child: FilledButton.icon(
                 onPressed: () => _addOrEdit(),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('新建自动化配置', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
               ),
             ),
             if (widget.onClose != null) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ConfigBottomAction(
-                  icon: Icons.close_rounded,
-                  label: '关闭',
-                  onPressed: widget.onClose,
-                  tone: _ConfigActionTone.neutral,
+              const SizedBox(width: 12),
+              IconButton.filledTonal(
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close_rounded),
+                style: IconButton.styleFrom(
+                  padding: const EdgeInsets.all(14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
             ],
@@ -300,62 +322,96 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty
-          ? const Center(
-              child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_awesome_motion_rounded, size: 64, color: theme.colorScheme.outlineVariant),
+                  const SizedBox(height: 16),
+                  Text('尚未创建任何配置', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: _configs.length,
               itemBuilder: (context, index) {
                 final config = _configs[index];
-                final theme = Theme.of(context);
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 0,
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: theme.brightness == Brightness.dark ? 0.48 : 0.72,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: 0.5,
-                      ),
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    title: Text(
-                      config.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '${config.actions.length} 个动作 · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: '执行',
-                          color: theme.colorScheme.primary,
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          onPressed: widget.onRunConfig == null
-                              ? null
-                              : () => widget.onRunConfig!(config),
-                        ),
-                        IconButton(
-                          tooltip: '更多',
-                          icon: const Icon(Icons.more_vert_rounded),
-                          onPressed: () => _showConfigActions(config),
-                        ),
-                      ],
-                    ),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
                     onTap: widget.onRunConfig == null
                         ? () => _addOrEdit(config)
                         : () => widget.onRunConfig!(config),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark
+                            ? const Color(0xFF1E2628)
+                            : const Color(0xFFF1F6F4),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.gesture_rounded,
+                              color: theme.colorScheme.primary,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  config.name,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${config.actions.length}步骤 · ${config.loopCount}次循环 · 约${estimateGestureConfigDuration(config).label}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              IconButton(
+                                tooltip: '执行',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.primaryContainer,
+                                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                ),
+                                icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                                onPressed: widget.onRunConfig == null
+                                    ? null
+                                    : () => widget.onRunConfig!(config),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                                onPressed: () => _showConfigActions(config),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
@@ -363,58 +419,6 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
     );
   }
 }
-
-class _ConfigBottomAction extends StatelessWidget {
-  const _ConfigBottomAction({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.tone = _ConfigActionTone.primary,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final _ConfigActionTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = switch (tone) {
-      _ConfigActionTone.primary => (
-        bg: theme.brightness == Brightness.dark
-            ? const Color(0xFF21453E)
-            : const Color(0xFFDDF5EC),
-        fg: theme.brightness == Brightness.dark
-            ? const Color(0xFF9DE4CE)
-            : const Color(0xFF2F7D6B),
-      ),
-      _ConfigActionTone.neutral => (
-        bg: theme.brightness == Brightness.dark
-            ? const Color(0xFF263334)
-            : const Color(0xFFEAF1EE),
-        fg: theme.brightness == Brightness.dark
-            ? const Color(0xFFB8C9C4)
-            : const Color(0xFF51635E),
-      ),
-    };
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1)),
-      style: FilledButton.styleFrom(
-        backgroundColor: colors.bg,
-        foregroundColor: colors.fg,
-        minimumSize: const Size(0, 42),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-}
-
-enum _ConfigActionTone { primary, neutral }
 
 class _SchemeSettingsDialog extends StatefulWidget {
   const _SchemeSettingsDialog({
@@ -1821,6 +1825,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final previewConfig = GestureConfig(
       id: '_preview',
       name: '',
@@ -1828,341 +1833,377 @@ class _GestureEditPageState extends State<GestureEditPage> {
       loopCount: _loopCount,
       loopIntervalMillis: _loopIntervalMillis,
     );
-    final header = <Widget>[
-      Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '方案名称',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _nameController.text.trim().isEmpty
-                        ? '未命名方案'
-                        : _nameController.text.trim(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            OutlinedButton.icon(
-              onPressed: _editName,
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('编辑'),
-            ),
-          ],
-        ),
-      ),
-    ];
-    if (_nameController.text.trim().isEmpty) {
-      header.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '保存前请先设置方案名称',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    header.addAll([
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '预计执行时长：${estimateGestureConfigDuration(previewConfig).label}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(height: 8),
-      const Divider(),
-    ]);
-    final footer = Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FilledButton.icon(
-            onPressed: _showAddMenu,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('添加内容'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF21453E)
-                  : const Color(0xFFDDF5EC),
-              foregroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF9DE4CE)
-                  : const Color(0xFF2F7D6B),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44),
-                    foregroundColor: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant,
-                  ),
-                  child: const Text('取消'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _save,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44),
-                    backgroundColor:
-                        Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF273F68)
-                        : const Color(0xFFE5F0FF),
-                    foregroundColor:
-                        Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFFA7C5FF)
-                        : const Color(0xFF456DAA),
-                  ),
-                  child: const Text('保存'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: Text(widget.config == null ? '新建配置' : '编辑配置'),
         actions: [
           TextButton(
             onPressed: _save,
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFA7C5FF)
-                  : const Color(0xFF456DAA),
+              foregroundColor: theme.colorScheme.primary,
+              textStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
             child: const Text('保存'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxHeight < 430;
-          final actionList = _actions.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Text(
-                      '点击下方按钮添加第一个动作',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                )
-              : ReorderableListView.builder(
-                  shrinkWrap: compact,
-                  physics: compact
-                      ? const NeverScrollableScrollPhysics()
-                      : const AlwaysScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  itemCount: _actions.length,
-                  onReorder: (oldIndex, newIndex) {
-                    setState(() {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      final item = _actions.removeAt(oldIndex);
-                      _actions.insert(newIndex, item);
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final action = _actions[index];
-                    final theme = Theme.of(context);
-                    return Card(
-                      key: ValueKey('${action.type}_$index'),
-                      elevation: 0,
-                      color: theme.colorScheme.surfaceContainerHighest
-                          .withValues(
-                            alpha: theme.brightness == Brightness.dark
-                                ? 0.42
-                                : 0.68,
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                _ModernSectionCard(
+                  accent: const Color(0xFF76C7AE),
+                  title: '方案信息',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _nameController.text.trim().isEmpty
+                                      ? '未命名方案'
+                                      : _nameController.text.trim(),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          radius: 14,
-                          backgroundColor: theme.brightness == Brightness.dark
-                              ? const Color(0xFF21453E)
-                              : const Color(0xFFDDF5EC),
-                          foregroundColor: theme.brightness == Brightness.dark
-                              ? const Color(0xFF9DE4CE)
-                              : const Color(0xFF2F7D6B),
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(fontSize: 12),
+                          IconButton.filledTonal(
+                            onPressed: _editName,
+                            icon: const Icon(Icons.settings_suggest_rounded, size: 20),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        title: Text(_actionLabel(action)),
-                        subtitle: Text(_actionSubtitle(action)),
-                        trailing: Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            ReorderableDragStartListener(
-                              index: index,
-                              child: Icon(
-                                Icons.drag_handle_rounded,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            if (_isPositionEditable(action))
-                              IconButton(
-                                icon: Icon(
-                                  Icons.edit_location_alt,
-                                  color: theme.colorScheme.primary,
-                                ),
-                                onPressed: () => _editAction(index),
-                              ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline_rounded,
-                                color: Colors.redAccent,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _actions.removeAt(index)),
+                            Icon(Icons.timer_outlined, size: 14, color: theme.colorScheme.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
+                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
-                );
-          if (compact) {
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: [...header, actionList, footer],
-            );
-          }
-          return Column(
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _ModernSectionCard(
+                  accent: const Color(0xFF82A7F7),
+                  title: '动作步骤 (可拖动排序)',
+                  child: _actions.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.ads_click_rounded,
+                                    size: 40, color: theme.colorScheme.outlineVariant),
+                                const SizedBox(height: 8),
+                                const Text('暂无动作，点击下方按钮添加',
+                                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _actions.length,
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (oldIndex < newIndex) newIndex -= 1;
+                              final item = _actions.removeAt(oldIndex);
+                              _actions.insert(newIndex, item);
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final action = _actions[index];
+                            return _ModernActionTile(
+                              key: ValueKey('${action.runtimeType}-$index'),
+                              index: index,
+                              action: action,
+                              onDelete: () => setState(() => _actions.removeAt(index)),
+                              onEdit: _isPositionEditable(action) ? () => _editAction(index) : null,
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _showAddMenu,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    label: const Text('添加动作', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filledTonal(
+                  onPressed: _save,
+                  icon: const Icon(Icons.check_rounded),
+                  style: IconButton.styleFrom(
+                    padding: const EdgeInsets.all(14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModernSectionCard extends StatelessWidget {
+  const _ModernSectionCard({
+    required this.accent,
+    required this.title,
+    required this.child,
+  });
+
+  final Color accent;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1E2628)
+            : const Color(0xFFF1F6F4),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModernActionTile extends StatelessWidget {
+  const _ModernActionTile({
+    super.key,
+    required this.index,
+    required this.action,
+    required this.onDelete,
+    this.onEdit,
+  });
+
+  final int index;
+  final GestureAction action;
+  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (icon, color) = _getActionVisuals(theme);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+          leading: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                '${index + 1}',
+                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+          ),
+          title: Row(
             children: [
-              ...header,
-              Expanded(child: actionList),
-              footer,
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _getActionTitle(),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
-          );
-        },
+          ),
+          subtitle: Text(
+            _getActionSummary(),
+            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onEdit != null)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  onPressed: onEdit,
+                ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                onPressed: onDelete,
+              ),
+              ReorderableDragStartListener(
+                index: index,
+                child: const Icon(Icons.drag_indicator_rounded, color: Colors.grey),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  String _actionLabel(GestureAction action) {
-    if (action is WaitAction) {
-      if (action.isRandom) return '随机等待';
-      return action.usesMilliseconds ? '毫秒等待' : '固定等待';
-    }
-    return switch (action.type) {
-      GestureActionType.swipe => '滑动手势',
-      GestureActionType.click => '点击手势',
-      GestureActionType.recorded => '录制轨迹',
-      GestureActionType.nav => '导航动作',
-      GestureActionType.wait => '等待',
-      GestureActionType.launchApp => '启动应用',
-      GestureActionType.buttonRecognize => '按钮识别',
-      GestureActionType.lockScreen => '锁屏',
-    };
+  (IconData, Color) _getActionVisuals(ThemeData theme) {
+    if (action is ClickAction) return (Icons.touch_app_rounded, const Color(0xFF76C7AE));
+    if (action is SwipeAction) return (Icons.swipe_rounded, const Color(0xFF82A7F7));
+    if (action is WaitAction) return (Icons.timer_rounded, const Color(0xFFFFB17E));
+    if (action is NavAction) return (Icons.navigation_rounded, const Color(0xFFD69AF1));
+    if (action is LaunchAppAction) return (Icons.rocket_launch_rounded, const Color(0xFF8EB8FF));
+    if (action is LockScreenAction) return (Icons.lock_outline_rounded, const Color(0xFFD69AF1));
+    if (action is ButtonRecognizeAction) return (Icons.center_focus_strong_rounded, const Color(0xFF82A7F7));
+    if (action is RecordedGestureAction) return (Icons.gesture_rounded, const Color(0xFF76C7AE));
+    return (Icons.extension_rounded, Colors.grey);
   }
 
-  String _actionSubtitle(GestureAction action) {
-    if (action is SwipeAction) {
-      return '从 (${action.x1}, ${action.y1}) 划至 (${action.x2}, ${action.y2})';
+  String _getActionTitle() {
+    if (action is ClickAction) return '点击屏幕';
+    if (action is SwipeAction) return '滑动屏幕';
+    if (action is WaitAction) return '等待延迟';
+    if (action is NavAction) return '系统导航';
+    if (action is LaunchAppAction) return '启动应用';
+    if (action is LockScreenAction) return '锁定屏幕';
+    if (action is ButtonRecognizeAction) {
+      final a = action as ButtonRecognizeAction;
+      return a.source == ButtonRecognizeSource.imageTemplate ? '识别图片' : '识别按钮';
     }
+    if (action is RecordedGestureAction) return '轨迹动作';
+    return '未知动作';
+  }
+
+  String _getActionSummary() {
     if (action is ClickAction) {
-      return '坐标 (${action.x1}, ${action.y1})';
+      final a = action as ClickAction;
+      return '坐标: (${(a.x1 * 100).toInt()}%, ${(a.y1 * 100).toInt()}%)';
     }
-    if (action is RecordedGestureAction) {
-      final seconds = (action.duration / 1000).toStringAsFixed(1);
-      return '${action.segments.length} 段轨迹，约 $seconds 秒';
+    if (action is SwipeAction) {
+      final a = action as SwipeAction;
+      return '从(${(a.x1 * 100).toInt()}%, ${(a.y1 * 100).toInt()}%)到(${(a.x2 * 100).toInt()}%, ${(a.y2 * 100).toInt()}%)';
+    }
+    if (action is WaitAction) {
+      final a = action as WaitAction;
+      return a.isRandom ? '随机: ${a.effectiveMinSeconds}-${a.effectiveMaxSeconds}秒' : '时长: ${a.milliseconds}ms';
     }
     if (action is NavAction) {
-      return switch (action.navType) {
-        NavType.back => '模拟返回键',
-        NavType.home => '模拟首页键',
-        NavType.recents => '模拟多任务键',
+      final a = action as NavAction;
+      return switch (a.navType) {
+        NavType.back => '返回上一级',
+        NavType.home => '返回桌面',
+        NavType.recents => '打开最近任务',
       };
-    }
-    if (action is WaitAction) {
-      if (action.isRandom) {
-        return '${_formatWaitDuration(action.effectiveMinMilliseconds)}-${_formatWaitDuration(action.effectiveMaxMilliseconds)} 内随机';
-      }
-      return '固定等待 ${_formatWaitDuration(action.milliseconds)}';
     }
     if (action is LaunchAppAction) {
-      return '拉起 ${action.label}';
+      return '启动 ${(action as LaunchAppAction).label}';
     }
     if (action is ButtonRecognizeAction) {
-      final mode = action.matchMode == ButtonMatchMode.exact ? '完全相同' : '包含';
-      final source = switch (action.source) {
-        ButtonRecognizeSource.imageTemplate => '图片识别',
-        ButtonRecognizeSource.imageText => '图片文字',
-        ButtonRecognizeSource.accessibility => '无障碍',
-      };
-      final retry = action.retryCount > 0 ? '，失败重试 ${action.retryCount} 次' : '';
-      return '$source · 文字“${action.buttonText}” · $mode$retry';
+      final a = action as ButtonRecognizeAction;
+      return '文字: "${a.buttonText}"${a.retryCount > 0 ? " · 失败重试 ${a.retryCount} 次" : ""}';
     }
-    if (action is LockScreenAction) {
-      return '执行到这里时锁定屏幕';
-    }
-    return '';
-  }
-
-  String _formatWaitDuration(int milliseconds) {
-    if (milliseconds < 1000) return '$milliseconds 毫秒';
-    if (milliseconds < 60000) {
-      if (milliseconds % 1000 == 0) return '${milliseconds ~/ 1000} 秒';
-      return '${(milliseconds / 1000).toStringAsFixed(1)} 秒';
-    }
-    final seconds = (milliseconds / 1000).ceil();
-    final minutes = seconds ~/ 60;
-    final rest = seconds % 60;
-    return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
+    return '手势自动化操作步骤';
   }
 }
 
