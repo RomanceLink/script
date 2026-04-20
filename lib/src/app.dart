@@ -347,25 +347,51 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
     final selected = await showModalBottomSheet<GestureConfig>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: _configs.length,
-          itemBuilder: (context, index) {
-            final config = _configs[index];
-            return ListTile(
-              leading: Icon(
-                config.id == _selected?.id
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                '选择自动化配置',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              title: Text(config.name),
-              subtitle: Text(
-                '${config.actions.length} 个动作 · ${estimateGestureConfigDuration(config).label}',
+            ),
+            Expanded(
+              child: ListView.separated(
+                itemCount: _configs.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final config = _configs[index];
+                  final isSelected = config.id == _selected?.id;
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                    ),
+                    title: Text(
+                      config.name,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : null,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${config.actions.length}步骤 · ${estimateGestureConfigDuration(config).label}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onTap: () => Navigator.of(context).pop(config),
+                  );
+                },
               ),
-              onTap: () => Navigator.of(context).pop(config),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
