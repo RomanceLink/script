@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'models/task_models.dart';
@@ -1101,30 +1104,31 @@ class _GestureEditPageState extends State<GestureEditPage> {
     if (!mounted || result == null || result['cancelled'] == true) {
       return;
     }
+    final pickerResult = result;
 
-    final bounds = (result['bounds'] as Map<Object?, Object?>?)?.map(
+    final bounds = (pickerResult['bounds'] as Map<Object?, Object?>?)?.map(
       (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
     );
     final textController = TextEditingController(
-      text: result['buttonText'] as String? ?? '',
+      text: pickerResult['buttonText'] as String? ?? '',
     );
     final idController = TextEditingController(
-      text: result['buttonId'] as String? ?? '',
+      text: pickerResult['buttonId'] as String? ?? '',
     );
     final descriptionController = TextEditingController(
-      text: result['buttonDescription'] as String? ?? '',
+      text: pickerResult['buttonDescription'] as String? ?? '',
     );
     final retryCountController = TextEditingController(
-      text: '${result['retryCount'] ?? 3}',
+      text: '${pickerResult['retryCount'] ?? 3}',
     );
     final retryWaitController = TextEditingController(
-      text: '${result['retryWaitMillis'] ?? 800}',
+      text: '${pickerResult['retryWaitMillis'] ?? 800}',
     );
     var matchMode = ButtonMatchMode.values.byName(
-      result['matchMode'] as String? ?? ButtonMatchMode.exact.name,
+      pickerResult['matchMode'] as String? ?? ButtonMatchMode.exact.name,
     );
     var regionMode = ButtonRegionMode.values.byName(
-      result['regionMode'] as String? ?? ButtonRegionMode.custom.name,
+      pickerResult['regionMode'] as String? ?? ButtonRegionMode.custom.name,
     );
     var successMode = ButtonResultActionMode.defaultClick;
     var retrySuccessMode = ButtonResultActionMode.defaultClick;
@@ -1132,6 +1136,21 @@ class _GestureEditPageState extends State<GestureEditPage> {
     var successActions = <GestureAction>[];
     var retryActions = <GestureAction>[];
     var retrySuccessActions = <GestureAction>[];
+    var pickingCustomAction = false;
+
+    Future<void> pickCustomActions(
+      BuildContext dialogContext,
+      ValueChanged<List<GestureAction>> onPicked,
+      StateSetter setDialogState,
+    ) async {
+      if (pickingCustomAction) return;
+      setDialogState(() => pickingCustomAction = true);
+      final actions = await _pickNestedGestureActions(dialogContext);
+      if (!dialogContext.mounted) return;
+      setDialogState(() => pickingCustomAction = false);
+      if (actions.isEmpty) return;
+      onPicked(actions);
+    }
 
     final action = await showDialog<ButtonRecognizeAction>(
       context: context,
@@ -1180,6 +1199,24 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                 ),
                               ),
                             ),
+                            if (source ==
+                                ButtonRecognizeSource.imageTemplate) ...[
+                              const SizedBox(height: 12),
+                              _ImageTemplatePreview(
+                                templateBase64:
+                                    pickerResult['templateImage'] as String? ??
+                                    '',
+                                width:
+                                    (pickerResult['templateWidth'] as num?)
+                                        ?.toInt() ??
+                                    0,
+                                height:
+                                    (pickerResult['templateHeight'] as num?)
+                                        ?.toInt() ??
+                                    0,
+                                region: bounds,
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             _ChoiceField<ButtonMatchMode>(
                               label: '识别方式',
@@ -1248,15 +1285,15 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               actions: successActions,
                               onModeChanged: (value) =>
                                   setDialogState(() => successMode = value),
-                              onRecord: () async {
-                                final actions =
-                                    await _pickNestedGestureActions();
-                                if (!context.mounted || actions.isEmpty) return;
-                                setDialogState(() {
+                              isBusy: pickingCustomAction,
+                              onRecord: () => pickCustomActions(
+                                context,
+                                (actions) => setDialogState(() {
                                   successMode = ButtonResultActionMode.custom;
                                   successActions = actions;
-                                });
-                              },
+                                }),
+                                setDialogState,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             _InlineActionPicker(
@@ -1265,12 +1302,14 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               actions: retryActions,
                               canChangeMode: false,
                               onModeChanged: (_) {},
-                              onRecord: () async {
-                                final actions =
-                                    await _pickNestedGestureActions();
-                                if (!context.mounted || actions.isEmpty) return;
-                                setDialogState(() => retryActions = actions);
-                              },
+                              isBusy: pickingCustomAction,
+                              onRecord: () => pickCustomActions(
+                                context,
+                                (actions) => setDialogState(
+                                  () => retryActions = actions,
+                                ),
+                                setDialogState,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -1304,16 +1343,16 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               onModeChanged: (value) => setDialogState(
                                 () => retrySuccessMode = value,
                               ),
-                              onRecord: () async {
-                                final actions =
-                                    await _pickNestedGestureActions();
-                                if (!context.mounted || actions.isEmpty) return;
-                                setDialogState(() {
+                              isBusy: pickingCustomAction,
+                              onRecord: () => pickCustomActions(
+                                context,
+                                (actions) => setDialogState(() {
                                   retrySuccessMode =
                                       ButtonResultActionMode.custom;
                                   retrySuccessActions = actions;
-                                });
-                              },
+                                }),
+                                setDialogState,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             _ChoiceField<ButtonFailAction>(
@@ -1364,13 +1403,14 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                     ? bounds
                                     : null,
                                 templateImage:
-                                    result?['templateImage'] as String? ?? '',
+                                    pickerResult['templateImage'] as String? ??
+                                    '',
                                 templateWidth:
-                                    (result?['templateWidth'] as num?)
+                                    (pickerResult['templateWidth'] as num?)
                                         ?.toInt() ??
                                     0,
                                 templateHeight:
-                                    (result?['templateHeight'] as num?)
+                                    (pickerResult['templateHeight'] as num?)
                                         ?.toInt() ??
                                     0,
                                 buttonId: idController.text.trim(),
@@ -1424,9 +1464,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
   }
 
-  Future<List<GestureAction>> _pickNestedGestureActions() async {
+  Future<List<GestureAction>> _pickNestedGestureActions([
+    BuildContext? pickerContext,
+  ]) async {
     final type = await showModalBottomSheet<String>(
-      context: context,
+      context: pickerContext ?? context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Column(
@@ -2161,6 +2204,7 @@ class _InlineActionPicker extends StatelessWidget {
     required this.actions,
     required this.onModeChanged,
     required this.onRecord,
+    this.isBusy = false,
     this.canChangeMode = true,
   });
 
@@ -2169,6 +2213,7 @@ class _InlineActionPicker extends StatelessWidget {
   final List<GestureAction> actions;
   final ValueChanged<ButtonResultActionMode> onModeChanged;
   final VoidCallback onRecord;
+  final bool isBusy;
   final bool canChangeMode;
 
   @override
@@ -2217,14 +2262,111 @@ class _InlineActionPicker extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: onRecord,
-            icon: const Icon(Icons.fiber_manual_record_rounded),
+            onPressed: isBusy ? null : onRecord,
+            icon: isBusy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.fiber_manual_record_rounded),
             label: Text(
-              actions.isEmpty ? '录制自定义动作' : '已录制 ${actions.length} 个动作',
+              isBusy
+                  ? '正在打开录制'
+                  : actions.isEmpty
+                  ? '录制自定义动作'
+                  : '已录制 ${actions.length} 个动作',
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _ImageTemplatePreview extends StatelessWidget {
+  const _ImageTemplatePreview({
+    required this.templateBase64,
+    required this.width,
+    required this.height,
+    required this.region,
+  });
+
+  final String templateBase64;
+  final int width;
+  final int height;
+  final Map<String, double>? region;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bytes = _decodeTemplate();
+    final regionText = region == null
+        ? '区域：全屏查找'
+        : '区域：${_pct(region!['left'])}, ${_pct(region!['top'])} - ${_pct(region!['right'])}, ${_pct(region!['bottom'])}';
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 86,
+            height: 58,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: bytes == null
+                ? const Icon(Icons.image_not_supported_outlined)
+                : Image.memory(bytes, fit: BoxFit.contain),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '已圈选图片',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text('${width}x$height px', style: theme.textTheme.bodySmall),
+                const SizedBox(height: 2),
+                Text(
+                  regionText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _pct(double? value) {
+    return '${(((value ?? 0) * 1000).round() / 10).toStringAsFixed(1)}%';
+  }
+
+  Uint8List? _decodeTemplate() {
+    if (templateBase64.isEmpty) return null;
+    try {
+      return base64Decode(templateBase64);
+    } catch (_) {
+      return null;
+    }
   }
 }
