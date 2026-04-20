@@ -75,7 +75,7 @@ class AutoSwipeService : AccessibilityService() {
     private var endMenuButton: ImageView? = null
     private var statusPrimaryView: TextView? = null
     private var statusSecondaryView: TextView? = null
-    private var collapsedMenuButton: TextView? = null
+    private var collapsedMenuButton: View? = null
 
     private var isRunning = false
     private var isPaused = false
@@ -589,26 +589,26 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun createCollapsedMenu(layoutParams: WindowManager.LayoutParams): View {
         val darkMode = isDarkModeActive()
-        val bubble = TextView(this).apply {
-            text = if (collapsedEdgeRight) "‹" else "›"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
+        val bubble = ImageView(this).apply {
+            setImageResource(if (collapsedEdgeRight) R.drawable.ic_overlay_chevron_left else R.drawable.ic_overlay_chevron_right)
+            imageTintList = android.content.res.ColorStateList.valueOf(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            // 垂直拉环，上下 padding 多一点，左右少一点，让箭头显得修长
+            setPadding(dp(4), dp(12), dp(4), dp(12))
             contentDescription = "展开"
-            includeFontPadding = false
-            typeface = Typeface.DEFAULT_BOLD
             background = sideRoundedBackground(
                 if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-                dp(22).toFloat(),
+                dp(15).toFloat(),
                 if (darkMode) 0x66FFFFFF else 0x33212C2E,
                 isRightSide = collapsedEdgeRight
             )
             setOnClickListener { showFloatingWindow(expanded = true) }
         }
         collapsedMenuButton = bubble
+        
         attachDrag(bubble, layoutParams, snapToEdgeOnRelease = true)
         return FrameLayout(this).apply {
-            addView(bubble, FrameLayout.LayoutParams(dp(36), dp(44)))
+            addView(bubble, FrameLayout.LayoutParams(dp(30), dp(72)))
         }
     }
 
@@ -798,15 +798,16 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun updateCollapsedArrow() {
         val darkMode = isDarkModeActive()
-        collapsedMenuButton?.apply {
-            text = if (collapsedEdgeRight) "‹" else "›"
-            background = sideRoundedBackground(
-                if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-                dp(22).toFloat(),
-                if (darkMode) 0x66FFFFFF else 0x33212C2E,
-                isRightSide = collapsedEdgeRight
-            )
+        val view = collapsedMenuButton ?: return
+        if (view is ImageView) {
+            view.setImageResource(if (collapsedEdgeRight) R.drawable.ic_overlay_chevron_left else R.drawable.ic_overlay_chevron_right)
         }
+        view.background = sideRoundedBackground(
+            if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
+            dp(15).toFloat(),
+            if (darkMode) 0x66FFFFFF else 0x33212C2E,
+            isRightSide = collapsedEdgeRight
+        )
     }
 
     private fun floatingPanelParams(
@@ -1077,12 +1078,15 @@ class AutoSwipeService : AccessibilityService() {
     private fun hideFlutterOverlayWindow() {
         val root = flutterOverlayRoot ?: return
         if (!flutterOverlayAttached) return
+        
+        // 先通知引擎暂停，停止渲染尝试，减少 EGL 错误
+        flutterOverlayEngine?.lifecycleChannel?.appIsPaused()
+        
         try {
             windowManager?.removeView(root)
         } catch (_: Exception) {
         }
         flutterOverlayAttached = false
-        flutterOverlayEngine?.lifecycleChannel?.appIsPaused()
     }
 
     private fun destroyFlutterAutomationOverlay() {
