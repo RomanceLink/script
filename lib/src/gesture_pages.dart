@@ -258,8 +258,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF0F1718) : const Color(0xFFF7FAF8);
+    final cardColor = isDark ? const Color(0xFF1E2628) : const Color(0xFFF1F6F4);
+
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: surfaceColor,
       appBar: AppBar(
         centerTitle: true,
         title: Text(
@@ -274,7 +278,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
               _unlockConfig == null
                   ? Icons.lock_open_rounded
                   : Icons.lock_rounded,
-              color: _unlockConfig == null ? null : theme.colorScheme.primary,
+              color: _unlockConfig == null ? null : const Color(0xFF4A9D8F),
             ),
           ),
           const SizedBox(width: 8),
@@ -283,7 +287,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       bottomNavigationBar: Container(
         padding: EdgeInsets.fromLTRB(20, 10, 20, MediaQuery.paddingOf(context).bottom + 10),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: surfaceColor,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -300,6 +304,8 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('新建自动化配置', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF4A9D8F),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
@@ -346,9 +352,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: theme.brightness == Brightness.dark
-                            ? const Color(0xFF1E2628)
-                            : const Color(0xFFF1F6F4),
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: theme.colorScheme.outlineVariant.withOpacity(0.5),
@@ -360,12 +364,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withOpacity(0.1),
+                              color: const Color(0xFF4A9D8F).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Icon(
                               Icons.gesture_rounded,
-                              color: theme.colorScheme.primary,
+                              color: const Color(0xFF4A9D8F),
                               size: 24,
                             ),
                           ),
@@ -395,8 +399,8 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                               IconButton(
                                 tooltip: '执行',
                                 style: IconButton.styleFrom(
-                                  backgroundColor: theme.colorScheme.primaryContainer,
-                                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                  backgroundColor: const Color(0xFF4A9D8F).withOpacity(0.15),
+                                  foregroundColor: const Color(0xFF4A9D8F),
                                 ),
                                 icon: const Icon(Icons.play_arrow_rounded, size: 20),
                                 onPressed: widget.onRunConfig == null
@@ -1857,7 +1861,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
               padding: const EdgeInsets.all(20),
               children: [
                 _ModernSectionCard(
-                  accent: const Color(0xFF76C7AE),
+                  accent: const Color(0xFF4A9D8F),
                   title: '方案信息',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1902,7 +1906,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.timer_outlined, size: 14, color: theme.colorScheme.primary),
+                            Icon(Icons.timer_outlined, size: 14, color: const Color(0xFF4A9D8F)),
                             const SizedBox(width: 6),
                             Text(
                               '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
@@ -2149,14 +2153,14 @@ class _ModernActionTile extends StatelessWidget {
   }
 
   (IconData, Color) _getActionVisuals(ThemeData theme) {
-    if (action is ClickAction) return (Icons.touch_app_rounded, const Color(0xFF76C7AE));
+    if (action is ClickAction) return (Icons.touch_app_rounded, const Color(0xFF4A9D8F));
     if (action is SwipeAction) return (Icons.swipe_rounded, const Color(0xFF82A7F7));
-    if (action is WaitAction) return (Icons.timer_rounded, const Color(0xFFFFB17E));
+    if (action is WaitAction) return (Icons.timer_rounded, const Color(0xFFFFA977));
     if (action is NavAction) return (Icons.navigation_rounded, const Color(0xFFD69AF1));
     if (action is LaunchAppAction) return (Icons.rocket_launch_rounded, const Color(0xFF8EB8FF));
     if (action is LockScreenAction) return (Icons.lock_outline_rounded, const Color(0xFFD69AF1));
     if (action is ButtonRecognizeAction) return (Icons.center_focus_strong_rounded, const Color(0xFF82A7F7));
-    if (action is RecordedGestureAction) return (Icons.gesture_rounded, const Color(0xFF76C7AE));
+    if (action is RecordedGestureAction) return (Icons.gesture_rounded, const Color(0xFF4A9D8F));
     return (Icons.extension_rounded, Colors.grey);
   }
 
