@@ -455,7 +455,7 @@ class LaunchAppAction extends GestureAction {
 
 enum ButtonMatchMode { exact, contains }
 
-enum ButtonRecognizeSource { accessibility, imageText }
+enum ButtonRecognizeSource { accessibility, imageText, imageTemplate }
 
 enum ButtonRegionMode { full, custom }
 
@@ -470,6 +470,9 @@ class ButtonRecognizeAction extends GestureAction {
     this.matchMode = ButtonMatchMode.contains,
     this.regionMode = ButtonRegionMode.full,
     this.region,
+    this.templateImage = '',
+    this.templateWidth = 0,
+    this.templateHeight = 0,
     this.buttonId = '',
     this.buttonDescription = '',
     this.successMode = ButtonResultActionMode.defaultClick,
@@ -487,6 +490,9 @@ class ButtonRecognizeAction extends GestureAction {
   final ButtonMatchMode matchMode;
   final ButtonRegionMode regionMode;
   final Map<String, double>? region;
+  final String templateImage;
+  final int templateWidth;
+  final int templateHeight;
   final String buttonId;
   final String buttonDescription;
   final ButtonResultActionMode successMode;
@@ -506,6 +512,9 @@ class ButtonRecognizeAction extends GestureAction {
     'matchMode': matchMode.name,
     'regionMode': regionMode.name,
     'region': region,
+    'templateImage': templateImage,
+    'templateWidth': templateWidth,
+    'templateHeight': templateHeight,
     'buttonId': buttonId,
     'buttonDescription': buttonDescription,
     'successMode': successMode.name,
@@ -546,6 +555,9 @@ class ButtonRecognizeAction extends GestureAction {
         json['regionMode'] as String? ?? ButtonRegionMode.full.name,
       ),
       region: region,
+      templateImage: json['templateImage'] as String? ?? '',
+      templateWidth: (json['templateWidth'] as num?)?.toInt() ?? 0,
+      templateHeight: (json['templateHeight'] as num?)?.toInt() ?? 0,
       buttonId: json['buttonId'] as String? ?? json['viewId'] as String? ?? '',
       buttonDescription:
           json['buttonDescription'] as String? ??

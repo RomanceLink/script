@@ -21,6 +21,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
 import android.graphics.Typeface
+import android.util.Base64
 import android.util.DisplayMetrics
 import android.content.res.Configuration
 import android.view.Gravity
@@ -49,6 +50,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.GeneratedPluginRegistrant
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1284,7 +1286,7 @@ class AutoSwipeService : AccessibilityService() {
         panel.addView(optionRow("按钮识别", "识别屏幕按钮，找不到可重试", 0xFF5C6BC0.toInt()) {
             startFloatingButtonDetect()
         })
-        panel.addView(optionRow("图片按钮识别", "截图 OCR 识别图片按钮文字", 0xFF26A69A.toInt()) {
+        panel.addView(optionRow("图片识别", "圈住图片区域，后续用图片匹配", 0xFF26A69A.toInt()) {
             startFloatingImageButtonDetect()
         })
         panel.addView(sectionLabel("等待"))
@@ -1596,7 +1598,7 @@ class AutoSwipeService : AccessibilityService() {
                 showFloatingRecorder()
                 return@startNativePicker
             }
-            showFloatingButtonEditor(normalizeMap(result) + mapOf("source" to "imageText"))
+            showFloatingButtonEditor(normalizeMap(result) + mapOf("source" to "imageTemplate"))
         }
     }
 
@@ -1618,7 +1620,13 @@ class AutoSwipeService : AccessibilityService() {
         val waitInput = inputField(((seed["retryWaitMillis"] as? Number)?.toInt() ?: 800).toString(), "重试等待毫秒", numberOnly = true)
 
         panel.addView(TextView(this).apply {
-            text = if (source == "imageText") "识别来源：图片文字 OCR" else "识别来源：无障碍按钮"
+            text = if (source == "imageTemplate") {
+                "识别来源：图片识别"
+            } else if (source == "imageText") {
+                "识别来源：图片文字 OCR"
+            } else {
+                "识别来源：无障碍按钮"
+            }
             textSize = 12f
             setTextColor(0xFFB8C0C8.toInt())
             setPadding(0, 0, 0, dp(8))
@@ -1717,6 +1725,9 @@ class AutoSwipeService : AccessibilityService() {
                     "buttonText" to textInput.text?.toString()?.trim().orEmpty(),
                     "buttonId" to idInput.text?.toString()?.trim().orEmpty(),
                     "buttonDescription" to descInput.text?.toString()?.trim().orEmpty(),
+                    "templateImage" to (seed["templateImage"] as? String).orEmpty(),
+                    "templateWidth" to ((seed["templateWidth"] as? Number)?.toInt() ?: 0),
+                    "templateHeight" to ((seed["templateHeight"] as? Number)?.toInt() ?: 0),
                     "matchMode" to selectedMatchMode,
                     "regionMode" to selectedRegionMode,
                     "region" to if (selectedRegionMode == "custom") pickedRegion else null,
@@ -2039,7 +2050,11 @@ class AutoSwipeService : AccessibilityService() {
             "buttonRecognize" -> {
                 val mode = if ((action["matchMode"] as? String) == "exact") "完全相同" else "包含"
                 val text = action["buttonText"] as? String ?: "按钮"
-                val source = if ((action["source"] as? String) == "imageText") "图片文字" else "无障碍"
+                val source = when (action["source"] as? String) {
+                    "imageTemplate" -> "图片识别"
+                    "imageText" -> "图片文字"
+                    else -> "无障碍"
+                }
                 "$source · 识别“$text” · $mode · 失败重试 ${((action["retryCount"] as? Number)?.toInt() ?: 3)} 次"
             }
             "lockScreen" -> "执行到这里时锁定屏幕"
@@ -2542,11 +2557,46 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun findMatchingButtonTarget(action: Map<String, Any?>, onResult: (ButtonMatchTarget?) -> Unit) {
-        if ((action["source"] as? String) == "imageText") {
+        val source = action["source"] as? String
+        if (source == "imageTemplate") {
+            findMatchingImageTemplate(action, onResult)
+            return
+        }
+        if (source == "imageText") {
             findMatchingOcrText(action, onResult)
             return
         }
         onResult(findMatchingButton(action))
+    }
+
+    private fun findMatchingImageTemplate(action: Map<String, Any?>, onResult: (ButtonMatchTarget?) -> Unit) {
+        val templateBase64 = action["templateImage"] as? String
+        if (templateBase64.isNullOrBlank()) {
+            onResult(null)
+            return
+        }
+        val template = try {
+            val bytes = Base64.decode(templateBase64, Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (_: Exception) {
+            null
+        }
+        if (template == null || template.width < 4 || template.height < 4) {
+            onResult(null)
+            return
+        }
+        captureScreenBitmap(
+            onSuccess = { screen ->
+                val match = findBestTemplateMatch(screen, template, actionRegionRect(action))
+                screen.recycle()
+                template.recycle()
+                onResult(match)
+            },
+            onFailure = {
+                template.recycle()
+                onResult(null)
+            },
+        )
     }
 
     private fun findMatchingOcrText(action: Map<String, Any?>, onResult: (ButtonMatchTarget?) -> Unit) {
@@ -3903,17 +3953,71 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun showImageButtonDetectOverlay() {
         pickerMode = "imageButtonDetect"
-        showLoadingPickerOverlay("正在识别图片文字")
-        recognizeScreenText(
-            onSuccess = { nodes ->
-                removePickerOverlay()
-                showOcrTextDetectOverlay(nodes)
-            },
-            onFailure = {
-                removePickerOverlay()
-                publishPickerResult(mapOf("cancelled" to true))
-            },
-        )
+        showImageTemplateSelectOverlay()
+    }
+
+    private fun showImageTemplateSelectOverlay() {
+        pickerMode = "imageButtonDetect"
+        val lp = fullScreenOverlayParams()
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(0x11000000)
+        }
+        val surface = ImageTemplateSelectSurface(this)
+        container.addView(surface, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = roundedBackground(0xDD151A1E.toInt(), dp(24).toFloat(), 0x55FFFFFF)
+        }
+        controls.addView(TextView(this).apply {
+            text = "拖动框选图片"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(dp(118), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(menuButton("保存", 0xFF4CAF50.toInt()) {
+            val rect = surface.selectedScreenRect()
+            if (rect == null || rect.width() < dp(12) || rect.height() < dp(12)) {
+                return@menuButton
+            }
+            removePickerOverlay()
+            handler.postDelayed({
+                captureScreenBitmap(
+                    onSuccess = { bitmap ->
+                        val result = buildImageTemplateResult(bitmap, rect)
+                        bitmap.recycle()
+                        publishPickerResult(result ?: mapOf("cancelled" to true))
+                    },
+                    onFailure = { publishPickerResult(mapOf("cancelled" to true)) },
+                )
+            }, 180L)
+        }, LinearLayout.LayoutParams(dp(72), dp(40)).apply {
+            marginEnd = dp(8)
+        })
+        controls.addView(menuButton("取消", 0xFFFF8A80.toInt()) {
+            publishPickerResult(mapOf("cancelled" to true))
+            removePickerOverlay()
+        }, LinearLayout.LayoutParams(dp(72), dp(40)))
+        container.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            dp(52),
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(36)
+        })
+        try {
+            windowManager?.addView(container, lp)
+            pickerOverlay = container
+        } catch (_: Exception) {
+            pickerMode = null
+            publishPickerResult(mapOf("cancelled" to true))
+        }
     }
 
     private fun showLoadingPickerOverlay(message: String) {
@@ -4004,6 +4108,16 @@ class AutoSwipeService : AccessibilityService() {
         onSuccess: (List<OcrTextInfo>) -> Unit,
         onFailure: () -> Unit,
     ) {
+        captureScreenBitmap(
+            onSuccess = { bitmap -> recognizeScreenTextFromBitmap(bitmap, onSuccess, onFailure) },
+            onFailure = onFailure,
+        )
+    }
+
+    private fun captureScreenBitmap(
+        onSuccess: (Bitmap) -> Unit,
+        onFailure: () -> Unit,
+    ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             onFailure()
             return
@@ -4033,7 +4147,7 @@ class AutoSwipeService : AccessibilityService() {
                             onFailure()
                             return
                         }
-                        recognizeScreenTextFromBitmap(bitmap, onSuccess, onFailure)
+                        onSuccess(bitmap)
                     }
 
                     override fun onFailure(errorCode: Int) {
@@ -4044,6 +4158,100 @@ class AutoSwipeService : AccessibilityService() {
         } catch (_: Exception) {
             onFailure()
         }
+    }
+
+    private fun buildImageTemplateResult(bitmap: Bitmap, rect: Rect): Map<String, Any?>? {
+        val safe = Rect(
+            rect.left.coerceIn(0, bitmap.width - 1),
+            rect.top.coerceIn(0, bitmap.height - 1),
+            rect.right.coerceIn(1, bitmap.width),
+            rect.bottom.coerceIn(1, bitmap.height),
+        )
+        if (safe.width() < 4 || safe.height() < 4) return null
+        val crop = try {
+            Bitmap.createBitmap(bitmap, safe.left, safe.top, safe.width(), safe.height())
+        } catch (_: Exception) {
+            return null
+        }
+        val out = ByteArrayOutputStream()
+        crop.compress(Bitmap.CompressFormat.PNG, 100, out)
+        crop.recycle()
+        val (screenWidth, screenHeight) = screenSize()
+        val encoded = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        return mapOf(
+            "type" to "buttonRecognize",
+            "source" to "imageTemplate",
+            "buttonText" to "图片区域",
+            "buttonId" to "",
+            "buttonDescription" to "图片区域 ${safe.width()}x${safe.height()}",
+            "templateImage" to encoded,
+            "templateWidth" to safe.width(),
+            "templateHeight" to safe.height(),
+            "matchMode" to "exact",
+            "regionMode" to "full",
+            "region" to mapOf(
+                "left" to (safe.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                "top" to (safe.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                "right" to (safe.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                "bottom" to (safe.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+            ),
+            "bounds" to mapOf(
+                "left" to (safe.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                "top" to (safe.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                "right" to (safe.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                "bottom" to (safe.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+            ),
+            "successMode" to "defaultClick",
+            "retryCount" to 3,
+            "retryWaitMillis" to 800,
+            "retrySuccessMode" to "defaultClick",
+            "failAction" to "notify",
+        )
+    }
+
+    private fun findBestTemplateMatch(screen: Bitmap, template: Bitmap, region: Rect?): ButtonMatchTarget? {
+        val search = region ?: Rect(0, 0, screen.width, screen.height)
+        val tplW = template.width
+        val tplH = template.height
+        if (tplW <= 0 || tplH <= 0 || search.width() < tplW || search.height() < tplH) {
+            return null
+        }
+        val stepX = kotlin.math.max(4, tplW / 6)
+        val stepY = kotlin.math.max(4, tplH / 6)
+        val samplesX = 6
+        val samplesY = 6
+        val templateSamples = mutableListOf<IntArray>()
+        for (sy in 0 until samplesY) {
+            for (sx in 0 until samplesX) {
+                val tx = ((sx + 0.5f) * tplW / samplesX).toInt().coerceIn(0, tplW - 1)
+                val ty = ((sy + 0.5f) * tplH / samplesY).toInt().coerceIn(0, tplH - 1)
+                val c = template.getPixel(tx, ty)
+                templateSamples.add(intArrayOf(Color.red(c), Color.green(c), Color.blue(c), tx, ty))
+            }
+        }
+        var bestScore = Double.MAX_VALUE
+        var bestRect: Rect? = null
+        var y = search.top.coerceAtLeast(0)
+        while (y <= (search.bottom - tplH).coerceAtMost(screen.height - tplH)) {
+            var x = search.left.coerceAtLeast(0)
+            while (x <= (search.right - tplW).coerceAtMost(screen.width - tplW)) {
+                var diff = 0.0
+                templateSamples.forEach { sample ->
+                    val c = screen.getPixel(x + sample[3], y + sample[4])
+                    diff += abs(Color.red(c) - sample[0])
+                    diff += abs(Color.green(c) - sample[1])
+                    diff += abs(Color.blue(c) - sample[2])
+                }
+                val score = diff / (templateSamples.size * 3.0 * 255.0)
+                if (score < bestScore) {
+                    bestScore = score
+                    bestRect = Rect(x, y, x + tplW, y + tplH)
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        return if (bestScore <= 0.22) bestRect?.let { ButtonMatchTarget(it) } else null
     }
 
     private fun recognizeScreenTextFromBitmap(
@@ -4842,6 +5050,70 @@ class AutoSwipeService : AccessibilityService() {
                     "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
                 ),
             )
+        }
+    }
+
+    private class ImageTemplateSelectSurface(context: Context) : View(context) {
+        private val rectPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 3f * resources.displayMetrics.density
+            style = Paint.Style.STROKE
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x22FF3B30
+            style = Paint.Style.FILL
+        }
+        private var startX = 0f
+        private var startY = 0f
+        private var currentX = 0f
+        private var currentY = 0f
+        private var hasSelection = false
+
+        fun selectedScreenRect(): Rect? {
+            if (!hasSelection) return null
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val left = kotlin.math.min(startX, currentX).toInt() + location[0]
+            val top = kotlin.math.min(startY, currentY).toInt() + location[1]
+            val right = kotlin.math.max(startX, currentX).toInt() + location[0]
+            val bottom = kotlin.math.max(startY, currentY).toInt() + location[1]
+            return Rect(left, top, right, bottom)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    currentX = event.x
+                    currentY = event.y
+                    hasSelection = true
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                    currentX = event.x
+                    currentY = event.y
+                    invalidate()
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    hasSelection = false
+                    invalidate()
+                }
+            }
+            return true
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (!hasSelection) return
+            val rect = Rect(
+                kotlin.math.min(startX, currentX).toInt(),
+                kotlin.math.min(startY, currentY).toInt(),
+                kotlin.math.max(startX, currentX).toInt(),
+                kotlin.math.max(startY, currentY).toInt(),
+            )
+            canvas.drawRect(rect, fillPaint)
+            canvas.drawRect(rect, rectPaint)
         }
     }
 

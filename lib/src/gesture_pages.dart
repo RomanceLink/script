@@ -553,7 +553,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   color: Colors.indigo,
                 ),
                 title: const Text('按钮识别'),
-                subtitle: const Text('识别屏幕按钮，成功后点击或执行自定义动作'),
+                subtitle: const Text('用无障碍识别按钮文字、ID、描述'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickButtonRecognizeAction();
@@ -564,12 +564,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   Icons.image_search_rounded,
                   color: Colors.teal,
                 ),
-                title: const Text('图片按钮识别'),
-                subtitle: const Text('截图 OCR 识别图片按钮上的文字'),
+                title: const Text('图片识别'),
+                subtitle: const Text('圈住一块图片，后续在屏幕中查找匹配'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickButtonRecognizeAction(
-                    source: ButtonRecognizeSource.imageText,
+                    source: ButtonRecognizeSource.imageTemplate,
                   );
                 },
               ),
@@ -1092,7 +1092,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
       await _waitForOverlayDismissal();
       if (!mounted) return;
       result = await AlarmBridge().enterPickerMode(
-        source == ButtonRecognizeSource.imageText
+        source == ButtonRecognizeSource.imageText ||
+                source == ButtonRecognizeSource.imageTemplate
             ? 'imageButtonDetect'
             : 'buttonDetect',
       );
@@ -1161,7 +1162,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               alignment: Alignment.centerLeft,
                               child: Chip(
                                 avatar: Icon(
-                                  source == ButtonRecognizeSource.imageText
+                                  source == ButtonRecognizeSource.imageText ||
+                                          source ==
+                                              ButtonRecognizeSource
+                                                  .imageTemplate
                                       ? Icons.image_search_rounded
                                       : Icons.select_all_rounded,
                                   size: 18,
@@ -1169,6 +1173,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                 label: Text(
                                   source == ButtonRecognizeSource.imageText
                                       ? '图片文字 OCR'
+                                      : source ==
+                                            ButtonRecognizeSource.imageTemplate
+                                      ? '图片识别'
                                       : '无障碍按钮',
                                 ),
                               ),
@@ -1356,6 +1363,16 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                 region: regionMode == ButtonRegionMode.custom
                                     ? bounds
                                     : null,
+                                templateImage:
+                                    result?['templateImage'] as String? ?? '',
+                                templateWidth:
+                                    (result?['templateWidth'] as num?)
+                                        ?.toInt() ??
+                                    0,
+                                templateHeight:
+                                    (result?['templateHeight'] as num?)
+                                        ?.toInt() ??
+                                    0,
                                 buttonId: idController.text.trim(),
                                 buttonDescription: descriptionController.text
                                     .trim(),
@@ -1902,9 +1919,11 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
     if (action is ButtonRecognizeAction) {
       final mode = action.matchMode == ButtonMatchMode.exact ? '完全相同' : '包含';
-      final source = action.source == ButtonRecognizeSource.imageText
-          ? '图片文字'
-          : '无障碍';
+      final source = switch (action.source) {
+        ButtonRecognizeSource.imageTemplate => '图片识别',
+        ButtonRecognizeSource.imageText => '图片文字',
+        ButtonRecognizeSource.accessibility => '无障碍',
+      };
       final retry = action.retryCount > 0 ? '，失败重试 ${action.retryCount} 次' : '';
       return '$source · 文字“${action.buttonText}” · $mode$retry';
     }
