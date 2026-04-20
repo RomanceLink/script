@@ -244,6 +244,7 @@ class _FloatingAutomationOverlayShellState
         ? _GestureRunChooserPage(
             repository: _repository,
             onRunConfig: _runConfig,
+            alarmBridge: _alarmBridge,
           )
         : GestureConfigPage(
             repository: _repository,
@@ -264,12 +265,17 @@ class _FloatingAutomationOverlayShellState
             if (maxWidth <= 0 || maxHeight <= 0) {
               return const SizedBox.shrink();
             }
-            final width = maxWidth < 548
-                ? (maxWidth - 24).clamp(0.0, maxWidth)
-                : 520.0.clamp(0.0, maxWidth);
-            final height = maxHeight < 408
-                ? maxHeight
-                : (maxHeight - 48).clamp(360.0, maxHeight);
+            final isRunMode = _mode == 'run';
+            final width = isRunMode
+                ? (maxWidth < 400 ? maxWidth - 48 : 340.0).clamp(0.0, maxWidth)
+                : (maxWidth < 548
+                    ? (maxWidth - 24).clamp(0.0, maxWidth)
+                    : 520.0.clamp(0.0, maxWidth));
+            final height = isRunMode
+                ? (maxHeight < 320 ? maxHeight : 280.0).clamp(0.0, maxHeight)
+                : (maxHeight < 408
+                    ? maxHeight
+                    : (maxHeight - 48).clamp(360.0, maxHeight));
             return Stack(
               children: [
                 Center(
@@ -299,10 +305,12 @@ class _GestureRunChooserPage extends StatefulWidget {
   const _GestureRunChooserPage({
     required this.repository,
     required this.onRunConfig,
+    required this.alarmBridge,
   });
 
   final TaskRepository repository;
   final Future<void> Function(GestureConfig config) onRunConfig;
+  final AlarmBridge alarmBridge;
 
   @override
   State<_GestureRunChooserPage> createState() => _GestureRunChooserPageState();
@@ -369,56 +377,90 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('当前配置')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty
           ? const Center(
               child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
             )
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
+          : Column(
+              children: [
+                const SizedBox(height: 16),
+                Text(
+                  '当前执行配置',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: Text(
-                              _selected?.name ?? '未选择',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _selected?.name ?? '未选择',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton.filled(
+                                tooltip: '执行',
+                                onPressed: _selected == null
+                                    ? null
+                                    : () => _run(_selected!),
+                                icon: const Icon(Icons.play_arrow_rounded),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton.filledTonal(
+                                tooltip: '切换配置',
+                                onPressed: _switchConfig,
+                                icon: const Icon(Icons.swap_horiz_rounded),
+                              ),
+                            ],
                           ),
-                          IconButton.filledTonal(
-                            tooltip: '切换配置',
-                            onPressed: _switchConfig,
-                            icon: const Icon(Icons.swap_horiz_rounded),
+                          const SizedBox(height: 8),
+                          Text(
+                            _selected == null
+                                ? '请选择配置'
+                                : '${_selected!.actions.length}个步骤 · ${_selected!.loopCount}次循环 · 约${estimateGestureConfigDuration(_selected!).label}',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _selected == null
-                            ? '请选择配置'
-                            : '${_selected!.actions.length} 个动作 · ${_selected!.loopCount} 次 · 间隔 ${_selected!.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(_selected!).label}',
-                      ),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(
-                        onPressed: _selected == null
-                            ? null
-                            : () => _run(_selected!),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('执行当前配置'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                const Spacer(),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: TextButton.icon(
+                      onPressed: widget.alarmBridge.closeAutomationOverlay,
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('关闭弹窗'),
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
