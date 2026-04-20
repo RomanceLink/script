@@ -107,6 +107,8 @@ class AutoSwipeService : AccessibilityService() {
     private var activeRecordingSurface: RecordingSurface? = null
     private var activeRecordingAutoStopOnHome = false
     private var unlockMotionRecorder: MotionEventRecorder? = null
+    private var unlockMotionCaptureOverlay: View? = null
+    private var unlockMotionCaptureVisible = false
     private var unlockMotionControl: View? = null
     private var unlockMotionControlParams: WindowManager.LayoutParams? = null
     private var unlockMotionControlVisible = false
@@ -3028,8 +3030,11 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun replayRecordedSegment(segment: RecordedSegment) {
-        if (segment.points.isEmpty()) return
+    private fun replayRecordedSegment(segment: RecordedSegment, onDone: () -> Unit = {}) {
+        if (segment.points.isEmpty()) {
+            onDone()
+            return
+        }
         val (screenWidth, screenHeight) = screenSize()
         val path = Path()
         segment.points.forEachIndexed { index, point ->
@@ -3041,16 +3046,25 @@ class AutoSwipeService : AccessibilityService() {
                 path.lineTo(x, y)
             }
         }
-        val duration = segment.duration.coerceAtLeast(50L)
+        if (segment.points.size == 1) {
+            val point = segment.points.first()
+            path.lineTo(
+                (point.x.coerceIn(0f, 1f) * screenWidth) + 0.1f,
+                point.y.coerceIn(0f, 1f) * screenHeight,
+            )
+        }
+        val duration = segment.duration.coerceAtLeast(80L)
         try {
-            dispatchGesture(
+            dispatchGestureWithRetry(
                 GestureDescription.Builder()
                     .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
                     .build(),
-                null,
-                null,
+                retriesRemaining = 2,
+                retryDelayMillis = 180L,
+                onDone = onDone,
             )
         } catch (_: Exception) {
+            onDone()
         }
     }
 
@@ -3446,8 +3460,81 @@ class AutoSwipeService : AccessibilityService() {
         unlockMotionRecorder = MotionEventRecorder().apply { startRecording() }
         unlockMotionStartedAt = SystemClock.uptimeMillis()
         ensureUnlockMotionTrailOverlay()
+        ensureUnlockMotionCaptureOverlay()
         showUnlockMotionControl()
         startUnlockMotionTicker()
+    }
+
+    private fun ensureUnlockMotionCaptureOverlay() {
+        if (unlockMotionCaptureOverlay != null) {
+            attachUnlockMotionCaptureOverlay()
+            return
+        }
+        unlockMotionCaptureOverlay = object : View(this) {
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                val recorder = unlockMotionRecorder ?: return true
+                val segment = recorder.onMotionEvent(event, screenSize())
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> detachUnlockMotionControl()
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (segment != null) {
+                            handleUnlockMotionSegment(segment)
+                        } else if (unlockMotionRecorder != null && !unlockRecordFinalizing) {
+                            attachUnlockMotionControl()
+                        }
+                    }
+                }
+                return true
+            }
+        }
+        attachUnlockMotionCaptureOverlay()
+    }
+
+    private fun attachUnlockMotionCaptureOverlay() {
+        val view = unlockMotionCaptureOverlay ?: return
+        if (unlockMotionCaptureVisible) return
+        val lp = fullScreenOverlayParams().apply {
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        }
+        try {
+            windowManager?.addView(view, lp)
+            unlockMotionCaptureVisible = true
+        } catch (_: Exception) {
+            unlockMotionCaptureVisible = false
+        }
+    }
+
+    private fun detachUnlockMotionCaptureOverlay() {
+        val view = unlockMotionCaptureOverlay ?: return
+        if (!unlockMotionCaptureVisible) return
+        try {
+            windowManager?.removeView(view)
+        } catch (_: Exception) {
+        }
+        unlockMotionCaptureVisible = false
+    }
+
+    private fun removeUnlockMotionCaptureOverlay() {
+        detachUnlockMotionCaptureOverlay()
+        unlockMotionCaptureOverlay = null
+    }
+
+    private fun handleUnlockMotionSegment(segment: RecordedSegment) {
+        showUnlockMotionTrail(segment)
+        detachUnlockMotionControl()
+        detachUnlockMotionCaptureOverlay()
+        handler.postDelayed({
+            replayRecordedSegment(segment) {
+                handler.postDelayed({
+                    if (unlockMotionRecorder != null && !unlockRecordFinalizing) {
+                        attachUnlockMotionCaptureOverlay()
+                        attachUnlockMotionControl()
+                    }
+                }, 120L)
+            }
+        }, 180L)
     }
 
     private fun showUnlockMotionControl() {
@@ -3519,6 +3606,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun stopUnlockMotionRecording(cancelled: Boolean) {
         stopUnlockMotionTicker()
+        removeUnlockMotionCaptureOverlay()
         detachUnlockMotionControl()
         removeUnlockMotionTrailOverlay()
         unlockMotionControl = null
@@ -3555,7 +3643,7 @@ class AutoSwipeService : AccessibilityService() {
             override fun run() {
                 if (unlockMotionRecorder == null || unlockMotionStartedAt == 0L) return
                 updateUnlockMotionStatus()
-                handler.postDelayed(this, 250)
+                handler.postDelayed(this, 100)
             }
         }
         unlockMotionTicker = ticker
@@ -3566,7 +3654,7 @@ class AutoSwipeService : AccessibilityService() {
         val started = unlockMotionStartedAt
         if (started == 0L) return
         unlockMotionStatusView?.text =
-            "录制 ${formatElapsed((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
+            "录制 ${formatElapsedTenths((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
     }
 
     private fun stopUnlockMotionTicker() {
@@ -4144,6 +4232,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun removePickerOverlay() {
         detachPickerOverlayView()
+        removeUnlockMotionCaptureOverlay()
         detachUnlockMotionControl()
         removeUnlockMotionTrailOverlay()
         unlockMotionControl = null
@@ -4377,6 +4466,15 @@ class AutoSwipeService : AccessibilityService() {
         return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
     }
 
+    private fun formatElapsedTenths(milliseconds: Long): String {
+        val totalTenths = milliseconds / 100
+        val totalSeconds = totalTenths / 10
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        val tenths = totalTenths % 10
+        return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.$tenths"
+    }
+
     private fun formatDurationLabel(milliseconds: Long): String {
         val millis = milliseconds.coerceAtLeast(0L)
         if (millis < 1000L) {
@@ -4436,6 +4534,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     override fun onMotionEvent(event: MotionEvent) {
+        if (unlockMotionCaptureOverlay != null) return
         val recorder = unlockMotionRecorder ?: return
         val finishedSegment = recorder.onMotionEvent(event, screenSize())
         when (event.actionMasked) {

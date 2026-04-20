@@ -174,30 +174,35 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('自动化配置中心')),
-      floatingActionButton: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        alignment: WrapAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'unlock_record',
-            onPressed: _recordUnlockConfig,
-            icon: const Icon(Icons.lock_open_rounded),
-            label: Text(_unlockConfig == null ? '锁屏录制' : '重录锁屏'),
-          ),
-          FloatingActionButton.extended(
-            heroTag: 'unlock_verify',
-            onPressed: _unlockConfig == null ? null : _verifyUnlockConfig,
-            icon: const Icon(Icons.verified_user_outlined),
-            label: const Text('验证锁屏'),
-          ),
-          FloatingActionButton.extended(
-            heroTag: 'new_config',
-            onPressed: () => _addOrEdit(),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('新建方案'),
-          ),
-        ],
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: _ConfigBottomAction(
+                icon: Icons.lock_open_rounded,
+                label: _unlockConfig == null ? '锁屏录制' : '重录锁屏',
+                onPressed: _recordUnlockConfig,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ConfigBottomAction(
+                icon: Icons.verified_user_outlined,
+                label: '验证锁屏',
+                onPressed: _unlockConfig == null ? null : _verifyUnlockConfig,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ConfigBottomAction(
+                icon: Icons.add_rounded,
+                label: '新建方案',
+                onPressed: () => _addOrEdit(),
+              ),
+            ),
+          ],
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -248,6 +253,33 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 );
               },
             ),
+    );
+  }
+}
+
+class _ConfigBottomAction extends StatelessWidget {
+  const _ConfigBottomAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1)),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 42),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }
