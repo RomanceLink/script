@@ -120,8 +120,6 @@ class AutoSwipeService : AccessibilityService() {
     private val unlockMotionTrailSegments = mutableListOf<RecordedSegment>()
     private var unlockRecordWaitingForRecord = false
     private var unlockRecordFinalizing = false
-    private val defaultGestureBeforeWaitMillis = 300
-    private val defaultGestureAfterWaitMillis = 800
 
     private val handler = Handler(Looper.getMainLooper())
     private val random = Random()
@@ -1453,9 +1451,10 @@ class AutoSwipeService : AccessibilityService() {
                 confirmLabel = if (editing) "保存" else "添加",
             ))
         } else if (milliseconds) {
+            val fallbackMillis = 1000
             val defaultMillis = ((current?.get("waitMillis") as? Number)?.toInt()
                 ?: ((current?.get("seconds") as? Number)?.toInt()?.times(1000))
-                ?: defaultGestureAfterWaitMillis).coerceIn(1, 10_000_000)
+                ?: fallbackMillis).coerceIn(1, 10_000_000)
             val millisInput = inputField(defaultMillis.toString(), "等待毫秒", numberOnly = true)
             panel.addView(fieldLabel("等待毫秒，比如 300 或 800"))
             panel.addView(millisInput, LinearLayout.LayoutParams(
@@ -1466,7 +1465,7 @@ class AutoSwipeService : AccessibilityService() {
                 onCancel = cancelAction,
                 onConfirm = {
                     val millis = (millisInput.text?.toString()?.trim()?.toIntOrNull()
-                        ?: defaultGestureAfterWaitMillis).coerceIn(1, 10_000_000)
+                        ?: fallbackMillis).coerceIn(1, 10_000_000)
                     upsertFloatingWaitAction(editIndex, fixedMillisWaitAction(millis))
                     showFloatingRecorder()
                 },
@@ -1751,22 +1750,34 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun appendFloatingPickerResult(result: Map<String, Any?>) {
-        appendGestureActionsWithBuffers(floatingActionsFromPickerResult(result))
+        floatingRecordActions.addAll(floatingActionsFromPickerResult(result))
     }
 
     private fun floatingActionsFromPickerResult(result: Map<String, Any?>): List<Map<String, Any?>> {
         return when (result["type"] as? String) {
             "clickSteps" -> {
                 val points = result["points"] as? List<*> ?: emptyList<Any?>()
-                points.mapNotNull { point ->
-                    val map = point as? Map<*, *> ?: return@mapNotNull null
-                    mapOf(
-                        "type" to "click",
-                        "x1" to ((map["x"] as? Number)?.toDouble() ?: 0.5),
-                        "y1" to ((map["y"] as? Number)?.toDouble() ?: 0.5),
-                        "duration" to 50,
+                val sortedPoints = points.mapNotNull { it as? Map<*, *> }
+                    .sortedBy { (it["t"] as? Number)?.toLong() ?: 0L }
+                val actions = mutableListOf<Map<String, Any?>>()
+                var previousTime = 0L
+                sortedPoints.forEach { map ->
+                    val time = ((map["t"] as? Number)?.toLong() ?: previousTime).coerceIn(0L, 10_000_000L)
+                    val waitMillis = (time - previousTime).coerceAtLeast(0L)
+                    if (waitMillis > 0L) {
+                        actions.add(fixedMillisWaitAction(waitMillis.toInt()))
+                    }
+                    actions.add(
+                        mapOf(
+                            "type" to "click",
+                            "x1" to ((map["x"] as? Number)?.toDouble() ?: 0.5),
+                            "y1" to ((map["y"] as? Number)?.toDouble() ?: 0.5),
+                            "duration" to 50,
+                        ),
                     )
+                    previousTime = time
                 }
+                actions
             }
             "recorded" -> {
                 recordedActionsFromResult(result)
@@ -1874,14 +1885,6 @@ class AutoSwipeService : AccessibilityService() {
         val firstT = (first["t"] as? Number)?.toLong() ?: 0L
         val lastT = (normalizeMap(points.last())["t"] as? Number)?.toLong() ?: firstT
         return maxDistance <= 0.0004f && (lastT - firstT) <= 220L
-    }
-
-    private fun appendGestureActionsWithBuffers(actions: List<Map<String, Any?>>) {
-        actions.forEach { action ->
-            floatingRecordActions.add(fixedMillisWaitAction(defaultGestureBeforeWaitMillis))
-            floatingRecordActions.add(action)
-            floatingRecordActions.add(fixedMillisWaitAction(defaultGestureAfterWaitMillis))
-        }
     }
 
     private fun fixedMillisWaitAction(milliseconds: Int): Map<String, Any?> {
@@ -4762,7 +4765,7 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private data class StepPoint(var x: Float, var y: Float)
+    private data class StepPoint(var x: Float, var y: Float, var t: Long = 0L)
 
     private data class ButtonMatchTarget(
         val bounds: Rect,
@@ -4977,6 +4980,7 @@ class AutoSwipeService : AccessibilityService() {
         private val points = mutableListOf<StepPoint>()
         private var selectedIndex = -1
         private var downIndex = -1
+        private val startedAt = SystemClock.uptimeMillis()
 
         private val density = resources.displayMetrics.density
         private val circleRadius = 18f * density
@@ -5007,7 +5011,11 @@ class AutoSwipeService : AccessibilityService() {
 
         fun exportPoints(): List<Map<String, Double>> {
             return points.map { point ->
-                mapOf("x" to point.x.toDouble(), "y" to point.y.toDouble())
+                mapOf(
+                    "x" to point.x.toDouble(),
+                    "y" to point.y.toDouble(),
+                    "t" to point.t.toDouble(),
+                )
             }
         }
 
@@ -5050,6 +5058,7 @@ class AutoSwipeService : AccessibilityService() {
                         val point = StepPoint(
                             (event.x / width).coerceIn(0f, 1f),
                             (event.y / height).coerceIn(0f, 1f),
+                            (event.eventTime - startedAt).coerceAtLeast(0L),
                         )
                         points.add(point)
                         selectedIndex = points.lastIndex

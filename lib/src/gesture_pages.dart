@@ -295,9 +295,6 @@ class GestureEditPage extends StatefulWidget {
 }
 
 class _GestureEditPageState extends State<GestureEditPage> {
-  static const _defaultGestureBeforeWaitMillis = 300;
-  static const _defaultGestureAfterWaitMillis = 800;
-
   late TextEditingController _nameController;
   late TextEditingController _loopCountController;
   late TextEditingController _loopIntervalController;
@@ -342,19 +339,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
   void _addGestureActionsWithBuffers(List<GestureAction> actions) {
     if (actions.isEmpty) return;
     setState(() {
-      for (final action in actions) {
-        _actions.add(
-          WaitAction.fixedMilliseconds(
-            milliseconds: _defaultGestureBeforeWaitMillis,
-          ),
-        );
-        _actions.add(action);
-        _actions.add(
-          WaitAction.fixedMilliseconds(
-            milliseconds: _defaultGestureAfterWaitMillis,
-          ),
-        );
-      }
+      _actions.addAll(actions);
     });
   }
 
@@ -587,20 +572,36 @@ class _GestureEditPageState extends State<GestureEditPage> {
     );
   }
 
-  List<ClickAction> _clickActionsFromSteps(Map<String, Object?>? result) {
+  List<GestureAction> _clickActionsFromSteps(Map<String, Object?>? result) {
     if (result == null || result['cancelled'] == true) {
       return const [];
     }
     final rawPoints = (result['points'] as List<Object?>?) ?? const [];
-    final actions = rawPoints
-        .whereType<Map<Object?, Object?>>()
-        .map(
-          (point) => ClickAction(
-            x1: (point['x'] as num).toDouble(),
-            y1: (point['y'] as num).toDouble(),
-          ),
-        )
-        .toList();
+    final points = rawPoints.whereType<Map<Object?, Object?>>().toList()
+      ..sort(
+        (a, b) => ((a['t'] as num?)?.toInt() ?? 0).compareTo(
+          (b['t'] as num?)?.toInt() ?? 0,
+        ),
+      );
+    final actions = <GestureAction>[];
+    var previousTime = 0;
+    for (final point in points) {
+      final time = ((point['t'] as num?)?.toInt() ?? previousTime).clamp(
+        0,
+        10000000,
+      );
+      final waitMillis = (time - previousTime).clamp(0, 10000000);
+      if (waitMillis > 0) {
+        actions.add(WaitAction.fixedMilliseconds(milliseconds: waitMillis));
+      }
+      actions.add(
+        ClickAction(
+          x1: (point['x'] as num).toDouble(),
+          y1: (point['y'] as num).toDouble(),
+        ),
+      );
+      previousTime = time;
+    }
     if (actions.isEmpty) {
       ScaffoldMessenger.of(
         context,
