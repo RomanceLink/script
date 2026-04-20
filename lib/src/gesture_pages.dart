@@ -284,6 +284,170 @@ class _ConfigBottomAction extends StatelessWidget {
   }
 }
 
+class _SchemeSettingsDialog extends StatefulWidget {
+  const _SchemeSettingsDialog({
+    required this.name,
+    required this.loopCount,
+    required this.loopInterval,
+  });
+
+  final String name;
+  final String loopCount;
+  final String loopInterval;
+
+  @override
+  State<_SchemeSettingsDialog> createState() => _SchemeSettingsDialogState();
+}
+
+class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _loopCountController;
+  late final TextEditingController _loopIntervalController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.name);
+    _loopCountController = TextEditingController(text: widget.loopCount);
+    _loopIntervalController = TextEditingController(text: widget.loopInterval);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _loopCountController.dispose();
+    _loopIntervalController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop((
+      name: _nameController.text.trim(),
+      loopCount: _loopCountController.text.trim(),
+      loopInterval: _loopIntervalController.text.trim(),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final maxHeight =
+        MediaQuery.sizeOf(context).height -
+        viewInsets.bottom -
+        MediaQuery.paddingOf(context).vertical -
+        32;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight.clamp(260.0, 520.0)),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '方案设置',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _compactField(
+                  controller: _nameController,
+                  label: '名称',
+                  hint: '例如：刷抖音专用',
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _compactField(
+                        controller: _loopCountController,
+                        label: '循环次数',
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _compactField(
+                        controller: _loopIntervalController,
+                        label: '间隔毫秒',
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _submit(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 38),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _submit,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 38),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Text('保存'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _compactField({
+    required TextEditingController controller,
+    required String label,
+    String? hint,
+    TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
+
 class GestureEditPage extends StatefulWidget {
   const GestureEditPage({this.config, required this.launcher, super.key});
 
@@ -1325,71 +1489,15 @@ class _GestureEditPageState extends State<GestureEditPage> {
   }
 
   Future<void> _editName() async {
-    var nameDraft = _nameController.text.trim();
-    var loopCountDraft = _loopCountController.text.trim();
-    var loopIntervalDraft = _loopIntervalController.text.trim();
     final next =
         await showDialog<
           ({String name, String loopCount, String loopInterval})
         >(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('方案设置'),
-            content: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.55,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      initialValue: nameDraft,
-                      autofocus: true,
-                      onChanged: (value) => nameDraft = value,
-                      decoration: const InputDecoration(
-                        labelText: '名称',
-                        hintText: '例如：刷抖音专用',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      initialValue: loopCountDraft,
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) => loopCountDraft = value,
-                      decoration: const InputDecoration(
-                        labelText: '循环次数',
-                        helperText: '最少 1 次',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      initialValue: loopIntervalDraft,
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) => loopIntervalDraft = value,
-                      decoration: const InputDecoration(
-                        labelText: '循环间隔毫秒',
-                        helperText: '每轮之间等待',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop((
-                  name: nameDraft.trim(),
-                  loopCount: loopCountDraft.trim(),
-                  loopInterval: loopIntervalDraft.trim(),
-                )),
-                child: const Text('保存'),
-              ),
-            ],
+          builder: (context) => _SchemeSettingsDialog(
+            name: _nameController.text.trim(),
+            loopCount: _loopCountController.text.trim(),
+            loopInterval: _loopIntervalController.text.trim(),
           ),
         );
     if (!mounted || next == null) {
