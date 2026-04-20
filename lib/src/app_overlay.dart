@@ -1,0 +1,564 @@
+part of 'app.dart';
+
+class FloatingAutomationOverlayApp extends StatefulWidget {
+  const FloatingAutomationOverlayApp({super.key});
+
+  @override
+  State<FloatingAutomationOverlayApp> createState() =>
+      _FloatingAutomationOverlayAppState();
+}
+
+class _FloatingAutomationOverlayAppState
+    extends State<FloatingAutomationOverlayApp> {
+  static const _channel = MethodChannel('scriptapp/alarm');
+  Brightness? _brightness;
+
+  @override
+  void initState() {
+    super.initState();
+    _channel.setMethodCallHandler(_handleNativeCall);
+  }
+
+  @override
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    super.dispose();
+  }
+
+  Future<dynamic> _handleNativeCall(MethodCall call) async {
+    if (call.method == 'setOverlayTheme') {
+      final dark =
+          (call.arguments as Map<Object?, Object?>?)?['dark'] as bool? ?? false;
+      if (mounted) {
+        setState(() => _brightness = dark ? Brightness.dark : Brightness.light);
+      }
+      return null;
+    }
+    return _FloatingAutomationOverlayShellState.handleNativeCall(call);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = _brightness ?? MediaQuery.platformBrightnessOf(context);
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: _scriptAssistantTheme(brightness),
+      home: const _FloatingAutomationOverlayShell(initialMode: 'configs'),
+    );
+  }
+}
+
+class _FloatingAutomationOverlayShell extends StatefulWidget {
+  const _FloatingAutomationOverlayShell({required this.initialMode});
+
+  final String initialMode;
+
+  @override
+  State<_FloatingAutomationOverlayShell> createState() =>
+      _FloatingAutomationOverlayShellState();
+}
+
+class _FloatingAutomationOverlayShellState
+    extends State<_FloatingAutomationOverlayShell> {
+  static _FloatingAutomationOverlayShellState? _instance;
+  final TaskRepository _repository = TaskRepository();
+  final DouyinLauncher _launcher = DouyinLauncher();
+  final AlarmBridge _alarmBridge = AlarmBridge();
+  late String _mode;
+  int _overlayRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _instance = this;
+    _mode = widget.initialMode;
+  }
+
+  @override
+  void dispose() {
+    if (_instance == this) {
+      _instance = null;
+    }
+    super.dispose();
+  }
+
+  static Future<dynamic> handleNativeCall(MethodCall call) async {
+    final state = _instance;
+    if (state == null || !state.mounted || call.method != 'setOverlayMode') {
+      return null;
+    }
+    final mode =
+        (call.arguments as Map<Object?, Object?>?)?['mode'] as String? ??
+        state.widget.initialMode;
+    state.setState(() {
+      state._mode = mode;
+      state._overlayRevision += 1;
+    });
+    return null;
+  }
+
+  Future<void> _syncConfigs(List<GestureConfig> configs) {
+    return _alarmBridge.syncAutomationConfigs(
+      configs: configs.map((config) => config.toJson()).toList(),
+    );
+  }
+
+  Future<void> _runConfig(GestureConfig config) async {
+    await _repository.saveLastGestureConfigId(config.id);
+    await _alarmBridge.runGestureConfig(
+      name: config.name,
+      actions: config.actions.map((action) => action.toJson()).toList(),
+      loopCount: config.loopCount,
+      loopIntervalMillis: config.loopIntervalMillis,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = _mode == 'run'
+        ? _GestureRunChooserPage(
+            repository: _repository,
+            onRunConfig: _runConfig,
+            alarmBridge: _alarmBridge,
+          )
+        : GestureConfigPage(
+            repository: _repository,
+            launcher: _launcher,
+            autoCreateOnOpen: _mode == 'create',
+            onConfigsChanged: _syncConfigs,
+            onRunConfig: _runConfig,
+            onClose: _alarmBridge.closeAutomationOverlay,
+          );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final maxHeight = constraints.maxHeight;
+            if (maxWidth <= 0 || maxHeight <= 0) {
+              return const SizedBox.shrink();
+            }
+            final isRunMode = _mode == 'run';
+            final width = isRunMode
+                ? (maxWidth < 420 ? maxWidth - 40 : 360.0).clamp(0.0, maxWidth)
+                : (maxWidth < 548
+                      ? (maxWidth - 24).clamp(0.0, maxWidth)
+                      : 520.0.clamp(0.0, maxWidth));
+            final height = isRunMode
+                ? (maxHeight < 560 ? maxHeight : 520.0).clamp(0.0, maxHeight)
+                : (maxHeight < 408
+                      ? maxHeight
+                      : (maxHeight - 48).clamp(360.0, maxHeight));
+            return Stack(
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: Navigator(
+                        key: ValueKey('$_mode-$_overlayRevision'),
+                        onGenerateRoute: (_) =>
+                            MaterialPageRoute<void>(builder: (_) => content),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _GestureRunChooserPage extends StatefulWidget {
+  const _GestureRunChooserPage({
+    required this.repository,
+    required this.onRunConfig,
+    required this.alarmBridge,
+  });
+
+  final TaskRepository repository;
+  final Future<void> Function(GestureConfig config) onRunConfig;
+  final AlarmBridge alarmBridge;
+
+  @override
+  State<_GestureRunChooserPage> createState() => _GestureRunChooserPageState();
+}
+
+class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
+  List<GestureConfig> _configs = [];
+  GestureConfig? _selected;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final configs = await widget.repository.loadGestureConfigs();
+    final lastId = await widget.repository.loadLastGestureConfigId();
+    if (!mounted) return;
+    final selected = configs.where((config) => config.id == lastId).firstOrNull;
+    setState(() {
+      _configs = configs;
+      _selected = selected ?? (configs.isNotEmpty ? configs.last : null);
+      _loading = false;
+    });
+  }
+
+  Future<void> _run(GestureConfig config) async {
+    await widget.onRunConfig(config);
+  }
+
+  Future<void> _switchConfig() async {
+    final selected = await showModalBottomSheet<GestureConfig>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                '选择自动化配置',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                itemCount: _configs.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final config = _configs[index];
+                  final isSelected = config.id == _selected?.id;
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(
+                      config.name,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : null,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${config.actions.length}步骤 · ${estimateGestureConfigDuration(config).label}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onTap: () => Navigator.of(context).pop(config),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _selected = selected);
+    await widget.repository.saveLastGestureConfigId(selected.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _configs.isEmpty
+          ? const Center(
+              child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
+            )
+          : Center(
+              // 整体居中
+              child: SingleChildScrollView(
+                // 滚动保护
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // 紧凑排列
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.12,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '准备执行自动化',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: theme.colorScheme.primary,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: theme.brightness == Brightness.dark
+                                ? const Color(0xFF1E2628)
+                                : const Color(0xFFF1F6F4),
+                            borderRadius: BorderRadius.circular(32),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.8),
+                              width: 2.0,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: 0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.bolt_rounded,
+                                        color: theme.colorScheme.primary,
+                                        size: 26,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        _selected?.name ?? '未选择',
+                                        style: theme.textTheme.headlineSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: -0.8,
+                                            ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      _InfoRow(
+                                        icon: Icons.ads_click_rounded,
+                                        label: '动作步骤',
+                                        value:
+                                            '${_selected?.actions.length ?? 0} 个步骤',
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Divider(
+                                          height: 1,
+                                          thickness: 1.0,
+                                        ),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons.loop_rounded,
+                                        label: '执行轮次',
+                                        value:
+                                            '${_selected?.loopCount ?? 0} 次循环',
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Divider(
+                                          height: 1,
+                                          thickness: 1.0,
+                                        ),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons.timer_outlined,
+                                        label: '预估耗时',
+                                        value: _selected == null
+                                            ? '-'
+                                            : estimateGestureConfigDuration(
+                                                _selected!,
+                                              ).label,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 28),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFF4A9D8F,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              18,
+                                            ),
+                                          ),
+                                          elevation: 2,
+                                          shadowColor: const Color(
+                                            0xFF4A9D8F,
+                                          ).withValues(alpha: 0.3),
+                                        ),
+                                        onPressed: _selected == null
+                                            ? null
+                                            : () => _run(_selected!),
+                                        icon: const Icon(
+                                          Icons.play_arrow_rounded,
+                                          size: 28,
+                                        ),
+                                        label: const Text(
+                                          '开始自动化',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    IconButton.filledTonal(
+                                      style: IconButton.styleFrom(
+                                        padding: const EdgeInsets.all(16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                        ),
+                                      ),
+                                      tooltip: '切换配置',
+                                      onPressed: _switchConfig,
+                                      icon: const Icon(
+                                        Icons.swap_horiz_rounded,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SafeArea(
+                        top: false,
+                        child: TextButton.icon(
+                          onPressed: widget.alarmBridge.closeAutomationOverlay,
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          label: const Text(
+                            '放弃执行',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}

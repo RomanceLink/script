@@ -13,6 +13,9 @@ import 'services/douyin_launcher.dart';
 import 'services/notification_service.dart';
 import 'services/task_repository.dart';
 
+part 'app_overlay.dart';
+part 'app_widgets.dart';
+
 enum ToastType { success, error, info, warning }
 
 const _appSeed = Color(0xFF4A9D8F);
@@ -121,506 +124,6 @@ class ScriptAssistantApp extends StatelessWidget {
       theme: _scriptAssistantTheme(Brightness.light),
       darkTheme: _scriptAssistantTheme(Brightness.dark),
       home: DashboardPage(enablePlatformServices: enablePlatformServices),
-    );
-  }
-}
-
-class FloatingAutomationOverlayApp extends StatefulWidget {
-  const FloatingAutomationOverlayApp({super.key});
-
-  @override
-  State<FloatingAutomationOverlayApp> createState() =>
-      _FloatingAutomationOverlayAppState();
-}
-
-class _FloatingAutomationOverlayAppState
-    extends State<FloatingAutomationOverlayApp> {
-  static const _channel = MethodChannel('scriptapp/alarm');
-  Brightness? _brightness;
-
-  @override
-  void initState() {
-    super.initState();
-    _channel.setMethodCallHandler(_handleNativeCall);
-  }
-
-  @override
-  void dispose() {
-    _channel.setMethodCallHandler(null);
-    super.dispose();
-  }
-
-  Future<dynamic> _handleNativeCall(MethodCall call) async {
-    if (call.method == 'setOverlayTheme') {
-      final dark =
-          (call.arguments as Map<Object?, Object?>?)?['dark'] as bool? ?? false;
-      if (mounted) {
-        setState(() => _brightness = dark ? Brightness.dark : Brightness.light);
-      }
-      return null;
-    }
-    return _FloatingAutomationOverlayShellState.handleNativeCall(call);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = _brightness ?? MediaQuery.platformBrightnessOf(context);
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: _scriptAssistantTheme(brightness),
-      home: const _FloatingAutomationOverlayShell(initialMode: 'configs'),
-    );
-  }
-}
-
-class _FloatingAutomationOverlayShell extends StatefulWidget {
-  const _FloatingAutomationOverlayShell({required this.initialMode});
-
-  final String initialMode;
-
-  @override
-  State<_FloatingAutomationOverlayShell> createState() =>
-      _FloatingAutomationOverlayShellState();
-}
-
-class _FloatingAutomationOverlayShellState
-    extends State<_FloatingAutomationOverlayShell> {
-  static _FloatingAutomationOverlayShellState? _instance;
-  final TaskRepository _repository = TaskRepository();
-  final DouyinLauncher _launcher = DouyinLauncher();
-  final AlarmBridge _alarmBridge = AlarmBridge();
-  late String _mode;
-  int _overlayRevision = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _instance = this;
-    _mode = widget.initialMode;
-  }
-
-  @override
-  void dispose() {
-    if (_instance == this) {
-      _instance = null;
-    }
-    super.dispose();
-  }
-
-  static Future<dynamic> handleNativeCall(MethodCall call) async {
-    final state = _instance;
-    if (state == null || !state.mounted || call.method != 'setOverlayMode') {
-      return null;
-    }
-    final mode =
-        (call.arguments as Map<Object?, Object?>?)?['mode'] as String? ??
-        state.widget.initialMode;
-    state.setState(() {
-      state._mode = mode;
-      state._overlayRevision += 1;
-    });
-    return null;
-  }
-
-  Future<void> _syncConfigs(List<GestureConfig> configs) {
-    return _alarmBridge.syncAutomationConfigs(
-      configs: configs.map((config) => config.toJson()).toList(),
-    );
-  }
-
-  Future<void> _runConfig(GestureConfig config) async {
-    await _repository.saveLastGestureConfigId(config.id);
-    await _alarmBridge.runGestureConfig(
-      name: config.name,
-      actions: config.actions.map((action) => action.toJson()).toList(),
-      loopCount: config.loopCount,
-      loopIntervalMillis: config.loopIntervalMillis,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final content = _mode == 'run'
-        ? _GestureRunChooserPage(
-            repository: _repository,
-            onRunConfig: _runConfig,
-            alarmBridge: _alarmBridge,
-          )
-        : GestureConfigPage(
-            repository: _repository,
-            launcher: _launcher,
-            autoCreateOnOpen: _mode == 'create',
-            onConfigsChanged: _syncConfigs,
-            onRunConfig: _runConfig,
-            onClose: _alarmBridge.closeAutomationOverlay,
-          );
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final maxWidth = constraints.maxWidth;
-            final maxHeight = constraints.maxHeight;
-            if (maxWidth <= 0 || maxHeight <= 0) {
-              return const SizedBox.shrink();
-            }
-            final isRunMode = _mode == 'run';
-            final width = isRunMode
-                ? (maxWidth < 420 ? maxWidth - 40 : 360.0).clamp(0.0, maxWidth)
-                : (maxWidth < 548
-                    ? (maxWidth - 24).clamp(0.0, maxWidth)
-                    : 520.0.clamp(0.0, maxWidth));
-            final height = isRunMode
-                ? (maxHeight < 560 ? maxHeight : 520.0).clamp(0.0, maxHeight)
-                : (maxHeight < 408
-                    ? maxHeight
-                    : (maxHeight - 48).clamp(360.0, maxHeight));
-            return Stack(
-              children: [
-                Center(
-                  child: SizedBox(
-                    width: width,
-                    height: height,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(26),
-                      child: Navigator(
-                        key: ValueKey('$_mode-$_overlayRevision'),
-                        onGenerateRoute: (_) =>
-                            MaterialPageRoute<void>(builder: (_) => content),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _GestureRunChooserPage extends StatefulWidget {
-  const _GestureRunChooserPage({
-    required this.repository,
-    required this.onRunConfig,
-    required this.alarmBridge,
-  });
-
-  final TaskRepository repository;
-  final Future<void> Function(GestureConfig config) onRunConfig;
-  final AlarmBridge alarmBridge;
-
-  @override
-  State<_GestureRunChooserPage> createState() => _GestureRunChooserPageState();
-}
-
-class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
-  List<GestureConfig> _configs = [];
-  GestureConfig? _selected;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final configs = await widget.repository.loadGestureConfigs();
-    final lastId = await widget.repository.loadLastGestureConfigId();
-    if (!mounted) return;
-    final selected = configs.where((config) => config.id == lastId).firstOrNull;
-    setState(() {
-      _configs = configs;
-      _selected = selected ?? (configs.isNotEmpty ? configs.last : null);
-      _loading = false;
-    });
-  }
-
-  Future<void> _run(GestureConfig config) async {
-    await widget.onRunConfig(config);
-  }
-
-  Future<void> _switchConfig() async {
-    final selected = await showModalBottomSheet<GestureConfig>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                '选择自动化配置',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _configs.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final config = _configs[index];
-                  final isSelected = config.id == _selected?.id;
-                  return ListTile(
-                    dense: true,
-                    leading: Icon(
-                      isSelected
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
-                    ),
-                    title: Text(
-                      config.name,
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : null,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${config.actions.length}步骤 · ${estimateGestureConfigDuration(config).label}',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    onTap: () => Navigator.of(context).pop(config),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null || !mounted) return;
-    setState(() => _selected = selected);
-    await widget.repository.saveLastGestureConfigId(selected.id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _configs.isEmpty
-          ? const Center(
-              child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
-            )
-          : Center( // 整体居中
-              child: SingleChildScrollView( // 滚动保护
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min, // 紧凑排列
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome_rounded, size: 18, color: theme.colorScheme.primary),
-                            const SizedBox(width: 10),
-                            Text(
-                              '准备执行自动化',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: theme.colorScheme.primary,
-                                    letterSpacing: 1.0,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: theme.brightness == Brightness.dark
-                                ? const Color(0xFF1E2628)
-                                : const Color(0xFFF1F6F4),
-                            borderRadius: BorderRadius.circular(32),
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant.withOpacity(0.8),
-                              width: 2.0,
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary.withOpacity(0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.bolt_rounded,
-                                        color: theme.colorScheme.primary,
-                                        size: 26,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        _selected?.name ?? '未选择',
-                                        style: theme.textTheme.headlineSmall?.copyWith(
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: -0.8,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surface.withOpacity(0.8),
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      _InfoRow(
-                                        icon: Icons.ads_click_rounded,
-                                        label: '动作步骤',
-                                        value: '${_selected?.actions.length ?? 0} 个步骤',
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 10),
-                                        child: Divider(height: 1, thickness: 1.0),
-                                      ),
-                                      _InfoRow(
-                                        icon: Icons.loop_rounded,
-                                        label: '执行轮次',
-                                        value: '${_selected?.loopCount ?? 0} 次循环',
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 10),
-                                        child: Divider(height: 1, thickness: 1.0),
-                                      ),
-                                      _InfoRow(
-                                        icon: Icons.timer_outlined,
-                                        label: '预估耗时',
-                                        value: _selected == null ? '-' : estimateGestureConfigDuration(_selected!).label,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 28),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          backgroundColor: const Color(0xFF4A9D8F),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(18),
-                                          ),
-                                          elevation: 2,
-                                          shadowColor: const Color(0xFF4A9D8F).withOpacity(0.3),
-                                        ),
-                                        onPressed: _selected == null
-                                            ? null
-                                            : () => _run(_selected!),
-                                        icon: const Icon(Icons.play_arrow_rounded, size: 28),
-                                        label: const Text('开始自动化', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    IconButton.filledTonal(
-                                      style: IconButton.styleFrom(
-                                        padding: const EdgeInsets.all(16),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(18),
-                                        ),
-                                      ),
-                                      tooltip: '切换配置',
-                                      onPressed: _switchConfig,
-                                      icon: const Icon(Icons.swap_horiz_rounded, size: 28),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SafeArea(
-                        top: false,
-                        child: TextButton.icon(
-                          onPressed: widget.alarmBridge.closeAutomationOverlay,
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          label: const Text('放弃执行', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
-                          style: TextButton.styleFrom(
-                            foregroundColor: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1361,6 +864,159 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late DailyTaskState _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.initialState;
+  }
+
+
+  Future<void> _openAppSettingsPage() async {
+    final result = await Navigator.of(context).push<DailyTaskState>(
+      MaterialPageRoute(
+        builder: (_) => _AppSelectionSettingsPage(
+          initialState: _draft,
+          launcher: widget.launcher,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _draft = result);
+    }
+  }
+
+  Future<void> _openScriptsPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ScriptSettingsPage(
+          repository: widget.repository,
+          launcher: widget.launcher,
+          alarmBridge: widget.alarmBridge,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPermissionsPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PermissionSettingsPage(alarmBridge: widget.alarmBridge),
+      ),
+    );
+  }
+
+  Future<void> _openTasksPage() async {
+    final result = await Navigator.of(context).push<DailyTaskState>(
+      MaterialPageRoute(
+        builder: (_) => _TaskManagementSettingsPage(
+          initialState: _draft,
+          repository: widget.repository,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _draft = result);
+    }
+  }
+
+  Future<void> _openTemplatesPage() async {
+    final result = await Navigator.of(context).push<DailyTaskState>(
+      MaterialPageRoute(
+        builder: (_) => _TemplateLibrarySettingsPage(
+          initialState: _draft,
+          repository: widget.repository,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _draft = result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('设置'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_draft),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          _SettingsNavCell(
+            icon: Icons.rocket_launch_rounded,
+            iconTint: const Color(0xFF2F7D6B),
+            iconBackground: const Color(0xFFDDF5EC),
+            title: '启动应用',
+            subtitle: '选择任务快捷打开的目标应用。',
+            trailingText: _draft.selectedAppLabel,
+            onTap: _openAppSettingsPage,
+          ),
+          _SettingsNavCell(
+            icon: Icons.auto_fix_high_rounded,
+            iconTint: const Color(0xFF7E22CE),
+            iconBackground: const Color(0xFFF3E8FF),
+            title: '脚本配置',
+            subtitle: '管理自动化配置、启动悬浮菜单。',
+            trailingText: '2 actions',
+            onTap: _openScriptsPage,
+          ),
+          _SettingsNavCell(
+            icon: Icons.shield_outlined,
+            iconTint: const Color(0xFF456DAA),
+            iconBackground: const Color(0xFFE5F0FF),
+            title: '提醒权限与系统设置',
+            subtitle: '全屏通知、精确闹钟、辅助功能、自测。',
+            trailingText: '6 items',
+            onTap: _openPermissionsPage,
+          ),
+          _SettingsNavCell(
+            icon: Icons.checklist_rounded,
+            iconTint: const Color(0xFFB06C22),
+            iconBackground: const Color(0xFFFFEFD9),
+            title: '任务管理',
+            subtitle: '编辑任务、排序、启用状态、首页显示。',
+            trailingText: '${_draft.taskDefinitions.length} tasks',
+            onTap: _openTasksPage,
+          ),
+          _SettingsNavCell(
+            icon: Icons.layers_rounded,
+            iconTint: const Color(0xFF8A53B5),
+            iconBackground: const Color(0xFFF2E4FF),
+            title: '模板库',
+            subtitle: '保存当前整套任务，整组复用与编辑。',
+            trailingText: '${_draft.templateGroups.length} groups',
+            onTap: _openTemplatesPage,
+          ),
+        ],
+      ),
+    );
+  }
+
+}
+
+class _AppSelectionSettingsPage extends StatefulWidget {
+  const _AppSelectionSettingsPage({
+    required this.initialState,
+    required this.launcher,
+  });
+
+  final DailyTaskState initialState;
+  final DouyinLauncher launcher;
+
+  @override
+  State<_AppSelectionSettingsPage> createState() =>
+      _AppSelectionSettingsPageState();
+}
+
+class _AppSelectionSettingsPageState extends State<_AppSelectionSettingsPage> {
+  late DailyTaskState _draft;
   bool _loadingApps = false;
 
   @override
@@ -1369,82 +1025,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _draft = widget.initialState;
   }
 
-  Future<void> _openGestureConfigs() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => GestureConfigPage(
-          repository: widget.repository,
-          launcher: widget.launcher,
-        ),
-      ),
-    );
-    await _syncAutomationConfigs();
-  }
-
-  Future<void> _syncAutomationConfigs() async {
-    final configs = await widget.repository.loadGestureConfigs();
-    await widget.alarmBridge.syncAutomationConfigs(
-      configs: configs.map((config) => config.toJson()).toList(),
-    );
-  }
-
-  Future<void> _startAutomationMenu() async {
-    final configs = await widget.repository.loadGestureConfigs();
-    final ok = await widget.alarmBridge.showAutomationMenu(
-      configs: configs.map((config) => config.toJson()).toList(),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (ok) {
-      VibrantHUD.show(context, '悬浮菜单已启动', type: ToastType.success);
-      return;
-    }
-    VibrantHUD.show(context, '请先开启辅助功能服务，再启动悬浮菜单', type: ToastType.warning);
-    await widget.alarmBridge.openAccessibilitySettings();
-  }
-
-  void _toggleTaskEnabled(String taskId, bool enabled) {
-    final next = {..._draft.enabledTaskIds};
-    if (enabled) {
-      next.add(taskId);
-    } else {
-      next.remove(taskId);
-    }
-    setState(() {
-      _draft = _draft.copyWith(
-        enabledTaskIds: next,
-        completedTaskIds: enabled
-            ? _draft.completedTaskIds
-            : ({..._draft.completedTaskIds}..remove(taskId)),
-        intervalCompletedCounts: enabled
-            ? _draft.intervalCompletedCounts
-            : ({..._draft.intervalCompletedCounts}..remove(taskId)),
-        intervalNextAvailableAt: enabled
-            ? _draft.intervalNextAvailableAt
-            : ({..._draft.intervalNextAvailableAt}..remove(taskId)),
-      );
-    });
-  }
-
-  void _toggleHomeVisible(String taskId, bool visible) {
-    final next = {..._draft.homeVisibleTaskIds};
-    if (visible) {
-      next.add(taskId);
-    } else {
-      next.remove(taskId);
-    }
-    setState(() {
-      _draft = _draft.copyWith(homeVisibleTaskIds: next);
-    });
-  }
-
   Future<void> _pickApp() async {
     setState(() => _loadingApps = true);
     final apps = await widget.launcher.listLaunchableApps();
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     setState(() => _loadingApps = false);
     final selected = await showModalBottomSheet<LaunchableApp>(
       context: context,
@@ -1467,9 +1051,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
-    if (selected == null) {
-      return;
-    }
+    if (selected == null || !mounted) return;
     setState(() {
       _draft = _draft.copyWith(
         selectedAppPackage: selected.packageName,
@@ -1478,225 +1060,16 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Future<void> _editTask({AssistantTaskDefinition? task}) async {
-    final edited = await showModalBottomSheet<AssistantTaskDefinition>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) =>
-          TaskEditorSheet(task: task, repository: widget.repository),
-    );
-    if (edited == null) {
-      return;
-    }
-    setState(() {
-      final exists = _draft.taskDefinitions.any((item) => item.id == edited.id);
-      _draft = _draft.copyWith(
-        taskDefinitions: exists
-            ? _draft.taskDefinitions
-                  .map((item) => item.id == edited.id ? edited : item)
-                  .toList()
-            : [..._draft.taskDefinitions, edited],
-        enabledTaskIds: {..._draft.enabledTaskIds, edited.id},
-        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds, edited.id},
-      );
-    });
-  }
-
-  void _deleteTask(String taskId) {
-    setState(() {
-      _draft = _draft.copyWith(
-        taskDefinitions: _draft.taskDefinitions
-            .where((item) => item.id != taskId)
-            .toList(),
-        enabledTaskIds: {..._draft.enabledTaskIds}..remove(taskId),
-        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds}..remove(taskId),
-        completedTaskIds: {..._draft.completedTaskIds}..remove(taskId),
-        intervalCompletedCounts: {..._draft.intervalCompletedCounts}
-          ..remove(taskId),
-        intervalNextAvailableAt: {..._draft.intervalNextAvailableAt}
-          ..remove(taskId),
-      );
-    });
-  }
-
-  void _moveTask(String taskId, int delta) {
-    final list = [..._draft.taskDefinitions];
-    final index = list.indexWhere((item) => item.id == taskId);
-    if (index < 0) return;
-    final nextIndex = index + delta;
-    if (nextIndex < 0 || nextIndex >= list.length) return;
-    final item = list.removeAt(index);
-    list.insert(nextIndex, item);
-    setState(() {
-      _draft = _draft.copyWith(taskDefinitions: list);
-    });
-  }
-
-  void _applyTemplateGroup(TaskTemplateGroup group) {
-    final base = DateTime.now().millisecondsSinceEpoch;
-    final copiedTasks = group.tasks
-        .asMap()
-        .entries
-        .map((entry) => entry.value.copyWith(id: 'task_${base}_${entry.key}'))
-        .toList();
-    final idMap = {
-      for (final entry in group.tasks.asMap().entries)
-        entry.value.id: copiedTasks[entry.key].id,
-    };
-    final ids = copiedTasks.map((item) => item.id).toSet();
-    final enabledIds = group.effectiveEnabledTaskIds
-        .map((id) => idMap[id])
-        .whereType<String>()
-        .toSet();
-    final visibleIds = group.effectiveHomeVisibleTaskIds
-        .map((id) => idMap[id])
-        .whereType<String>()
-        .toSet();
-    setState(() {
-      _draft = _draft.copyWith(
-        taskDefinitions: copiedTasks,
-        enabledTaskIds: enabledIds.isEmpty ? ids : enabledIds,
-        homeVisibleTaskIds: visibleIds.isEmpty ? ids : visibleIds,
-        completedTaskIds: const {},
-        intervalCompletedCounts: const {},
-        intervalNextAvailableAt: const {},
-      );
-    });
-  }
-
-  Future<void> _showSaveTemplateGroupDialog() async {
-    final name = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => const _TemplateNameSheet(
-        title: '保存为模板',
-        fieldLabel: '模板名称',
-        actionLabel: '保存',
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (name == null || name.isEmpty) {
-      return;
-    }
-    setState(() {
-      _draft = _draft.copyWith(
-        templateGroups: [
-          ..._draft.templateGroups,
-          TaskTemplateGroup(
-            id: 'group_${DateTime.now().millisecondsSinceEpoch}',
-            name: name,
-            tasks: _draft.taskDefinitions.map((t) => t.copyWith()).toList(),
-            enabledTaskIds: _draft.enabledTaskIds
-                .where(
-                  _draft.taskDefinitions
-                      .map((task) => task.id)
-                      .toSet()
-                      .contains,
-                )
-                .toSet(),
-            homeVisibleTaskIds: _draft.homeVisibleTaskIds
-                .where(
-                  _draft.taskDefinitions
-                      .map((task) => task.id)
-                      .toSet()
-                      .contains,
-                )
-                .toSet(),
-          ),
-        ],
-      );
-    });
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('模板已保存至库')));
-      });
-    }
-  }
-
-  Future<void> _renameTemplateGroup(TaskTemplateGroup group) async {
-    final name = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => _TemplateNameSheet(
-        title: '重命名模板',
-        fieldLabel: '模板名称',
-        actionLabel: '保存',
-        initialValue: group.name,
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (name == null || name.isEmpty) return;
-    setState(() {
-      _draft = _draft.copyWith(
-        templateGroups: _draft.templateGroups
-            .map(
-              (item) => item.id == group.id
-                  ? TaskTemplateGroup(
-                      id: item.id,
-                      name: name,
-                      tasks: item.tasks,
-                      enabledTaskIds: item.effectiveEnabledTaskIds,
-                      homeVisibleTaskIds: item.effectiveHomeVisibleTaskIds,
-                      builtIn: item.builtIn,
-                    )
-                  : item,
-            )
-            .toList(),
-      );
-    });
-  }
-
-  Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
-    final result = await Navigator.of(context).push<TaskTemplateGroup>(
-      MaterialPageRoute(
-        builder: (_) =>
-            TemplateTasksPage(group: group, repository: widget.repository),
-      ),
-    );
-    if (result == null) return;
-    setState(() {
-      _draft = _draft.copyWith(
-        templateGroups: _draft.templateGroups
-            .map((item) => item.id == group.id ? result : item)
-            .toList(),
-      );
-    });
-  }
-
-  void _deleteTemplateGroup(String groupId) {
-    setState(() {
-      _draft = _draft.copyWith(
-        templateGroups: _draft.templateGroups
-            .where((item) => item.id != groupId)
-            .toList(),
-      );
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mintFill = theme.brightness == Brightness.dark
-        ? const Color(0xFF1F3D39)
-        : const Color(0xFFDDF5EC);
-    final mintText = theme.brightness == Brightness.dark
-        ? const Color(0xFF94DFC9)
-        : const Color(0xFF2F7D6B);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('设置'),
+        title: const Text('启动应用'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(_draft),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(_draft),
@@ -1704,18 +1077,14 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _editTask(),
-        label: const Text('新增任务'),
-      ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        padding: const EdgeInsets.all(16),
         children: [
           _SettingsSectionCard(
             accent: const Color(0xFF78BEA8),
-            title: '启动应用',
-            subtitle: '当前选择：${_draft.selectedAppLabel}',
-            helper: '选择任务卡片底部“一键打开”对应的目标应用。',
+            title: '选择目标应用',
+            subtitle: '当前：${_draft.selectedAppLabel}',
+            helper: '任务卡片底部的快捷打开，将使用这里的目标应用。',
             child: GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -1761,12 +1130,62 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScriptSettingsPage extends StatelessWidget {
+  const _ScriptSettingsPage({
+    required this.repository,
+    required this.launcher,
+    required this.alarmBridge,
+  });
+
+  final TaskRepository repository;
+  final DouyinLauncher launcher;
+  final AlarmBridge alarmBridge;
+
+  Future<void> _openGestureConfigs(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GestureConfigPage(repository: repository, launcher: launcher),
+      ),
+    );
+    final configs = await repository.loadGestureConfigs();
+    await alarmBridge.syncAutomationConfigs(
+      configs: configs.map((config) => config.toJson()).toList(),
+    );
+  }
+
+  Future<void> _startAutomationMenu(BuildContext context) async {
+    final configs = await repository.loadGestureConfigs();
+    final ok = await alarmBridge.showAutomationMenu(
+      configs: configs.map((config) => config.toJson()).toList(),
+    );
+    if (!context.mounted) return;
+    if (ok) {
+      VibrantHUD.show(context, '悬浮菜单已启动', type: ToastType.success);
+      return;
+    }
+    VibrantHUD.show(context, '请先开启辅助功能服务，再启动悬浮菜单', type: ToastType.warning);
+    await alarmBridge.openAccessibilitySettings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('脚本配置')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
           _SettingsSectionCard(
             accent: const Color(0xFFC084FC),
-            title: '脚本配置',
+            title: '自动化入口',
             subtitle: '配置点击、滑动、导航等连招',
-            helper: '您可以创建多个自动化方案，并将其绑定到特定的每日任务中。',
+            helper: '在这里进入自动化配置中心，或直接启动悬浮自动化菜单。',
             child: Row(
               children: [
                 Expanded(
@@ -1779,7 +1198,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     foreground: theme.brightness == Brightness.dark
                         ? const Color(0xFFD8B4FE)
                         : const Color(0xFF7E22CE),
-                    onPressed: _openGestureConfigs,
+                    onPressed: () => _openGestureConfigs(context),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1793,13 +1212,64 @@ class _SettingsPageState extends State<SettingsPage> {
                     foreground: theme.brightness == Brightness.dark
                         ? const Color(0xFF93C5FD)
                         : const Color(0xFF1E40AF),
-                    onPressed: _startAutomationMenu,
+                    onPressed: () => _startAutomationMenu(context),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _PermissionSettingsPage extends StatelessWidget {
+  const _PermissionSettingsPage({required this.alarmBridge});
+
+  final AlarmBridge alarmBridge;
+
+  Widget _buildSubCategory(ThemeData theme, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 16,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            desc,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('提醒权限与系统设置')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
           _SettingsSectionCard(
             accent: const Color(0xFF80A7F5),
             title: '提醒权限与系统设置',
@@ -1826,8 +1296,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFA7C5FF)
                           : const Color(0xFF456DAA),
-                      onPressed:
-                          widget.alarmBridge.openFullScreenIntentSettings,
+                      onPressed: alarmBridge.openFullScreenIntentSettings,
                     ),
                     _PastelButton(
                       label: '精确闹钟',
@@ -1838,7 +1307,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFF94DFC9)
                           : const Color(0xFF2F7D6B),
-                      onPressed: widget.alarmBridge.openExactAlarmSettings,
+                      onPressed: alarmBridge.openExactAlarmSettings,
                     ),
                     _PastelButton(
                       label: '通知权限',
@@ -1849,7 +1318,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFE0BAFF)
                           : const Color(0xFF8A53B5),
-                      onPressed: widget.alarmBridge.openNotificationSettings,
+                      onPressed: alarmBridge.openNotificationSettings,
                     ),
                     _PastelButton(
                       label: '电池白名单',
@@ -1860,8 +1329,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFFFCF8D)
                           : const Color(0xFFB06C22),
-                      onPressed:
-                          widget.alarmBridge.requestIgnoreBatteryOptimizations,
+                      onPressed: alarmBridge.requestIgnoreBatteryOptimizations,
                     ),
                   ],
                 ),
@@ -1884,7 +1352,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFDBE28F)
                           : const Color(0xFF7B8128),
-                      onPressed: widget.alarmBridge.openOverlaySettings,
+                      onPressed: alarmBridge.openOverlaySettings,
                     ),
                     _PastelButton(
                       label: '辅助功能',
@@ -1895,7 +1363,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       foreground: theme.brightness == Brightness.dark
                           ? const Color(0xFFFFB5D7)
                           : const Color(0xFFB85082),
-                      onPressed: widget.alarmBridge.openAccessibilitySettings,
+                      onPressed: alarmBridge.openAccessibilitySettings,
                     ),
                   ],
                 ),
@@ -1919,10 +1387,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           ? const Color(0xFF94DFC9)
                           : const Color(0xFF2F7D6B),
                       onPressed: () async {
-                        final now = DateTime.now().add(
-                          const Duration(seconds: 10),
-                        );
-                        await widget.alarmBridge.scheduleSelfTest(
+                        final now = DateTime.now().add(const Duration(seconds: 10));
+                        await alarmBridge.scheduleSelfTest(
                           AlarmReminder(
                             id: 'self_test',
                             taskId: 'self_test',
@@ -1935,11 +1401,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         );
                         if (context.mounted) {
-                          VibrantHUD.show(
-                            context,
-                            '已安排 10 秒后自测',
-                            type: ToastType.success,
-                          );
+                          VibrantHUD.show(context, '已安排 10 秒后自测', type: ToastType.success);
                         }
                       },
                     ),
@@ -1954,9 +1416,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           : const Color(0xFF456DAA),
                       onPressed: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const VendorGuidePage(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const VendorGuidePage()),
                         );
                       },
                     ),
@@ -1965,15 +1425,469 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-          ..._buildGroupedTaskSections(context),
-          const SizedBox(height: 12),
-          Text(
-            '模板库',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskManagementSettingsPage extends StatefulWidget {
+  const _TaskManagementSettingsPage({
+    required this.initialState,
+    required this.repository,
+  });
+
+  final DailyTaskState initialState;
+  final TaskRepository repository;
+
+  @override
+  State<_TaskManagementSettingsPage> createState() =>
+      _TaskManagementSettingsPageState();
+}
+
+class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage> {
+  late DailyTaskState _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.initialState;
+  }
+
+  void _toggleTaskEnabled(String taskId, bool enabled) {
+    final next = {..._draft.enabledTaskIds};
+    if (enabled) {
+      next.add(taskId);
+    } else {
+      next.remove(taskId);
+    }
+    setState(() {
+      _draft = _draft.copyWith(
+        enabledTaskIds: next,
+        completedTaskIds: enabled
+            ? _draft.completedTaskIds
+            : ({..._draft.completedTaskIds}..remove(taskId)),
+        intervalCompletedCounts: enabled
+            ? _draft.intervalCompletedCounts
+            : ({..._draft.intervalCompletedCounts}..remove(taskId)),
+        intervalNextAvailableAt: enabled
+            ? _draft.intervalNextAvailableAt
+            : ({..._draft.intervalNextAvailableAt}..remove(taskId)),
+      );
+    });
+  }
+
+  void _toggleHomeVisible(String taskId, bool visible) {
+    final next = {..._draft.homeVisibleTaskIds};
+    if (visible) {
+      next.add(taskId);
+    } else {
+      next.remove(taskId);
+    }
+    setState(() => _draft = _draft.copyWith(homeVisibleTaskIds: next));
+  }
+
+  Future<void> _editTask({AssistantTaskDefinition? task}) async {
+    final edited = await showModalBottomSheet<AssistantTaskDefinition>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) =>
+          TaskEditorSheet(task: task, repository: widget.repository),
+    );
+    if (edited == null || !mounted) return;
+    setState(() {
+      final exists = _draft.taskDefinitions.any((item) => item.id == edited.id);
+      _draft = _draft.copyWith(
+        taskDefinitions: exists
+            ? _draft.taskDefinitions
+                  .map((item) => item.id == edited.id ? edited : item)
+                  .toList()
+            : [..._draft.taskDefinitions, edited],
+        enabledTaskIds: {..._draft.enabledTaskIds, edited.id},
+        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds, edited.id},
+      );
+    });
+  }
+
+  void _deleteTask(String taskId) {
+    setState(() {
+      _draft = _draft.copyWith(
+        taskDefinitions: _draft.taskDefinitions
+            .where((item) => item.id != taskId)
+            .toList(),
+        enabledTaskIds: {..._draft.enabledTaskIds}..remove(taskId),
+        homeVisibleTaskIds: {..._draft.homeVisibleTaskIds}..remove(taskId),
+        completedTaskIds: {..._draft.completedTaskIds}..remove(taskId),
+        intervalCompletedCounts: {..._draft.intervalCompletedCounts}
+          ..remove(taskId),
+        intervalNextAvailableAt: {..._draft.intervalNextAvailableAt}
+          ..remove(taskId),
+      );
+    });
+  }
+
+  void _moveTask(String taskId, int delta) {
+    final list = [..._draft.taskDefinitions];
+    final index = list.indexWhere((item) => item.id == taskId);
+    if (index < 0) return;
+    final nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    final item = list.removeAt(index);
+    list.insert(nextIndex, item);
+    setState(() => _draft = _draft.copyWith(taskDefinitions: list));
+  }
+
+  String _taskSummary(AssistantTaskDefinition task) {
+    final type = switch (task.kind) {
+      AssistantTaskKind.feedWindow => '时间段',
+      AssistantTaskKind.adCooldown => '循环次数',
+      AssistantTaskKind.fixedPoint => '固定时间',
+    };
+    final suffix = task.kind == AssistantTaskKind.adCooldown
+        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
+        : '';
+    final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+  }
+
+  String _kindGroupLabel(AssistantTaskKind kind) {
+    return switch (kind) {
+      AssistantTaskKind.feedWindow => '时间段任务',
+      AssistantTaskKind.adCooldown => '循环计次任务',
+      AssistantTaskKind.fixedPoint => '固定时间任务',
+    };
+  }
+
+  List<Widget> _buildGroupedTaskSections(BuildContext context) {
+    final theme = Theme.of(context);
+    final groups = <AssistantTaskKind, List<AssistantTaskDefinition>>{};
+    for (final task in _draft.taskDefinitions) {
+      groups.putIfAbsent(task.kind, () => []).add(task);
+    }
+    final order = [
+      AssistantTaskKind.feedWindow,
+      AssistantTaskKind.adCooldown,
+      AssistantTaskKind.fixedPoint,
+    ];
+    final out = <Widget>[const SizedBox(height: 12)];
+    for (final kind in order) {
+      final items = groups[kind];
+      if (items == null || items.isEmpty) continue;
+      out.add(
+        Text(
+          _kindGroupLabel(kind),
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      );
+      out.add(const SizedBox(height: 8));
+      for (final task in items) {
+        final enabled = _draft.isEnabled(task.id);
+        final homeVisible = _draft.isHomeVisible(task.id);
+        out.add(
+          Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _taskSummary(task),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _MiniIconButton(
+                        onPressed: () => _moveTask(task.id, -1),
+                        icon: Icons.keyboard_arrow_up_rounded,
+                      ),
+                      const SizedBox(width: 10),
+                      _MiniIconButton(
+                        onPressed: () => _moveTask(task.id, 1),
+                        icon: Icons.keyboard_arrow_down_rounded,
+                      ),
+                      const SizedBox(width: 10),
+                      _MiniIconButton(
+                        onPressed: () async {
+                          final action = await showModalBottomSheet<String>(
+                            context: context,
+                            showDragHandle: true,
+                            builder: (context) => SafeArea(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ListTile(
+                                    leading: const Icon(Icons.edit_rounded, color: Color(0xFF436EAF)),
+                                    title: const Text('编辑任务'),
+                                    onTap: () => Navigator.of(context).pop('edit'),
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFD32F2F)),
+                                    title: const Text('删除任务'),
+                                    onTap: () => Navigator.of(context).pop('delete'),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                          );
+                          if (action == 'edit') {
+                            _editTask(task: task);
+                          } else if (action == 'delete') {
+                            _deleteTask(task.id);
+                          }
+                        },
+                        icon: Icons.more_vert_rounded,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ToggleChip(
+                          label: '今日启用',
+                          value: enabled,
+                          onChanged: (value) => _toggleTaskEnabled(task.id, value),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ToggleChip(
+                          label: '首页显示',
+                          value: homeVisible,
+                          onChanged: (value) => _toggleHomeVisible(task.id, value),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
+        );
+      }
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('任务管理'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(_draft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_draft),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _editTask(),
+        label: const Text('新增任务'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        children: _buildGroupedTaskSections(context),
+      ),
+    );
+  }
+}
+
+class _TemplateLibrarySettingsPage extends StatefulWidget {
+  const _TemplateLibrarySettingsPage({
+    required this.initialState,
+    required this.repository,
+  });
+
+  final DailyTaskState initialState;
+  final TaskRepository repository;
+
+  @override
+  State<_TemplateLibrarySettingsPage> createState() =>
+      _TemplateLibrarySettingsPageState();
+}
+
+class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPage> {
+  late DailyTaskState _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.initialState;
+  }
+
+  void _applyTemplateGroup(TaskTemplateGroup group) {
+    final base = DateTime.now().millisecondsSinceEpoch;
+    final copiedTasks = group.tasks
+        .asMap()
+        .entries
+        .map((entry) => entry.value.copyWith(id: 'task_${base}_${entry.key}'))
+        .toList();
+    final idMap = {
+      for (final entry in group.tasks.asMap().entries)
+        entry.value.id: copiedTasks[entry.key].id,
+    };
+    final ids = copiedTasks.map((item) => item.id).toSet();
+    final enabledIds = group.effectiveEnabledTaskIds
+        .map((id) => idMap[id])
+        .whereType<String>()
+        .toSet();
+    final visibleIds = group.effectiveHomeVisibleTaskIds
+        .map((id) => idMap[id])
+        .whereType<String>()
+        .toSet();
+    setState(() {
+      _draft = _draft.copyWith(
+        taskDefinitions: copiedTasks,
+        enabledTaskIds: enabledIds.isEmpty ? ids : enabledIds,
+        homeVisibleTaskIds: visibleIds.isEmpty ? ids : visibleIds,
+        completedTaskIds: const {},
+        intervalCompletedCounts: const {},
+        intervalNextAvailableAt: const {},
+      );
+    });
+  }
+
+  Future<void> _showSaveTemplateGroupDialog() async {
+    final name = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => const _TemplateNameSheet(
+        title: '保存为模板',
+        fieldLabel: '模板名称',
+        actionLabel: '保存',
+      ),
+    );
+    if (!mounted || name == null || name.isEmpty) return;
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: [
+          ..._draft.templateGroups,
+          TaskTemplateGroup(
+            id: 'group_${DateTime.now().millisecondsSinceEpoch}',
+            name: name,
+            tasks: _draft.taskDefinitions.map((t) => t.copyWith()).toList(),
+            enabledTaskIds: _draft.enabledTaskIds
+                .where(_draft.taskDefinitions.map((task) => task.id).toSet().contains)
+                .toSet(),
+            homeVisibleTaskIds: _draft.homeVisibleTaskIds
+                .where(_draft.taskDefinitions.map((task) => task.id).toSet().contains)
+                .toSet(),
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _renameTemplateGroup(TaskTemplateGroup group) async {
+    final name = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _TemplateNameSheet(
+        title: '重命名模板',
+        fieldLabel: '模板名称',
+        actionLabel: '保存',
+        initialValue: group.name,
+      ),
+    );
+    if (!mounted || name == null || name.isEmpty) return;
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .map(
+              (item) => item.id == group.id
+                  ? TaskTemplateGroup(
+                      id: item.id,
+                      name: name,
+                      tasks: item.tasks,
+                      enabledTaskIds: item.effectiveEnabledTaskIds,
+                      homeVisibleTaskIds: item.effectiveHomeVisibleTaskIds,
+                      builtIn: item.builtIn,
+                    )
+                  : item,
+            )
+            .toList(),
+      );
+    });
+  }
+
+  Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
+    final result = await Navigator.of(context).push<TaskTemplateGroup>(
+      MaterialPageRoute(
+        builder: (_) => TemplateTasksPage(group: group, repository: widget.repository),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .map((item) => item.id == group.id ? result : item)
+            .toList(),
+      );
+    });
+  }
+
+  void _deleteTemplateGroup(String groupId) {
+    setState(() {
+      _draft = _draft.copyWith(
+        templateGroups: _draft.templateGroups
+            .where((item) => item.id != groupId)
+            .toList(),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mintFill = theme.brightness == Brightness.dark
+        ? const Color(0xFF1F3D39)
+        : const Color(0xFFDDF5EC);
+    final mintText = theme.brightness == Brightness.dark
+        ? const Color(0xFF94DFC9)
+        : const Color(0xFF2F7D6B);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('模板库'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(_draft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_draft),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
           Card(
             margin: const EdgeInsets.only(bottom: 10),
             child: ListTile(
@@ -2031,13 +1945,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.5),
+                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -2049,16 +1959,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         FilledButton.tonal(
                           style: FilledButton.styleFrom(
-                            backgroundColor: theme.brightness == Brightness.dark
-                                ? const Color(0xFF1F3D39)
-                                : const Color(0xFFDDF5EC),
-                            foregroundColor: theme.brightness == Brightness.dark
-                                ? const Color(0xFF94DFC9)
-                                : const Color(0xFF2F7D6B),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
+                            backgroundColor: mintFill,
+                            foregroundColor: mintText,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             minimumSize: Size.zero,
                           ),
                           onPressed: () => _applyTemplateGroup(group),
@@ -2067,10 +1970,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             children: [
                               Icon(Icons.auto_awesome_motion_rounded, size: 16),
                               SizedBox(width: 6),
-                              Text(
-                                '整组使用',
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
+                              Text('整组使用', style: TextStyle(fontWeight: FontWeight.w800)),
                             ],
                           ),
                         ),
@@ -2084,201 +1984,6 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
-  }
-
-  String _taskSummary(AssistantTaskDefinition task) {
-    final type = switch (task.kind) {
-      AssistantTaskKind.feedWindow => '时间段',
-      AssistantTaskKind.adCooldown => '循环次数',
-      AssistantTaskKind.fixedPoint => '固定时间',
-    };
-    final suffix = task.kind == AssistantTaskKind.adCooldown
-        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
-        : '';
-    final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
-  }
-
-  Widget _buildSubCategory(ThemeData theme, String title, String desc) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 16,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            desc,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildGroupedTaskSections(BuildContext context) {
-    final theme = Theme.of(context);
-    final groups = <AssistantTaskKind, List<AssistantTaskDefinition>>{};
-    for (final task in _draft.taskDefinitions) {
-      groups.putIfAbsent(task.kind, () => []).add(task);
-    }
-    final order = [
-      AssistantTaskKind.feedWindow,
-      AssistantTaskKind.adCooldown,
-      AssistantTaskKind.fixedPoint,
-    ];
-    final out = <Widget>[const SizedBox(height: 12)];
-    for (final kind in order) {
-      final items = groups[kind];
-      if (items == null || items.isEmpty) continue;
-      out.add(
-        Text(
-          _kindGroupLabel(kind),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      );
-      out.add(const SizedBox(height: 8));
-      for (final task in items) {
-        final enabled = _draft.isEnabled(task.id);
-        final homeVisible = _draft.isHomeVisible(task.id);
-        out.add(
-          Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              task.title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _taskSummary(task),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, -1),
-                        icon: Icons.keyboard_arrow_up_rounded,
-                      ),
-                      const SizedBox(width: 10),
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, 1),
-                        icon: Icons.keyboard_arrow_down_rounded,
-                      ),
-                      const SizedBox(width: 10),
-                      _MiniIconButton(
-                        onPressed: () async {
-                          final action = await showModalBottomSheet<String>(
-                            context: context,
-                            showDragHandle: true,
-                            builder: (context) => SafeArea(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    leading: const Icon(
-                                      Icons.edit_rounded,
-                                      color: Color(0xFF436EAF),
-                                    ),
-                                    title: const Text('编辑任务'),
-                                    onTap: () =>
-                                        Navigator.of(context).pop('edit'),
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(
-                                      Icons.delete_outline_rounded,
-                                      color: Color(0xFFD32F2F),
-                                    ),
-                                    title: const Text('删除任务'),
-                                    onTap: () =>
-                                        Navigator.of(context).pop('delete'),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                              ),
-                            ),
-                          );
-                          if (action == 'edit') {
-                            _editTask(task: task);
-                          } else if (action == 'delete') {
-                            _deleteTask(task.id);
-                          }
-                        },
-                        icon: Icons.more_vert_rounded,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ToggleChip(
-                          label: '今日启用',
-                          value: enabled,
-                          onChanged: (value) =>
-                              _toggleTaskEnabled(task.id, value),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ToggleChip(
-                          label: '首页显示',
-                          value: homeVisible,
-                          onChanged: (value) =>
-                              _toggleHomeVisible(task.id, value),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
-    }
-    return out;
-  }
-
-  String _kindGroupLabel(AssistantTaskKind kind) {
-    return switch (kind) {
-      AssistantTaskKind.feedWindow => '时间段任务',
-      AssistantTaskKind.adCooldown => '循环计次任务',
-      AssistantTaskKind.fixedPoint => '固定时间任务',
-    };
   }
 }
 
@@ -3452,929 +3157,6 @@ class _RingtoneSourceSelector extends StatelessWidget {
             context,
           ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
-      ),
-    );
-  }
-}
-
-class _CenteredToast extends StatefulWidget {
-  const _CenteredToast({
-    required this.message,
-    required this.type,
-    required this.onDismiss,
-  });
-
-  final String message;
-  final ToastType type;
-  final VoidCallback onDismiss;
-
-  @override
-  State<_CenteredToast> createState() => _CenteredToastState();
-}
-
-class _CenteredToastState extends State<_CenteredToast>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<double> _scale;
-  late Animation<double> _iconBounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _opacity = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-    );
-    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.7, curve: Curves.elasticOut),
-      ),
-    );
-    _iconBounce = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.3, 1.0, curve: Curves.elasticOut),
-      ),
-    );
-
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.dismissed) {
-        widget.onDismiss();
-      }
-    });
-
-    _controller.forward();
-
-    Future.delayed(const Duration(milliseconds: 2100), () {
-      if (mounted) {
-        _controller.reverse();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (iconColor, icon) = switch (widget.type) {
-      ToastType.success => (const Color(0xFF4CAF50), Icons.thumb_up_rounded),
-      ToastType.error => (const Color(0xFFF44336), Icons.error_rounded),
-      ToastType.warning => (const Color(0xFFFF9800), Icons.warning_rounded),
-      ToastType.info => (const Color(0xFF2196F3), Icons.info_rounded),
-    };
-
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          FadeTransition(
-            opacity: _opacity,
-            child: Container(color: Colors.black.withValues(alpha: 0.32)),
-          ),
-          Center(
-            child: FadeTransition(
-              opacity: _opacity,
-              child: ScaleTransition(
-                scale: _scale,
-                child: Container(
-                  width: 260, // 固定宽度，确保视觉稳定
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 32,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF252525) : Colors.white,
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        blurRadius: 36,
-                        offset: const Offset(0, 16),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ScaleTransition(
-                        scale: _iconBounce,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: iconColor.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(icon, color: iconColor, size: 52),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        widget.message,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF1D1D1F),
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.title,
-    required this.subtitle,
-    required this.stats,
-    required this.action,
-    this.onReset,
-  });
-
-  final String title;
-  final String subtitle;
-  final List<String> stats;
-  final Widget action;
-  final VoidCallback? onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.primaryContainer.withValues(alpha: 0.95),
-            colors.secondaryContainer.withValues(alpha: 0.92),
-            colors.tertiaryContainer.withValues(alpha: 0.85),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: 0.42),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '今日箴言',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    if (onReset != null) ...[
-                      const SizedBox(width: 8),
-                      _HeaderMiniAction(
-                        label: '重置',
-                        onTap: onReset!,
-                        foreground:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFFFFD7BA)
-                            : const Color(0xFFAD6A3A),
-                        background:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF3A2923)
-                            : const Color(0xFFFFF1E5),
-                        border: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF6F4934)
-                            : const Color(0xFFFFCBA9),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    height: 1.18,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(subtitle),
-                if (stats.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: stats
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) =>
-                              _StatPill(label: entry.value, tone: entry.key),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          action,
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderMiniAction extends StatelessWidget {
-  const _HeaderMiniAction({
-    required this.label,
-    required this.onTap,
-    required this.foreground,
-    required this.background,
-    required this.border,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final Color foreground;
-  final Color background;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-          decoration: BoxDecoration(
-            border: Border.all(color: border),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatPill extends StatelessWidget {
-  const _StatPill({required this.label, required this.tone});
-
-  final String label;
-  final int tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palettes = theme.brightness == Brightness.dark
-        ? const [
-            (Color(0xFF1F3D39), Color(0xFF8ED8C8)),
-            (Color(0xFF23364A), Color(0xFF9BC2FF)),
-          ]
-        : const [
-            (Color(0xFFDFF5EE), Color(0xFF2F7D6B)),
-            (Color(0xFFE4F0FF), Color(0xFF436EAF)),
-          ];
-    final palette = palettes[tone % palettes.length];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: palette.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: palette.$2,
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskDeckCard extends StatelessWidget {
-  const _TaskDeckCard({
-    required this.task,
-    required this.status,
-    required this.accent,
-    required this.icon,
-    required this.headline,
-    required this.detail,
-    required this.progressLabel,
-    required this.progressValue,
-    required this.primaryLabel,
-    required this.onPrimary,
-    required this.primaryEnabled,
-    required this.showQuickLaunch,
-    required this.appLabel,
-    required this.configLabel,
-    required this.onOpenApp,
-  });
-
-  final AssistantTaskDefinition task;
-  final String status;
-  final Color accent;
-  final IconData icon;
-  final String headline;
-  final String detail;
-  final String progressLabel;
-  final String progressValue;
-  final String primaryLabel;
-  final Future<void> Function() onPrimary;
-  final bool primaryEnabled;
-  final bool showQuickLaunch;
-  final String appLabel;
-  final String? configLabel;
-  final Future<void> Function() onOpenApp;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryButtonFill = theme.brightness == Brightness.dark
-        ? accent.withValues(alpha: 0.88)
-        : Color.lerp(accent, Colors.white, 0.2)!;
-    final primaryButtonText = theme.brightness == Brightness.dark
-        ? Colors.white
-        : _idealTextColor(primaryButtonFill);
-    final secondaryButtonFill = theme.brightness == Brightness.dark
-        ? accent.withValues(alpha: 0.18)
-        : accent.withValues(alpha: 0.14);
-    final secondaryButtonText = theme.brightness == Brightness.dark
-        ? accent.withValues(alpha: 0.98)
-        : accent.withValues(alpha: 0.95);
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accent.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.18 : 0.15,
-              ),
-              theme.cardTheme.color ?? theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(icon, color: accent, size: 28),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          if (configLabel != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              '绑定配置：$configLabel',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    _StatusBadge(label: status, accent: accent),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final useTwoColumns = constraints.maxWidth >= 520;
-                    if (useTwoColumns) {
-                      return Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _InfoPanel(
-                                  title: '任务时间',
-                                  value: headline,
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _InfoPanel(
-                                  title: progressLabel,
-                                  value: progressValue,
-                                  accent: accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          _DetailPanel(detail: detail, accent: accent),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        _InfoPanel(
-                          title: '任务时间',
-                          value: headline,
-                          accent: accent,
-                        ),
-                        const SizedBox(height: 12),
-                        _InfoPanel(
-                          title: progressLabel,
-                          value: progressValue,
-                          accent: accent,
-                        ),
-                        const SizedBox(height: 14),
-                        _DetailPanel(detail: detail, accent: accent),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-                if (showQuickLaunch)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: primaryButtonFill,
-                            foregroundColor: primaryButtonText,
-                          ),
-                          onPressed: primaryEnabled ? onPrimary : null,
-                          child: Text(primaryLabel),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.tonal(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: secondaryButtonFill,
-                            foregroundColor: secondaryButtonText,
-                            side: BorderSide.none,
-                          ),
-                          onPressed: onOpenApp,
-                          child: Text('打开$appLabel'),
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: primaryButtonFill,
-                        foregroundColor: primaryButtonText,
-                      ),
-                      onPressed: primaryEnabled ? onPrimary : null,
-                      child: Text(primaryLabel),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _idealTextColor(Color background) {
-    return background.computeLuminance() > 0.55
-        ? const Color(0xFF12322B)
-        : Colors.white;
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.accent});
-
-  final String label;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: accent,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoPanel extends StatelessWidget {
-  const _InfoPanel({
-    required this.title,
-    required this.value,
-    required this.accent,
-  });
-
-  final String title;
-  final String value;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.56),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailPanel extends StatelessWidget {
-  const _DetailPanel({required this.detail, required this.accent});
-
-  final String detail;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.56),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 8,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              detail,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  const _ToggleChip({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fill = theme.brightness == Brightness.dark
-        ? (value ? const Color(0xFF1E3B35) : const Color(0xFF1A2526))
-        : (value ? const Color(0xFFE0F5EC) : const Color(0xFFF2F7F4));
-    final text = theme.brightness == Brightness.dark
-        ? (value ? const Color(0xFF96E1CC) : const Color(0xFFBCD1CA))
-        : (value ? const Color(0xFF2D7A67) : const Color(0xFF5E7F75));
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: value
-              ? const Color(0xFF86D7BF).withValues(alpha: 0.8)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: text,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: const Color(0xFF83D8BD),
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: theme.brightness == Brightness.dark
-                ? const Color(0xFF384A46)
-                : const Color(0xFFD7E3DE),
-            trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniIconButton extends StatelessWidget {
-  const _MiniIconButton({required this.icon, required this.onPressed});
-
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(14),
-      child: Ink(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF213033)
-              : const Color(0xFFEAF4F0),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFFC7DDD7)
-              : const Color(0xFF55776E),
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingsSectionCard extends StatelessWidget {
-  const _SettingsSectionCard({
-    required this.accent,
-    required this.title,
-    required this.subtitle,
-    required this.helper,
-    required this.child,
-  });
-
-  final Color accent;
-  final String title;
-  final String subtitle;
-  final String helper;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accent.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12,
-              ),
-              theme.cardTheme.color ?? theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(26),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          helper,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              child,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PastelButton extends StatelessWidget {
-  const _PastelButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onPressed,
-    this.icon,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onPressed;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.tonal(
-      style: FilledButton.styleFrom(
-        backgroundColor: background,
-        foregroundColor: foreground,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      onPressed: onPressed,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 6)],
-          Flexible(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ),
     );
   }

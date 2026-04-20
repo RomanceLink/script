@@ -29,12 +29,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
 
-    await tester.dragUntilVisible(
-      find.byKey(const ValueKey('save_template_group_button')),
-      find.byType(Scrollable).first,
-      const Offset(0, -400),
-    );
+    await tester.tap(find.text('模板库'));
     await tester.pumpAndSettle();
+
     await tester.tap(
       find.byKey(const ValueKey('save_template_group_button')).hitTestable(),
     );
@@ -48,6 +45,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('template_name_submit_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('模板已保存至库'), findsOneWidget);
+    expect(find.text('测试模板'), findsOneWidget);
   });
 }
