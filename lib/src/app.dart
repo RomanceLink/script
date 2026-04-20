@@ -267,12 +267,12 @@ class _FloatingAutomationOverlayShellState
             }
             final isRunMode = _mode == 'run';
             final width = isRunMode
-                ? (maxWidth < 400 ? maxWidth - 48 : 340.0).clamp(0.0, maxWidth)
+                ? (maxWidth < 420 ? maxWidth - 40 : 360.0).clamp(0.0, maxWidth)
                 : (maxWidth < 548
                     ? (maxWidth - 24).clamp(0.0, maxWidth)
                     : 520.0.clamp(0.0, maxWidth));
             final height = isRunMode
-                ? (maxHeight < 320 ? maxHeight : 280.0).clamp(0.0, maxHeight)
+                ? (maxHeight < 560 ? maxHeight : 520.0).clamp(0.0, maxHeight)
                 : (maxHeight < 408
                     ? maxHeight
                     : (maxHeight - 48).clamp(360.0, maxHeight));
@@ -411,157 +411,174 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
           ? const Center(
               child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
             )
-          : Column(
-              children: [
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '当前执行配置',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: theme.colorScheme.primary,
+          : Center( // 整体居中
+              child: SingleChildScrollView( // 滚动保护
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // 紧凑排列
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.brightness == Brightness.dark
-                          ? const Color(0xFF1E2628)
-                          : const Color(0xFFF1F6F4),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant.withOpacity(0.5),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.auto_fix_high_rounded,
-                                  color: theme.colorScheme.primary,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Text(
-                                  _selected?.name ?? '未选择',
-                                  style: theme.textTheme.titleLarge?.copyWith(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome_rounded, size: 18, color: theme.colorScheme.primary),
+                            const SizedBox(width: 10),
+                            Text(
+                              '准备执行自动化',
+                              style: theme.textTheme.labelLarge?.copyWith(
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
+                                    color: theme.colorScheme.primary,
+                                    letterSpacing: 1.0,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface.withOpacity(0.5),
-                              borderRadius: BorderRadius.circular(16),
                             ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: theme.brightness == Brightness.dark
+                                ? const Color(0xFF1E2628)
+                                : const Color(0xFFF1F6F4),
+                            borderRadius: BorderRadius.circular(32),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant.withOpacity(0.8),
+                              width: 2.0,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                _InfoRow(
-                                  icon: Icons.ads_click_rounded,
-                                  label: '动作步骤',
-                                  value: '${_selected?.actions.length ?? 0} 个步骤',
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.bolt_rounded,
+                                        color: theme.colorScheme.primary,
+                                        size: 26,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        _selected?.name ?? '未选择',
+                                        style: theme.textTheme.headlineSmall?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: -0.8,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: Divider(height: 1, thickness: 0.5),
+                                const SizedBox(height: 24),
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      _InfoRow(
+                                        icon: Icons.ads_click_rounded,
+                                        label: '动作步骤',
+                                        value: '${_selected?.actions.length ?? 0} 个步骤',
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 10),
+                                        child: Divider(height: 1, thickness: 1.0),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons.loop_rounded,
+                                        label: '执行轮次',
+                                        value: '${_selected?.loopCount ?? 0} 次循环',
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 10),
+                                        child: Divider(height: 1, thickness: 1.0),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons.timer_outlined,
+                                        label: '预估耗时',
+                                        value: _selected == null ? '-' : estimateGestureConfigDuration(_selected!).label,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                _InfoRow(
-                                  icon: Icons.loop_rounded,
-                                  label: '循环执行',
-                                  value: '${_selected?.loopCount ?? 0} 次',
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: Divider(height: 1, thickness: 0.5),
-                                ),
-                                _InfoRow(
-                                  icon: Icons.timer_outlined,
-                                  label: '预估耗时',
-                                  value: _selected == null ? '-' : estimateGestureConfigDuration(_selected!).label,
+                                const SizedBox(height: 28),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          backgroundColor: const Color(0xFF4A9D8F),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(18),
+                                          ),
+                                          elevation: 2,
+                                          shadowColor: const Color(0xFF4A9D8F).withOpacity(0.3),
+                                        ),
+                                        onPressed: _selected == null
+                                            ? null
+                                            : () => _run(_selected!),
+                                        icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                                        label: const Text('开始自动化', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    IconButton.filledTonal(
+                                      style: IconButton.styleFrom(
+                                        padding: const EdgeInsets.all(16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(18),
+                                        ),
+                                      ),
+                                      tooltip: '切换配置',
+                                      onPressed: _switchConfig,
+                                      icon: const Icon(Icons.swap_horiz_rounded, size: 28),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  onPressed: _selected == null
-                                      ? null
-                                      : () => _run(_selected!),
-                                  icon: const Icon(Icons.play_arrow_rounded),
-                                  label: const Text('立即执行', style: TextStyle(fontWeight: FontWeight.w900)),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              IconButton.filledTonal(
-                                style: IconButton.styleFrom(
-                                  padding: const EdgeInsets.all(14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                tooltip: '切换配置',
-                                onPressed: _switchConfig,
-                                icon: const Icon(Icons.swap_horiz_rounded),
-                              ),
-                            ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SafeArea(
+                        top: false,
+                        child: TextButton.icon(
+                          onPressed: widget.alarmBridge.closeAutomationOverlay,
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          label: const Text('放弃执行', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                const Spacer(),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: TextButton.icon(
-                      onPressed: widget.alarmBridge.closeAutomationOverlay,
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      label: const Text('关闭悬浮窗', style: TextStyle(fontWeight: FontWeight.w600)),
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
     );
   }
@@ -584,14 +601,18 @@ class _InfoRow extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         Text(
           value,
           style: theme.textTheme.bodySmall?.copyWith(
