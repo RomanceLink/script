@@ -3359,15 +3359,35 @@ class AutoSwipeService : AccessibilityService() {
         pickerMode = if (autoStopOnHome) "unlockRecordCapture" else "recorded"
         val lp = fullScreenOverlayParams()
 
-        val container = FrameLayout(this).apply {
+        lateinit var container: FrameLayout
+        lateinit var surface: RecordingSurface
+        container = FrameLayout(this).apply {
             setBackgroundColor(if (autoStopOnHome) Color.TRANSPARENT else 0x33000000)
         }
-        val surface = RecordingSurface(
+        surface = RecordingSurface(
             context = this,
             drawEnabled = !autoStopOnHome,
             onSegmentFinished = { segment ->
                 if (autoStopOnHome) {
                     handler.postDelayed({ replayRecordedSegment(segment) }, 90)
+                } else {
+                    detachPickerOverlayView()
+                    handler.postDelayed({
+                        replayRecordedSegment(segment) {
+                            handler.postDelayed({
+                                if (pickerMode == "recorded" &&
+                                    activeRecordingSurface === surface &&
+                                    pickerOverlay == null
+                                ) {
+                                    try {
+                                        windowManager?.addView(container, lp)
+                                        pickerOverlay = container
+                                    } catch (_: Exception) {
+                                    }
+                                }
+                            }, 120L)
+                        }
+                    }, 180L)
                 }
             },
         )
@@ -3745,10 +3765,32 @@ class AutoSwipeService : AccessibilityService() {
         pickerMode = "clickSteps"
         val lp = fullScreenOverlayParams()
 
-        val container = FrameLayout(this).apply {
+        lateinit var container: FrameLayout
+        lateinit var surface: ClickStepSurface
+        container = FrameLayout(this).apply {
             setBackgroundColor(0x22000000)
         }
-        val surface = ClickStepSurface(this)
+        surface = ClickStepSurface(this) { point ->
+            val segment = RecordedSegment(
+                start = 0L,
+                duration = 80L,
+                points = mutableListOf(RecordedPoint(point.x, point.y, 0L)),
+            )
+            detachPickerOverlayView()
+            handler.postDelayed({
+                replayRecordedSegment(segment) {
+                    handler.postDelayed({
+                        if (pickerMode == "clickSteps" && pickerOverlay == null) {
+                            try {
+                                windowManager?.addView(container, lp)
+                                pickerOverlay = container
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }, 120L)
+                }
+            }, 160L)
+        }
         container.addView(surface, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -4928,7 +4970,10 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private class ClickStepSurface(context: Context) : View(context) {
+    private class ClickStepSurface(
+        context: Context,
+        private val onNewPoint: (StepPoint) -> Unit,
+    ) : View(context) {
         private val points = mutableListOf<StepPoint>()
         private var selectedIndex = -1
         private var downIndex = -1
@@ -5002,13 +5047,13 @@ class AutoSwipeService : AccessibilityService() {
                         points[downIndex].y = (event.y / height).coerceIn(0f, 1f)
                         selectedIndex = downIndex
                     } else {
-                        points.add(
-                            StepPoint(
-                                (event.x / width).coerceIn(0f, 1f),
-                                (event.y / height).coerceIn(0f, 1f),
-                            ),
+                        val point = StepPoint(
+                            (event.x / width).coerceIn(0f, 1f),
+                            (event.y / height).coerceIn(0f, 1f),
                         )
+                        points.add(point)
                         selectedIndex = points.lastIndex
+                        onNewPoint(point)
                     }
                     downIndex = -1
                     invalidate()

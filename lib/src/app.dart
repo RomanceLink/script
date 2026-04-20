@@ -212,13 +212,17 @@ class _FloatingAutomationOverlayShellState
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.maxWidth < 548
-                ? (constraints.maxWidth - 24).clamp(280.0, constraints.maxWidth)
-                : 520.0;
-            final height = (constraints.maxHeight - 48).clamp(
-              360.0,
-              constraints.maxHeight,
-            );
+            final maxWidth = constraints.maxWidth;
+            final maxHeight = constraints.maxHeight;
+            if (maxWidth <= 0 || maxHeight <= 0) {
+              return const SizedBox.shrink();
+            }
+            final width = maxWidth < 548
+                ? (maxWidth - 24).clamp(0.0, maxWidth)
+                : 520.0.clamp(0.0, maxWidth);
+            final height = maxHeight < 408
+                ? maxHeight
+                : (maxHeight - 48).clamp(360.0, maxHeight);
             return Stack(
               children: [
                 Center(
