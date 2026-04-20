@@ -593,12 +593,12 @@ class AutoSwipeService : AccessibilityService() {
             setImageResource(if (collapsedEdgeRight) R.drawable.ic_overlay_chevron_left else R.drawable.ic_overlay_chevron_right)
             imageTintList = android.content.res.ColorStateList.valueOf(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            // 垂直拉环，上下 padding 多一点，左右少一点，让箭头显得修长
-            setPadding(dp(4), dp(12), dp(4), dp(12))
+            // 缩小比例后，Padding 也要相应减小
+            setPadding(dp(3), dp(8), dp(3), dp(8))
             contentDescription = "展开"
             background = sideRoundedBackground(
                 if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-                dp(15).toFloat(),
+                dp(12).toFloat(),
                 if (darkMode) 0x66FFFFFF else 0x33212C2E,
                 isRightSide = collapsedEdgeRight
             )
@@ -608,7 +608,7 @@ class AutoSwipeService : AccessibilityService() {
         
         attachDrag(bubble, layoutParams, snapToEdgeOnRelease = true)
         return FrameLayout(this).apply {
-            addView(bubble, FrameLayout.LayoutParams(dp(30), dp(72)))
+            addView(bubble, FrameLayout.LayoutParams(dp(24), dp(56)))
         }
     }
 
@@ -804,7 +804,7 @@ class AutoSwipeService : AccessibilityService() {
         }
         view.background = sideRoundedBackground(
             if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-            dp(15).toFloat(),
+            dp(12).toFloat(),
             if (darkMode) 0x66FFFFFF else 0x33212C2E,
             isRightSide = collapsedEdgeRight
         )
