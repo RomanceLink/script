@@ -283,15 +283,17 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 onPressed: () => _addOrEdit(),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ConfigBottomAction(
-                icon: Icons.close_rounded,
-                label: '关闭',
-                onPressed: widget.onClose,
-                tone: _ConfigActionTone.neutral,
+            if (widget.onClose != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ConfigBottomAction(
+                  icon: Icons.close_rounded,
+                  label: '关闭',
+                  onPressed: widget.onClose,
+                  tone: _ConfigActionTone.neutral,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -309,9 +311,17 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 final theme = Theme.of(context);
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  color: theme.colorScheme.surfaceContainerHigh,
+                  elevation: 0,
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.48 : 0.72,
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.5,
+                      ),
+                    ),
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
@@ -330,11 +340,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                       children: [
                         IconButton(
                           tooltip: '执行',
-                          style: IconButton.styleFrom(
-                            backgroundColor: theme.colorScheme.primaryContainer,
-                            foregroundColor:
-                                theme.colorScheme.onPrimaryContainer,
-                          ),
+                          color: theme.colorScheme.primary,
                           icon: const Icon(Icons.play_arrow_rounded),
                           onPressed: widget.onRunConfig == null
                               ? null
@@ -376,12 +382,20 @@ class _ConfigBottomAction extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = switch (tone) {
       _ConfigActionTone.primary => (
-        bg: theme.colorScheme.primaryContainer,
-        fg: theme.colorScheme.onPrimaryContainer,
+        bg: theme.brightness == Brightness.dark
+            ? const Color(0xFF21453E)
+            : const Color(0xFFDDF5EC),
+        fg: theme.brightness == Brightness.dark
+            ? const Color(0xFF9DE4CE)
+            : const Color(0xFF2F7D6B),
       ),
       _ConfigActionTone.neutral => (
-        bg: theme.colorScheme.surfaceContainerHighest,
-        fg: theme.colorScheme.onSurfaceVariant,
+        bg: theme.brightness == Brightness.dark
+            ? const Color(0xFF263334)
+            : const Color(0xFFEAF1EE),
+        fg: theme.brightness == Brightness.dark
+            ? const Color(0xFFB8C9C4)
+            : const Color(0xFF51635E),
       ),
     };
     return FilledButton.icon(
@@ -630,6 +644,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
   }
 
   void _showAddMenu() {
+    final theme = Theme.of(context);
+    final gestureColor = theme.brightness == Brightness.dark
+        ? const Color(0xFF94DFC9)
+        : const Color(0xFF2F7D6B);
+    final logicColor = theme.brightness == Brightness.dark
+        ? const Color(0xFFA7C5FF)
+        : const Color(0xFF456DAA);
+    final waitColor = theme.brightness == Brightness.dark
+        ? const Color(0xFFFFCF8D)
+        : const Color(0xFFB06C22);
+    final systemColor = theme.brightness == Brightness.dark
+        ? const Color(0xFFD8B4FE)
+        : const Color(0xFF7E22CE);
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -644,13 +671,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
               _ActionCategoryHeader(
                 title: '手势',
                 icon: Icons.gesture_rounded,
-                color: Colors.blue,
+                color: gestureColor,
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.touch_app_rounded,
-                  color: Colors.blue,
-                ),
+                leading: Icon(Icons.touch_app_rounded, color: gestureColor),
                 title: const Text('录制手势'),
                 subtitle: const Text('点击、滑动、完整轨迹'),
                 onTap: () async {
@@ -663,13 +687,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
               _ActionCategoryHeader(
                 title: '逻辑',
                 icon: Icons.account_tree_rounded,
-                color: Colors.indigo,
+                color: logicColor,
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.select_all_rounded,
-                  color: Colors.indigo,
-                ),
+                leading: Icon(Icons.select_all_rounded, color: logicColor),
                 title: const Text('按钮识别'),
                 subtitle: const Text('用无障碍识别按钮文字、ID、描述'),
                 onTap: () {
@@ -678,10 +699,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.image_search_rounded,
-                  color: Colors.teal,
-                ),
+                leading: Icon(Icons.image_search_rounded, color: logicColor),
                 title: const Text('图片识别'),
                 subtitle: const Text('圈住一块图片，后续在屏幕中查找匹配'),
                 onTap: () {
@@ -694,10 +712,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
               _ActionCategoryHeader(
                 title: '等待',
                 icon: Icons.timer_rounded,
-                color: Colors.orange,
+                color: waitColor,
               ),
               ListTile(
-                leading: const Icon(Icons.timer_rounded, color: Colors.orange),
+                leading: Icon(Icons.timer_rounded, color: waitColor),
                 title: const Text('随机等待'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -705,10 +723,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.more_time_rounded,
-                  color: Colors.deepOrange,
-                ),
+                leading: Icon(Icons.more_time_rounded, color: waitColor),
                 title: const Text('毫秒等待'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -716,10 +731,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.hourglass_bottom_rounded,
-                  color: Colors.brown,
-                ),
+                leading: Icon(Icons.hourglass_bottom_rounded, color: waitColor),
                 title: const Text('固定等待'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -729,13 +741,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
               _ActionCategoryHeader(
                 title: '系统',
                 icon: Icons.settings_suggest_rounded,
-                color: Colors.green,
+                color: systemColor,
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.navigation_rounded,
-                  color: Colors.green,
-                ),
+                leading: Icon(Icons.navigation_rounded, color: systemColor),
                 title: const Text('导航动作'),
                 subtitle: const Text('返回、首页、多任务'),
                 onTap: () {
@@ -744,10 +753,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.lock_outline_rounded,
-                  color: Colors.redAccent,
-                ),
+                leading: Icon(Icons.lock_outline_rounded, color: systemColor),
                 title: const Text('锁屏'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -755,10 +761,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.rocket_launch_rounded,
-                  color: Colors.purple,
-                ),
+                leading: Icon(Icons.rocket_launch_rounded, color: systemColor),
                 title: const Text('启动应用'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1913,6 +1916,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
             icon: const Icon(Icons.add_rounded),
             label: const Text('添加内容'),
             style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF21453E)
+                  : const Color(0xFFDDF5EC),
+              foregroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF9DE4CE)
+                  : const Color(0xFF2F7D6B),
               minimumSize: const Size.fromHeight(50),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1925,12 +1934,32 @@ class _GestureEditPageState extends State<GestureEditPage> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    foregroundColor: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant,
+                  ),
                   child: const Text('取消'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: FilledButton(onPressed: _save, child: const Text('保存')),
+                child: FilledButton(
+                  onPressed: _save,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    backgroundColor:
+                        Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF273F68)
+                        : const Color(0xFFE5F0FF),
+                    foregroundColor:
+                        Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFA7C5FF)
+                        : const Color(0xFF456DAA),
+                  ),
+                  child: const Text('保存'),
+                ),
               ),
             ],
           ),
@@ -1940,7 +1969,17 @@ class _GestureEditPageState extends State<GestureEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.config == null ? '新建配置' : '编辑配置'),
-        actions: [TextButton(onPressed: _save, child: const Text('保存'))],
+        actions: [
+          TextButton(
+            onPressed: _save,
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFA7C5FF)
+                  : const Color(0xFF456DAA),
+            ),
+            child: const Text('保存'),
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -1971,38 +2010,67 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   },
                   itemBuilder: (context, index) {
                     final action = _actions[index];
-                    return ListTile(
+                    final theme = Theme.of(context);
+                    return Card(
                       key: ValueKey('${action.type}_$index'),
-                      leading: CircleAvatar(
-                        radius: 14,
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
+                      elevation: 0,
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(
+                            alpha: theme.brightness == Brightness.dark
+                                ? 0.42
+                                : 0.68,
+                          ),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
                       ),
-                      title: Text(_actionLabel(action)),
-                      subtitle: Text(_actionSubtitle(action)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: const Icon(Icons.drag_handle_rounded),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: theme.brightness == Brightness.dark
+                              ? const Color(0xFF21453E)
+                              : const Color(0xFFDDF5EC),
+                          foregroundColor: theme.brightness == Brightness.dark
+                              ? const Color(0xFF9DE4CE)
+                              : const Color(0xFF2F7D6B),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(fontSize: 12),
                           ),
-                          if (_isPositionEditable(action))
+                        ),
+                        title: Text(_actionLabel(action)),
+                        subtitle: Text(_actionSubtitle(action)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: Icon(
+                                Icons.drag_handle_rounded,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (_isPositionEditable(action))
+                              IconButton(
+                                icon: Icon(
+                                  Icons.edit_location_alt,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                onPressed: () => _editAction(index),
+                              ),
                             IconButton(
-                              icon: const Icon(Icons.edit_location_alt),
-                              onPressed: () => _editAction(index),
+                              icon: const Icon(
+                                Icons.remove_circle_outline_rounded,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _actions.removeAt(index)),
                             ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.remove_circle_outline_rounded,
-                              color: Colors.redAccent,
-                            ),
-                            onPressed: () =>
-                                setState(() => _actions.removeAt(index)),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
