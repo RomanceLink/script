@@ -75,6 +75,10 @@ class AutoSwipeService : AccessibilityService() {
     private var endMenuButton: ImageView? = null
     private var statusPrimaryView: TextView? = null
     private var statusSecondaryView: TextView? = null
+    private var statusLoopView: TextView? = null
+    private var statusStepView: TextView? = null
+    private var statusTimeView: TextView? = null
+    private var statusWaitView: TextView? = null
     private var collapsedMenuButton: View? = null
 
     private var isRunning = false
@@ -506,6 +510,10 @@ class AutoSwipeService : AccessibilityService() {
         endMenuButton = null
         statusPrimaryView = null
         statusSecondaryView = null
+        statusLoopView = null
+        statusStepView = null
+        statusTimeView = null
+        statusWaitView = null
 
         if (isRunning || isPaused) {
             val pauseButton = iconButton(
@@ -528,27 +536,41 @@ class AutoSwipeService : AccessibilityService() {
             attachDrag(endButton, layoutParams)
             row.addView(pauseButton, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(4) })
             row.addView(endButton, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(4) })
-            val statusColumn = LinearLayout(this).apply {
+
+            val statusGrid = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), 0, dp(8), 0)
             }
-            val primary = TextView(this).apply {
-                textSize = 11f
-                includeFontPadding = false
-                setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
-                typeface = Typeface.DEFAULT_BOLD
+
+            val r1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val r2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(1), 0, 0) }
+
+            fun createCell(isBold: Boolean = false): TextView {
+                return TextView(this@AutoSwipeService).apply {
+                    textSize = 10f
+                    includeFontPadding = false
+                    setTextColor(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
+                    if (isBold) typeface = Typeface.DEFAULT_BOLD
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                }
             }
-            val secondary = TextView(this).apply {
-                textSize = 10f
-                includeFontPadding = false
-                setTextColor(if (darkMode) 0xFFB7C4C8.toInt() else 0xFF516063.toInt())
-            }
-            statusPrimaryView = primary
-            statusSecondaryView = secondary
-            statusColumn.addView(primary)
-            statusColumn.addView(secondary)
-            row.addView(statusColumn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-            attachDrag(statusColumn, layoutParams)
+
+            statusLoopView = createCell(true)
+            statusTimeView = createCell()
+            statusStepView = createCell(true)
+            statusWaitView = createCell()
+
+            r1.addView(statusLoopView, LinearLayout.LayoutParams(dp(72), -2))
+            r1.addView(statusTimeView, LinearLayout.LayoutParams(dp(70), -2))
+            r2.addView(statusStepView, LinearLayout.LayoutParams(dp(72), -2))
+            r2.addView(statusWaitView, LinearLayout.LayoutParams(dp(70), -2))
+
+            statusGrid.addView(r1)
+            statusGrid.addView(r2)
+            row.addView(statusGrid)
+
+            attachDrag(statusGrid, layoutParams)
             attachDrag(row, layoutParams)
             return row
         }
@@ -4631,6 +4653,10 @@ class AutoSwipeService : AccessibilityService() {
         endMenuButton = null
         statusPrimaryView = null
         statusSecondaryView = null
+        statusLoopView = null
+        statusStepView = null
+        statusTimeView = null
+        statusWaitView = null
         collapsedMenuButton = null
     }
 
@@ -4659,10 +4685,18 @@ class AutoSwipeService : AccessibilityService() {
             }
             button?.contentDescription =
                 "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+            
+            statusLoopView?.text = "轮次 ${loopIndex}/${totalLoops}"
+            statusTimeView?.text = formatLongElapsed(elapsed)
+            statusStepView?.text = "步骤 ${stepIndex}/${totalSteps}"
+            statusWaitView?.text = if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "就绪"
+
+            // Keep these for backward compatibility if any other part uses them
             primary?.text =
                 "${if (isPaused) "暂停" else "执行"} 轮 ${loopIndex}/${totalLoops}  步 ${stepIndex}/${totalSteps}  ${formatLongElapsed(elapsed)}"
             secondary?.text =
                 if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "总时长 ${formatShortElapsed(runTotalMillis)}"
+            
             pauseMenuButton?.setImageResource(if (isPaused) R.drawable.ic_overlay_play else R.drawable.ic_overlay_pause)
             pauseMenuButton?.contentDescription = if (isPaused) "继续" else "暂停"
         } else {
@@ -4670,6 +4704,10 @@ class AutoSwipeService : AccessibilityService() {
             button?.contentDescription = "启动"
             primary?.text = "待命"
             secondary?.text = "未执行"
+            statusLoopView?.text = "待命"
+            statusTimeView?.text = "00:00:00"
+            statusStepView?.text = "未执行"
+            statusWaitView?.text = "-"
             pauseMenuButton?.setImageResource(R.drawable.ic_overlay_pause)
             pauseMenuButton?.contentDescription = "暂停"
         }
