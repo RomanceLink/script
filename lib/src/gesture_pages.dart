@@ -1830,6 +1830,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF0F1718) : const Color(0xFFF7FAF8);
+    final cardColor = isDark ? const Color(0xFF1E2628) : const Color(0xFFF1F6F4);
+    
     final previewConfig = GestureConfig(
       id: '_preview',
       name: '',
@@ -1839,15 +1843,21 @@ class _GestureEditPageState extends State<GestureEditPage> {
     );
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: surfaceColor,
       appBar: AppBar(
-        title: Text(widget.config == null ? '新建配置' : '编辑配置'),
+        backgroundColor: surfaceColor,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          widget.config == null ? '新建自动化配置' : '编辑自动化配置',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
         actions: [
           TextButton(
             onPressed: _save,
             style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              foregroundColor: const Color(0xFF4A9D8F),
+              textStyle: const TextStyle(fontWeight: FontWeight.w900),
             ),
             child: const Text('保存'),
           ),
@@ -1893,6 +1903,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                           IconButton.filledTonal(
                             onPressed: _editName,
                             icon: const Icon(Icons.settings_suggest_rounded, size: 20),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFF4A9D8F).withOpacity(0.1),
+                              foregroundColor: const Color(0xFF4A9D8F),
+                            ),
                           ),
                         ],
                       ),
@@ -1900,13 +1914,13 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
+                          color: isDark ? Colors.black.withOpacity(0.2) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.timer_outlined, size: 14, color: const Color(0xFF4A9D8F)),
+                            const Icon(Icons.timer_outlined, size: 14, color: Color(0xFF4A9D8F)),
                             const SizedBox(width: 6),
                             Text(
                               '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
@@ -1967,7 +1981,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
           Container(
             padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(context).bottom + 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
+              color: surfaceColor,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -1982,8 +1996,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   child: FilledButton.icon(
                     onPressed: _showAddMenu,
                     icon: const Icon(Icons.add_circle_outline_rounded),
-                    label: const Text('添加动作', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text('添加动作步骤', style: TextStyle(fontWeight: FontWeight.w900)),
                     style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A9D8F),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
@@ -1994,6 +2010,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   onPressed: _save,
                   icon: const Icon(Icons.check_rounded),
                   style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A9D8F).withOpacity(0.1),
+                    foregroundColor: const Color(0xFF4A9D8F),
                     padding: const EdgeInsets.all(14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
