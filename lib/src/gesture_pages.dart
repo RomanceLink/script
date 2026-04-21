@@ -9,6 +9,50 @@ import 'services/douyin_launcher.dart';
 
 import 'services/alarm_bridge.dart';
 
+BoxDecoration _automationPageBackground(ThemeData theme) {
+  return BoxDecoration(
+    gradient: LinearGradient(
+      colors: theme.brightness == Brightness.dark
+          ? const [Color(0xFF102021), Color(0xFF0E1717)]
+          : const [Color(0xFFF4FBF8), Color(0xFFE4F5EF)],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ),
+  );
+}
+
+BoxDecoration _automationCardDecoration(ThemeData theme) {
+  final isDark = theme.brightness == Brightness.dark;
+  return BoxDecoration(
+    gradient: LinearGradient(
+      colors: isDark
+          ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
+          : const [Color(0xFFF7FCFA), Color(0xFFEAF4F0)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: BorderRadius.circular(24),
+    border: Border.all(
+      color: theme.colorScheme.outlineVariant.withValues(
+        alpha: isDark ? 0.35 : 0.5,
+      ),
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
+        blurRadius: 18,
+        offset: const Offset(0, 8),
+      ),
+    ],
+  );
+}
+
+Color _automationHeaderColor(ThemeData theme) {
+  return theme.brightness == Brightness.dark
+      ? const Color(0xFF152625).withValues(alpha: 0.96)
+      : const Color(0xFFF3FBF7).withValues(alpha: 0.96);
+}
+
 class GestureConfigPage extends StatefulWidget {
   const GestureConfigPage({
     required this.repository,
@@ -261,17 +305,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final surfaceColor = isDark
-        ? const Color(0xFF0F1718)
-        : const Color(0xFFF7FAF8);
-    final cardColor = isDark
-        ? const Color(0xFF1E2628)
-        : const Color(0xFFF1F6F4);
 
     return Scaffold(
-      backgroundColor: surfaceColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
+        backgroundColor: _automationHeaderColor(theme),
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         title: Text(
           '自动化配置中心',
@@ -301,12 +340,16 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
           MediaQuery.paddingOf(context).bottom + 10,
         ),
         decoration: BoxDecoration(
-          color: surfaceColor,
+          color: theme.colorScheme.surface.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.74 : 0.88,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+              color: Colors.black.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.18 : 0.05,
+              ),
+              blurRadius: 18,
+              offset: const Offset(0, -6),
             ),
           ],
         ),
@@ -346,123 +389,127 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
           ],
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _configs.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.auto_awesome_motion_rounded,
-                    size: 64,
-                    color: theme.colorScheme.outlineVariant,
+      body: Container(
+        decoration: _automationPageBackground(theme),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _configs.isEmpty
+            ? Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '尚未创建任何配置',
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              itemCount: _configs.length,
-              itemBuilder: (context, index) {
-                final config = _configs[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    onTap: widget.onRunConfig == null
-                        ? () => _addOrEdit(config)
-                        : () => widget.onRunConfig!(config),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(
-                            alpha: 0.5,
-                          ),
+                  decoration: _automationCardDecoration(theme),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_motion_rounded,
+                        size: 64,
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '尚未创建任何配置',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF4A9D8F,
-                              ).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(14),
+                    ],
+                  ),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                itemCount: _configs.length,
+                itemBuilder: (context, index) {
+                  final config = _configs[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: InkWell(
+                      onTap: widget.onRunConfig == null
+                          ? () => _addOrEdit(config)
+                          : () => widget.onRunConfig!(config),
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        decoration: _automationCardDecoration(theme),
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF4A9D8F,
+                                ).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.gesture_rounded,
+                                color: const Color(0xFF4A9D8F),
+                                size: 24,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.gesture_rounded,
-                              color: const Color(0xFF4A9D8F),
-                              size: 24,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    config.name,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${config.actions.length}步骤 · '
+                                    '${config.infiniteLoop ? '无限循环' : '${config.loopCount}次循环'}'
+                                    '${config.followUpConfigId == null ? '' : ' · 含追加配置'}'
+                                    ' · ${config.infiniteLoop ? '持续执行' : '约${estimateGestureConfigDuration(config).label}'}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Column(
                               children: [
-                                Text(
-                                  config.name,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
+                                IconButton(
+                                  tooltip: '执行',
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: const Color(
+                                      0xFF4A9D8F,
+                                    ).withValues(alpha: 0.15),
+                                    foregroundColor: const Color(0xFF4A9D8F),
                                   ),
+                                  icon: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 20,
+                                  ),
+                                  onPressed: widget.onRunConfig == null
+                                      ? null
+                                      : () => widget.onRunConfig!(config),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${config.actions.length}步骤 · '
-                                  '${config.infiniteLoop ? '无限循环' : '${config.loopCount}次循环'}'
-                                  '${config.followUpConfigId == null ? '' : ' · 含追加配置'}'
-                                  ' · ${config.infiniteLoop ? '持续执行' : '约${estimateGestureConfigDuration(config).label}'}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.more_horiz_rounded,
+                                    size: 20,
                                   ),
+                                  onPressed: () => _showConfigActions(config),
                                 ),
                               ],
                             ),
-                          ),
-                          Column(
-                            children: [
-                              IconButton(
-                                tooltip: '执行',
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(
-                                    0xFF4A9D8F,
-                                  ).withValues(alpha: 0.15),
-                                  foregroundColor: const Color(0xFF4A9D8F),
-                                ),
-                                icon: const Icon(
-                                  Icons.play_arrow_rounded,
-                                  size: 20,
-                                ),
-                                onPressed: widget.onRunConfig == null
-                                    ? null
-                                    : () => widget.onRunConfig!(config),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.more_horiz_rounded,
-                                  size: 20,
-                                ),
-                                onPressed: () => _showConfigActions(config),
-                              ),
-                            ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
@@ -1967,9 +2014,6 @@ class _GestureEditPageState extends State<GestureEditPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final surfaceColor = isDark
-        ? const Color(0xFF0F1718)
-        : const Color(0xFFF7FAF8);
     final previewConfig = GestureConfig(
       id: '_preview',
       name: '',
@@ -1980,9 +2024,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
     );
 
     return Scaffold(
-      backgroundColor: surfaceColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: surfaceColor,
+        backgroundColor: _automationHeaderColor(theme),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         title: Text(
@@ -2003,218 +2048,226 @@ class _GestureEditPageState extends State<GestureEditPage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                _ModernSectionCard(
-                  accent: const Color(0xFF4A9D8F),
-                  title: '方案信息',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _nameController.text.trim().isEmpty
-                                      ? '未命名方案'
-                                      : _nameController.text.trim(),
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _infiniteLoop
-                                      ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
-                                      : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton.filledTonal(
-                            onPressed: _editName,
-                            icon: const Icon(
-                              Icons.settings_suggest_rounded,
-                              size: 20,
-                            ),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(
-                                0xFF4A9D8F,
-                              ).withValues(alpha: 0.1),
-                              foregroundColor: const Color(0xFF4A9D8F),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.black.withValues(alpha: 0.2)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+      body: Container(
+        decoration: _automationPageBackground(theme),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _ModernSectionCard(
+                    accent: const Color(0xFF4A9D8F),
+                    title: '方案信息',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            const Icon(
-                              Icons.timer_outlined,
-                              size: 14,
-                              color: Color(0xFF4A9D8F),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _nameController.text.trim().isEmpty
+                                        ? '未命名方案'
+                                        : _nameController.text.trim(),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _infiniteLoop
+                                        ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
+                                        : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _infiniteLoop
-                                  ? '预计耗时：持续执行'
-                                  : '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
+                            IconButton.filledTonal(
+                              onPressed: _editName,
+                              icon: const Icon(
+                                Icons.settings_suggest_rounded,
+                                size: 20,
+                              ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(
+                                  0xFF4A9D8F,
+                                ).withValues(alpha: 0.1),
+                                foregroundColor: const Color(0xFF4A9D8F),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _CompactSelectionTile(
-                        label: '追加配置',
-                        value:
-                            _availableConfigs
-                                .where((item) => item.id == _followUpConfigId)
-                                .firstOrNull
-                                ?.name ??
-                            '无',
-                        onTap: _pickFollowUpConfig,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _ModernSectionCard(
-                  accent: const Color(0xFF82A7F7),
-                  title: '动作步骤 (可拖动排序)',
-                  child: _actions.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 30),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.ads_click_rounded,
-                                  size: 40,
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  '暂无动作，点击下方按钮添加',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                        )
-                      : ReorderableListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _actions.length,
-                          onReorder: (oldIndex, newIndex) {
-                            setState(() {
-                              if (oldIndex < newIndex) newIndex -= 1;
-                              final item = _actions.removeAt(oldIndex);
-                              _actions.insert(newIndex, item);
-                            });
-                          },
-                          itemBuilder: (context, index) {
-                            final action = _actions[index];
-                            return _ModernActionTile(
-                              key: ValueKey('${action.runtimeType}-$index'),
-                              index: index,
-                              action: action,
-                              onDelete: () =>
-                                  setState(() => _actions.removeAt(index)),
-                              onEdit: _isPositionEditable(action)
-                                  ? () => _editAction(index)
-                                  : null,
-                            );
-                          },
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(
+                                    0xFF163130,
+                                  ).withValues(alpha: 0.88)
+                                : Colors.white.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.timer_outlined,
+                                size: 14,
+                                color: Color(0xFF4A9D8F),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _infiniteLoop
+                                    ? '预计耗时：持续执行'
+                                    : '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              MediaQuery.paddingOf(context).bottom + 12,
-            ),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _showAddMenu,
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                    label: const Text(
-                      '添加动作步骤',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                        const SizedBox(height: 12),
+                        _CompactSelectionTile(
+                          label: '追加配置',
+                          value:
+                              _availableConfigs
+                                  .where((item) => item.id == _followUpConfigId)
+                                  .firstOrNull
+                                  ?.name ??
+                              '无',
+                          onTap: _pickFollowUpConfig,
+                        ),
+                      ],
                     ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF4A9D8F),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  const SizedBox(height: 20),
+                  _ModernSectionCard(
+                    accent: const Color(0xFF82A7F7),
+                    title: '动作步骤 (可拖动排序)',
+                    child: _actions.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 30),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.ads_click_rounded,
+                                    size: 40,
+                                    color: theme.colorScheme.outlineVariant,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    '暂无动作，点击下方按钮添加',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ReorderableListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _actions.length,
+                            onReorder: (oldIndex, newIndex) {
+                              setState(() {
+                                if (oldIndex < newIndex) newIndex -= 1;
+                                final item = _actions.removeAt(oldIndex);
+                                _actions.insert(newIndex, item);
+                              });
+                            },
+                            itemBuilder: (context, index) {
+                              final action = _actions[index];
+                              return _ModernActionTile(
+                                key: ValueKey('${action.runtimeType}-$index'),
+                                index: index,
+                                action: action,
+                                onDelete: () =>
+                                    setState(() => _actions.removeAt(index)),
+                                onEdit: _isPositionEditable(action)
+                                    ? () => _editAction(index)
+                                    : null,
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.paddingOf(context).bottom + 12,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface.withValues(
+                  alpha: theme.brightness == Brightness.dark ? 0.74 : 0.88,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.18 : 0.05,
+                    ),
+                    blurRadius: 18,
+                    offset: const Offset(0, -6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _showAddMenu,
+                      icon: const Icon(Icons.add_circle_outline_rounded),
+                      label: const Text(
+                        '添加动作步骤',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF4A9D8F),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton.filledTonal(
+                    onPressed: _save,
+                    icon: const Icon(Icons.check_rounded),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(
+                        0xFF4A9D8F,
+                      ).withValues(alpha: 0.1),
+                      foregroundColor: const Color(0xFF4A9D8F),
+                      padding: const EdgeInsets.all(14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                IconButton.filledTonal(
-                  onPressed: _save,
-                  icon: const Icon(Icons.check_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(
-                      0xFF4A9D8F,
-                    ).withValues(alpha: 0.1),
-                    foregroundColor: const Color(0xFF4A9D8F),
-                    padding: const EdgeInsets.all(14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2235,15 +2288,7 @@ class _ModernSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark
-            ? const Color(0xFF1E2628)
-            : const Color(0xFFF1F6F4),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
+      decoration: _automationCardDecoration(theme),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2297,7 +2342,13 @@ class _CompactSelectionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          gradient: LinearGradient(
+            colors: theme.brightness == Brightness.dark
+                ? const [Color(0xFF183030), Color(0xFF1A2430)]
+                : const [Color(0xFFFFFFFF), Color(0xFFF1F7F4)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -2359,8 +2410,17 @@ class _ModernActionTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          gradient: LinearGradient(
+            colors: theme.brightness == Brightness.dark
+                ? const [Color(0xFF17302F), Color(0xFF1A2430)]
+                : const [Color(0xFFFFFFFF), Color(0xFFF3F8F5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+          ),
         ),
         child: ListTile(
           dense: true,
