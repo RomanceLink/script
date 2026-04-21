@@ -10,6 +10,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -21,6 +23,9 @@ class AlarmActivity : ComponentActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var notificationId: Int = 0
     private var taskId: String = ""
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var autoOpenRunnable: Runnable? = null
+    private var finishedAlarm = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,40 +57,77 @@ class AlarmActivity : ComponentActivity() {
         val actionsJson = intent.getStringExtra("gestureActionsJson")
         val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
         val loopIntervalMillis = intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
+        val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
+        val openTaskButton = findViewById<TextView>(R.id.openTaskButton)
         findViewById<TextView>(R.id.alarmTitle).text = title
         findViewById<TextView>(R.id.alarmBody).text = body
-        findViewById<TextView>(R.id.alarmHint).text = if (configName.isNullOrBlank()) {
+        findViewById<TextView>(R.id.alarmHint).text = if (autoOpenDelaySeconds > 0) {
+            "提醒已触发，${autoOpenDelaySeconds} 秒后自动打开 $targetAppLabel。"
+        } else if (configName.isNullOrBlank()) {
             "提醒已触发，点击下方按钮打开 $targetAppLabel。"
         } else {
             "绑定配置：$configName（$loopCount 次，间隔 ${loopIntervalMillis} 毫秒），打开 $targetAppLabel 后 5 秒自动执行。"
         }
-        findViewById<TextView>(R.id.openTaskButton).text = "打开$targetAppLabel"
-        findViewById<TextView>(R.id.openTaskButton).setOnClickListener {
-            stopSound()
-            if (!targetAppPackage.isNullOrBlank()) {
-                AutoSwipeService.openAppAndRunConfig(
-                    this@AlarmActivity,
-                    targetAppPackage,
-                    targetAppLabel,
-                    configName,
-                    AutoSwipeService.parseActionsJson(actionsJson),
-                    loopCount,
-                    loopIntervalMillis,
-                    5
-                )
-            } else {
-                AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
-                val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    putExtra("taskId", taskId)
-                }
-                startActivity(launchIntent)
-            }
-            finishAlarm()
+        openTaskButton.text = "打开$targetAppLabel"
+        openTaskButton.setOnClickListener {
+            launchTask(
+                targetAppPackage = targetAppPackage,
+                targetAppLabel = targetAppLabel,
+                configName = configName,
+                actionsJson = actionsJson,
+                loopCount = loopCount,
+                loopIntervalMillis = loopIntervalMillis
+            )
         }
         findViewById<TextView>(R.id.dismissButton).setOnClickListener {
             finishAlarm()
         }
+        if (autoOpenDelaySeconds > 0) {
+            autoOpenRunnable = Runnable {
+                launchTask(
+                    targetAppPackage = targetAppPackage,
+                    targetAppLabel = targetAppLabel,
+                    configName = configName,
+                    actionsJson = actionsJson,
+                    loopCount = loopCount,
+                    loopIntervalMillis = loopIntervalMillis
+                )
+            }.also {
+                mainHandler.postDelayed(it, autoOpenDelaySeconds * 1000L)
+            }
+        }
+    }
+
+    private fun launchTask(
+        targetAppPackage: String?,
+        targetAppLabel: String,
+        configName: String?,
+        actionsJson: String?,
+        loopCount: Int,
+        loopIntervalMillis: Int
+    ) {
+        if (finishedAlarm) return
+        stopSound()
+        if (!targetAppPackage.isNullOrBlank()) {
+            AutoSwipeService.openAppAndRunConfig(
+                this@AlarmActivity,
+                targetAppPackage,
+                targetAppLabel,
+                configName,
+                AutoSwipeService.parseActionsJson(actionsJson),
+                loopCount,
+                loopIntervalMillis,
+                5
+            )
+        } else {
+            AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
+            val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("taskId", taskId)
+            }
+            startActivity(launchIntent)
+        }
+        finishAlarm()
     }
 
     private fun startSound() {
@@ -151,6 +193,10 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun finishAlarm() {
+        if (finishedAlarm) return
+        finishedAlarm = true
+        autoOpenRunnable?.let(mainHandler::removeCallbacks)
+        autoOpenRunnable = null
         stopSound()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(notificationId)

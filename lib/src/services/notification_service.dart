@@ -92,6 +92,7 @@ class NotificationService {
                   definition,
                   gestureConfigs,
                 ),
+                autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
               ),
             );
           }
@@ -134,6 +135,7 @@ class NotificationService {
                     definition,
                     gestureConfigs,
                   ),
+                  autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
                 ),
               );
             }
@@ -175,6 +177,7 @@ class NotificationService {
                     definition,
                     gestureConfigs,
                   ),
+                  autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
                 ),
               );
             }

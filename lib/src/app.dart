@@ -871,7 +871,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _draft = widget.initialState;
   }
 
-
   Future<void> _openAppSettingsPage() async {
     final result = await Navigator.of(context).push<DailyTaskState>(
       MaterialPageRoute(
@@ -901,7 +900,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openPermissionsPage() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _PermissionSettingsPage(alarmBridge: widget.alarmBridge),
+        builder: (_) =>
+            _PermissionSettingsPage(alarmBridge: widget.alarmBridge),
       ),
     );
   }
@@ -998,7 +998,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
-
 }
 
 class _AppSelectionSettingsPage extends StatefulWidget {
@@ -1150,7 +1149,8 @@ class _ScriptSettingsPage extends StatelessWidget {
   Future<void> _openGestureConfigs(BuildContext context) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => GestureConfigPage(repository: repository, launcher: launcher),
+        builder: (_) =>
+            GestureConfigPage(repository: repository, launcher: launcher),
       ),
     );
     final configs = await repository.loadGestureConfigs();
@@ -1387,7 +1387,9 @@ class _PermissionSettingsPage extends StatelessWidget {
                           ? const Color(0xFF94DFC9)
                           : const Color(0xFF2F7D6B),
                       onPressed: () async {
-                        final now = DateTime.now().add(const Duration(seconds: 10));
+                        final now = DateTime.now().add(
+                          const Duration(seconds: 10),
+                        );
                         await alarmBridge.scheduleSelfTest(
                           AlarmReminder(
                             id: 'self_test',
@@ -1401,7 +1403,11 @@ class _PermissionSettingsPage extends StatelessWidget {
                           ),
                         );
                         if (context.mounted) {
-                          VibrantHUD.show(context, '已安排 10 秒后自测', type: ToastType.success);
+                          VibrantHUD.show(
+                            context,
+                            '已安排 10 秒后自测',
+                            type: ToastType.success,
+                          );
                         }
                       },
                     ),
@@ -1416,7 +1422,9 @@ class _PermissionSettingsPage extends StatelessWidget {
                           : const Color(0xFF456DAA),
                       onPressed: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const VendorGuidePage()),
+                          MaterialPageRoute(
+                            builder: (_) => const VendorGuidePage(),
+                          ),
                         );
                       },
                     ),
@@ -1445,7 +1453,8 @@ class _TaskManagementSettingsPage extends StatefulWidget {
       _TaskManagementSettingsPageState();
 }
 
-class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage> {
+class _TaskManagementSettingsPageState
+    extends State<_TaskManagementSettingsPage> {
   late DailyTaskState _draft;
 
   @override
@@ -1548,7 +1557,10 @@ class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage
         ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+    final autoOpen = task.autoOpenDelaySeconds > 0
+        ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
+        : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$autoOpen';
   }
 
   String _kindGroupLabel(AssistantTaskKind kind) {
@@ -1577,7 +1589,9 @@ class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage
       out.add(
         Text(
           _kindGroupLabel(kind),
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
         ),
       );
       out.add(const SizedBox(height: 8));
@@ -1634,14 +1648,22 @@ class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   ListTile(
-                                    leading: const Icon(Icons.edit_rounded, color: Color(0xFF436EAF)),
+                                    leading: const Icon(
+                                      Icons.edit_rounded,
+                                      color: Color(0xFF436EAF),
+                                    ),
                                     title: const Text('编辑任务'),
-                                    onTap: () => Navigator.of(context).pop('edit'),
+                                    onTap: () =>
+                                        Navigator.of(context).pop('edit'),
                                   ),
                                   ListTile(
-                                    leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFD32F2F)),
+                                    leading: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: Color(0xFFD32F2F),
+                                    ),
                                     title: const Text('删除任务'),
-                                    onTap: () => Navigator.of(context).pop('delete'),
+                                    onTap: () =>
+                                        Navigator.of(context).pop('delete'),
                                   ),
                                   const SizedBox(height: 8),
                                 ],
@@ -1665,7 +1687,8 @@ class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage
                         child: _ToggleChip(
                           label: '今日启用',
                           value: enabled,
-                          onChanged: (value) => _toggleTaskEnabled(task.id, value),
+                          onChanged: (value) =>
+                              _toggleTaskEnabled(task.id, value),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1673,7 +1696,8 @@ class _TaskManagementSettingsPageState extends State<_TaskManagementSettingsPage
                         child: _ToggleChip(
                           label: '首页显示',
                           value: homeVisible,
-                          onChanged: (value) => _toggleHomeVisible(task.id, value),
+                          onChanged: (value) =>
+                              _toggleHomeVisible(task.id, value),
                         ),
                       ),
                     ],
@@ -1730,7 +1754,8 @@ class _TemplateLibrarySettingsPage extends StatefulWidget {
       _TemplateLibrarySettingsPageState();
 }
 
-class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPage> {
+class _TemplateLibrarySettingsPageState
+    extends State<_TemplateLibrarySettingsPage> {
   late DailyTaskState _draft;
 
   @override
@@ -1792,10 +1817,20 @@ class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPa
             name: name,
             tasks: _draft.taskDefinitions.map((t) => t.copyWith()).toList(),
             enabledTaskIds: _draft.enabledTaskIds
-                .where(_draft.taskDefinitions.map((task) => task.id).toSet().contains)
+                .where(
+                  _draft.taskDefinitions
+                      .map((task) => task.id)
+                      .toSet()
+                      .contains,
+                )
                 .toSet(),
             homeVisibleTaskIds: _draft.homeVisibleTaskIds
-                .where(_draft.taskDefinitions.map((task) => task.id).toSet().contains)
+                .where(
+                  _draft.taskDefinitions
+                      .map((task) => task.id)
+                      .toSet()
+                      .contains,
+                )
                 .toSet(),
           ),
         ],
@@ -1839,7 +1874,8 @@ class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPa
   Future<void> _editTemplateGroup(TaskTemplateGroup group) async {
     final result = await Navigator.of(context).push<TaskTemplateGroup>(
       MaterialPageRoute(
-        builder: (_) => TemplateTasksPage(group: group, repository: widget.repository),
+        builder: (_) =>
+            TemplateTasksPage(group: group, repository: widget.repository),
       ),
     );
     if (result == null || !mounted) return;
@@ -1945,9 +1981,13 @@ class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPa
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -1961,7 +2001,10 @@ class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPa
                           style: FilledButton.styleFrom(
                             backgroundColor: mintFill,
                             foregroundColor: mintText,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             minimumSize: Size.zero,
                           ),
                           onPressed: () => _applyTemplateGroup(group),
@@ -1970,7 +2013,10 @@ class _TemplateLibrarySettingsPageState extends State<_TemplateLibrarySettingsPa
                             children: [
                               Icon(Icons.auto_awesome_motion_rounded, size: 16),
                               SizedBox(width: 6),
-                              Text('整组使用', style: TextStyle(fontWeight: FontWeight.w800)),
+                              Text(
+                                '整组使用',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
                             ],
                           ),
                         ),
@@ -2005,6 +2051,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   TimeOfDay? _end;
   late TextEditingController _targetController;
   late TextEditingController _cooldownController;
+  late TextEditingController _autoOpenDelayController;
   late IntervalUnit _intervalUnit;
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
@@ -2037,6 +2084,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _cooldownController = TextEditingController(
       text: '${task?.cooldownValue ?? 10}',
     );
+    _autoOpenDelayController = TextEditingController(
+      text: '${task?.autoOpenDelaySeconds ?? 0}',
+    );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
     _gestureConfigId = task?.gestureConfigId;
@@ -2061,6 +2111,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _ringtoneController.dispose();
     _targetController.dispose();
     _cooldownController.dispose();
+    _autoOpenDelayController.dispose();
     super.dispose();
   }
 
@@ -2308,6 +2359,15 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _autoOpenDelayController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '全屏提醒后自动打开秒数',
+                        helperText: '填 0 为关闭。到时后自动点击“打开应用 / 去完成任务”。',
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -2403,6 +2463,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     ringtoneValue: _ringtoneFilePath,
                     showQuickLaunch: _showQuickLaunch,
                     gestureConfigId: _gestureConfigId,
+                    autoOpenDelaySeconds:
+                        int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
                   ),
                 );
               },
@@ -3307,7 +3369,10 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
         ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick';
+    final autoOpen = task.autoOpenDelaySeconds > 0
+        ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
+        : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$autoOpen';
   }
 
   @override

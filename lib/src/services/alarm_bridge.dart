@@ -18,6 +18,7 @@ class AlarmReminder {
     this.gestureActionsJson,
     this.gestureLoopCount,
     this.gestureLoopIntervalMillis,
+    this.autoOpenDelaySeconds,
   });
 
   final String id;
@@ -34,6 +35,7 @@ class AlarmReminder {
   final String? gestureActionsJson;
   final int? gestureLoopCount;
   final int? gestureLoopIntervalMillis;
+  final int? autoOpenDelaySeconds;
 
   Map<String, Object?> toJson() {
     return {
@@ -51,6 +53,7 @@ class AlarmReminder {
       'gestureActionsJson': gestureActionsJson,
       'gestureLoopCount': gestureLoopCount,
       'gestureLoopIntervalMillis': gestureLoopIntervalMillis,
+      'autoOpenDelaySeconds': autoOpenDelaySeconds,
     };
   }
 }

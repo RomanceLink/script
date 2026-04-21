@@ -64,6 +64,7 @@ object AlarmScheduler {
                 putExtra("gestureActionsJson", reminder["gestureActionsJson"] as String?)
                 putExtra("gestureLoopCount", (reminder["gestureLoopCount"] as? Number)?.toInt())
                 putExtra("gestureLoopIntervalMillis", (reminder["gestureLoopIntervalMillis"] as? Number)?.toInt())
+                putExtra("autoOpenDelaySeconds", (reminder["autoOpenDelaySeconds"] as? Number)?.toInt() ?: 0)
                 putExtra("notificationId", requestCode)
             }
             val pendingIntent = PendingIntent.getBroadcast(
@@ -116,6 +117,7 @@ object AlarmScheduler {
                     "gestureActionsJson" to if (obj.isNull("gestureActionsJson")) null else obj.getString("gestureActionsJson"),
                     "gestureLoopCount" to if (obj.isNull("gestureLoopCount")) null else obj.getInt("gestureLoopCount"),
                     "gestureLoopIntervalMillis" to if (obj.isNull("gestureLoopIntervalMillis")) null else obj.getInt("gestureLoopIntervalMillis"),
+                    "autoOpenDelaySeconds" to if (obj.isNull("autoOpenDelaySeconds")) 0 else obj.getInt("autoOpenDelaySeconds"),
                 )
             )
         }
