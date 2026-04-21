@@ -326,7 +326,7 @@ class _HeaderPortrait extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      width: 104,
+      width: 112,
       height: 112,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withValues(alpha: 0.44),
