@@ -191,6 +191,24 @@ class AutoSwipeService : AccessibilityService() {
             return true
         }
 
+        fun recognizeScreenText(
+            region: Map<String, Any?>?,
+            callback: (List<Map<String, Any?>>) -> Unit,
+        ): Boolean {
+            val service = instance ?: return false
+            service.handler.post {
+                service.recognizeScreenTextForMotto(
+                    region = region,
+                    onSuccess = { nodes ->
+                        val (screenWidth, screenHeight) = service.screenSize()
+                        callback(nodes.map { it.toTextResult(screenWidth, screenHeight) })
+                    },
+                    onFailure = { callback(emptyList()) },
+                )
+            }
+            return true
+        }
+
         fun openAppAndRunConfig(
             context: Context,
             packageName: String,
@@ -4370,6 +4388,53 @@ class AutoSwipeService : AccessibilityService() {
         )
     }
 
+    private fun recognizeScreenTextForMotto(
+        region: Map<String, Any?>?,
+        onSuccess: (List<OcrTextInfo>) -> Unit,
+        onFailure: () -> Unit,
+    ) {
+        captureScreenBitmap(
+            onSuccess = { bitmap ->
+                val rect = normalizedRegionToRect(region, bitmap.width, bitmap.height)
+                if (rect == null) {
+                    recognizeScreenTextFromBitmap(bitmap, onSuccess, onFailure)
+                    return@captureScreenBitmap
+                }
+                val crop = try {
+                    Bitmap.createBitmap(bitmap, rect.left, rect.top, rect.width(), rect.height())
+                } catch (_: Exception) {
+                    bitmap.recycle()
+                    onFailure()
+                    return@captureScreenBitmap
+                }
+                bitmap.recycle()
+                recognizeScreenTextFromBitmap(
+                    crop,
+                    onSuccess = { nodes ->
+                        onSuccess(nodes.map { it.offset(rect.left, rect.top) })
+                    },
+                    onFailure = onFailure,
+                )
+            },
+            onFailure = onFailure,
+        )
+    }
+
+    private fun normalizedRegionToRect(region: Map<String, Any?>?, width: Int, height: Int): Rect? {
+        if (region == null) return null
+        val left = ((region["left"] as? Number)?.toDouble() ?: 0.0) * width
+        val top = ((region["top"] as? Number)?.toDouble() ?: 0.0) * height
+        val right = ((region["right"] as? Number)?.toDouble() ?: 1.0) * width
+        val bottom = ((region["bottom"] as? Number)?.toDouble() ?: 1.0) * height
+        val rect = Rect(
+            left.toInt().coerceIn(0, width - 1),
+            top.toInt().coerceIn(0, height - 1),
+            right.toInt().coerceIn(1, width),
+            bottom.toInt().coerceIn(1, height),
+        )
+        return if (rect.width() >= dp(12) && rect.height() >= dp(12)) rect else null
+    }
+
     private fun captureScreenBitmap(
         onSuccess: (Bitmap) -> Unit,
         onFailure: () -> Unit,
@@ -5379,6 +5444,22 @@ class AutoSwipeService : AccessibilityService() {
         val bounds: Rect,
         val text: String,
     ) {
+        fun offset(dx: Int, dy: Int): OcrTextInfo {
+            return copy(bounds = Rect(bounds).apply { offset(dx, dy) })
+        }
+
+        fun toTextResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
+            return mapOf(
+                "text" to text,
+                "bounds" to mapOf(
+                    "left" to (bounds.left.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "top" to (bounds.top.toDouble() / screenHeight.coerceAtLeast(1)),
+                    "right" to (bounds.right.toDouble() / screenWidth.coerceAtLeast(1)),
+                    "bottom" to (bounds.bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                ),
+            )
+        }
+
         fun toResult(screenWidth: Int, screenHeight: Int): Map<String, Any?> {
             return mapOf(
                 "type" to "buttonRecognize",

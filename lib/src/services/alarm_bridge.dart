@@ -130,6 +130,20 @@ class AlarmBridge {
     return result;
   }
 
+  Future<List<Map<String, Object?>>> recognizeScreenText({
+    Map<String, Object?>? region,
+  }) async {
+    final result = await _channel.invokeListMethod<Map<Object?, Object?>>(
+      'recognizeScreenText',
+      {'region': region},
+    );
+    return (result ?? const [])
+        .map(
+          (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+        )
+        .toList();
+  }
+
   Future<String?> consumeOverlayCommand() async {
     final value = await _channel.invokeMethod<String>('consumeOverlayCommand');
     return value;

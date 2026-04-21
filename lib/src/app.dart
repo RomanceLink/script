@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
+import 'package:webview_flutter/webview_flutter.dart';
 
 import 'gesture_pages.dart';
 import 'logic/task_definitions.dart';
@@ -38,7 +40,8 @@ Future<List<String>> fetchDailyMottosFromUrl(String rawUrl) async {
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw Exception('抓取失败：${response.statusCode}');
   }
-  final document = html_parser.parse(response.body);
+  final html = utf8.decode(response.bodyBytes, allowMalformed: true);
+  final document = html_parser.parse(html);
   final anchors = document.querySelectorAll('div.post-body a, .post-body a');
   final results = <String>[];
   for (final anchor in anchors) {
@@ -60,6 +63,15 @@ Future<List<String>> fetchDailyMottosFromUrl(String rawUrl) async {
     }
   }
   return results;
+}
+
+bool _looksLikeMojibake(String value) {
+  return value.contains('å') ||
+      value.contains('è') ||
+      value.contains('é') ||
+      value.contains('æ') ||
+      value.contains('ç') ||
+      value.contains('Ã');
 }
 
 ThemeData _scriptAssistantTheme(Brightness brightness) {
@@ -231,7 +243,11 @@ class _DashboardPageState extends State<DashboardPage>
           _defaultDailyMottoSourceUrl;
       final lastFetchDate = await _repository.loadDailyMottoLastFetchDate();
       final todayKey = _dateKey(DateTime.now());
-      if (sourceUrl.isNotEmpty && lastFetchDate != todayKey) {
+      final hasBrokenMottos = (await _repository.loadDailyMottos()).any(
+        _looksLikeMojibake,
+      );
+      if (sourceUrl.isNotEmpty &&
+          (lastFetchDate != todayKey || hasBrokenMottos)) {
         try {
           final fetched = await fetchDailyMottosFromUrl(sourceUrl);
           if (fetched.isNotEmpty) {
@@ -2822,7 +2838,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       _sourceUrl = sourceUrl;
       _loading = false;
     });
-    if (sourceUrl.isNotEmpty && lastFetchDate != todayKey) {
+    final hasBrokenMottos = values.any(_looksLikeMojibake);
+    if (sourceUrl.isNotEmpty &&
+        (lastFetchDate != todayKey || hasBrokenMottos)) {
       await _fetchFromSource(silentOnFailure: true);
     }
   }
@@ -2932,6 +2950,30 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     }
   }
 
+  Future<void> _openWebRecognizer() async {
+    final result = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => _MottoWebRecognizePage(initialUrl: _sourceUrl),
+      ),
+    );
+    if (!mounted || result == null || result.isEmpty) {
+      return;
+    }
+    setState(() {
+      _mottos = result;
+    });
+    await widget.repository.saveDailyMottos(result);
+    await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
+    if (!mounted) {
+      return;
+    }
+    VibrantHUD.show(
+      context,
+      '已识别并保存 ${result.length} 条',
+      type: ToastType.success,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -2987,6 +3029,15 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _openWebRecognizer,
+                      icon: const Icon(Icons.travel_explore_rounded),
+                      label: const Text('打开网页识别保存'),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     '每天首次打开时，会自动从该网页抓取 10 条并保存。',
@@ -3035,6 +3086,356 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         ],
       ),
     );
+  }
+}
+
+class _MottoWebRecognizePage extends StatefulWidget {
+  const _MottoWebRecognizePage({required this.initialUrl});
+
+  final String initialUrl;
+
+  @override
+  State<_MottoWebRecognizePage> createState() => _MottoWebRecognizePageState();
+}
+
+class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
+  final _webAreaKey = GlobalKey();
+  late final WebViewController _controller;
+  bool _loading = true;
+  bool _recognizing = false;
+  bool _selectingRegion = false;
+  Offset? _dragStart;
+  Rect? _selectedRegion;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialUri = Uri.tryParse(widget.initialUrl);
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _loading = true),
+          onPageFinished: (_) => setState(() => _loading = false),
+        ),
+      )
+      ..loadRequest(
+        initialUri == null || !initialUri.hasScheme
+            ? Uri.parse(_defaultDailyMottoSourceUrl)
+            : initialUri,
+      );
+  }
+
+  List<String> _extractReadableLines(String text) {
+    final lines = text
+        .split(RegExp(r'[\n\r]+'))
+        .map((item) => item.trim().replaceAll(RegExp(r'\s+'), ' '))
+        .where((item) => item.length >= 4 && item.length <= 60)
+        .where(
+          (item) =>
+              !item.contains('文学360') &&
+              !item.contains('搜索') &&
+              !item.contains('首页') &&
+              !item.contains('相关古诗文') &&
+              !item.contains('Copyright') &&
+              !item.contains('ICP备'),
+        )
+        .toList();
+    final results = <String>[];
+    for (final line in lines) {
+      if (results.contains(line)) {
+        continue;
+      }
+      results.add(line);
+      if (results.length >= 10) {
+        break;
+      }
+    }
+    return results;
+  }
+
+  Future<void> _confirmAndPop(List<String> lines) async {
+    if (!mounted) {
+      return;
+    }
+    if (lines.isEmpty) {
+      VibrantHUD.show(context, '当前页面没有识别到可保存内容', type: ToastType.warning);
+      return;
+    }
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            Text(
+              '识别结果',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            ...lines.map((line) => ListTile(dense: true, title: Text(line))),
+            const SizedBox(height: 8),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('保存这些内容'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop(lines);
+    }
+  }
+
+  Map<String, Object?>? _selectedRegionAsScreenRatio() {
+    final selected = _selectedRegion;
+    final context = _webAreaKey.currentContext;
+    if (selected == null || context == null) {
+      return null;
+    }
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return null;
+    }
+    final screenSize = MediaQuery.sizeOf(context);
+    final topLeft = box.localToGlobal(selected.topLeft);
+    final bottomRight = box.localToGlobal(selected.bottomRight);
+    return {
+      'left': (topLeft.dx / screenSize.width).clamp(0.0, 1.0),
+      'top': (topLeft.dy / screenSize.height).clamp(0.0, 1.0),
+      'right': (bottomRight.dx / screenSize.width).clamp(0.0, 1.0),
+      'bottom': (bottomRight.dy / screenSize.height).clamp(0.0, 1.0),
+    };
+  }
+
+  Future<void> _recognizeDomAndSave() async {
+    if (_recognizing) {
+      return;
+    }
+    setState(() => _recognizing = true);
+    try {
+      final raw = await _controller.runJavaScriptReturningResult('''
+(() => {
+  const selectors = ['.post-body', '.post', 'article', 'main', 'body'];
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el && el.innerText && el.innerText.trim().length > 0) {
+      return el.innerText;
+    }
+  }
+  return document.body ? document.body.innerText : '';
+})()
+''');
+      final text = raw.toString();
+      final normalized = text.startsWith('"') && text.endsWith('"')
+          ? text
+                .substring(1, text.length - 1)
+                .replaceAll(r'\n', '\n')
+                .replaceAll(r'\"', '"')
+          : text;
+      final lines = _extractReadableLines(normalized);
+      await _confirmAndPop(lines);
+    } catch (error) {
+      if (mounted) {
+        VibrantHUD.show(context, '$error', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _recognizing = false);
+      }
+    }
+  }
+
+  Future<void> _recognizeScreenshotAndSave({bool selectedOnly = false}) async {
+    if (_recognizing) {
+      return;
+    }
+    final region = selectedOnly ? _selectedRegionAsScreenRatio() : null;
+    if (selectedOnly && region == null) {
+      VibrantHUD.show(context, '先拖动框选要识别的文字区域', type: ToastType.warning);
+      return;
+    }
+    setState(() => _recognizing = true);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      final rows = await AlarmBridge().recognizeScreenText(region: region);
+      final text = rows
+          .map((item) => (item['text'] ?? '').toString().trim())
+          .where((item) => item.isNotEmpty)
+          .join('\n');
+      final lines = _extractReadableLines(text);
+      await _confirmAndPop(lines);
+    } catch (error) {
+      if (mounted) {
+        VibrantHUD.show(context, '$error', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _recognizing = false;
+          _selectingRegion = false;
+        });
+      }
+    }
+  }
+
+  Widget _regionSelector() {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (details) {
+          setState(() {
+            _dragStart = details.localPosition;
+            _selectedRegion = Rect.fromPoints(
+              details.localPosition,
+              details.localPosition,
+            );
+          });
+        },
+        onPanUpdate: (details) {
+          final start = _dragStart;
+          if (start == null) {
+            return;
+          }
+          setState(() {
+            _selectedRegion = Rect.fromPoints(start, details.localPosition);
+          });
+        },
+        child: CustomPaint(
+          painter: _MottoRegionPainter(_selectedRegion),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Text(
+                '拖动框选文字区域',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('网页识别'),
+        actions: [
+          IconButton(
+            onPressed: _controller.reload,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          KeyedSubtree(
+            key: _webAreaKey,
+            child: WebViewWidget(controller: _controller),
+          ),
+          if (_loading) const LinearProgressIndicator(),
+          if (_selectingRegion) _regionSelector(),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: _recognizing ? null : _recognizeDomAndSave,
+                icon: const Icon(Icons.code_rounded),
+                label: const Text('网页文字'),
+              ),
+              FilledButton.icon(
+                onPressed: _recognizing
+                    ? null
+                    : () => _recognizeScreenshotAndSave(),
+                icon: const Icon(Icons.document_scanner_rounded),
+                label: Text(_recognizing ? '识别中' : '截图OCR'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: _recognizing
+                    ? null
+                    : () {
+                        if (_selectingRegion && _selectedRegion != null) {
+                          _recognizeScreenshotAndSave(selectedOnly: true);
+                        } else {
+                          setState(() {
+                            _selectingRegion = true;
+                            _selectedRegion = null;
+                          });
+                        }
+                      },
+                icon: const Icon(Icons.crop_free_rounded),
+                label: Text(_selectingRegion ? '识别框选' : '框选OCR'),
+              ),
+              if (_selectingRegion)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectingRegion = false;
+                      _selectedRegion = null;
+                    });
+                  },
+                  child: const Text('取消'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MottoRegionPainter extends CustomPainter {
+  const _MottoRegionPainter(this.region);
+
+  final Rect? region;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final overlayPaint = Paint()..color = Colors.black.withValues(alpha: 0.08);
+    canvas.drawRect(Offset.zero & size, overlayPaint);
+    final rect = region;
+    if (rect == null) {
+      return;
+    }
+    final normalized = Rect.fromLTRB(
+      rect.left.clamp(0.0, size.width),
+      rect.top.clamp(0.0, size.height),
+      rect.right.clamp(0.0, size.width),
+      rect.bottom.clamp(0.0, size.height),
+    );
+    canvas.drawRect(
+      normalized,
+      Paint()
+        ..color = const Color(0xFFFF3B30)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawRect(normalized, Paint()..color = const Color(0x22FF3B30));
+  }
+
+  @override
+  bool shouldRepaint(covariant _MottoRegionPainter oldDelegate) {
+    return oldDelegate.region != region;
   }
 }
 

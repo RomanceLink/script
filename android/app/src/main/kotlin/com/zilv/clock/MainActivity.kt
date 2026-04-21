@@ -83,6 +83,14 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         }
                     }
+                    "recognizeScreenText" -> {
+                        val region = call.argument<Map<String, Any?>>("region")
+                        if (!AutoSwipeService.recognizeScreenText(region) { lines ->
+                                runOnUiThread { result.success(lines) }
+                            }) {
+                            result.success(emptyList<Map<String, Any?>>())
+                        }
+                    }
                     "showAutomationMenu" -> {
                         val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
                         result.success(AutoSwipeService.showAutomationMenu(configs))
