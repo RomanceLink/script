@@ -186,6 +186,10 @@ class AutoSwipeService : AccessibilityService() {
             context: Context,
             packageName: String,
             packageLabel: String,
+            preConfigName: String?,
+            preActions: List<Map<String, Any?>>,
+            preLoopCount: Int = 1,
+            preLoopIntervalMillis: Int = 0,
             configName: String?,
             actions: List<Map<String, Any?>>,
             loopCount: Int = 1,
@@ -202,6 +206,10 @@ class AutoSwipeService : AccessibilityService() {
                 val combinedActions = mutableListOf<Map<String, Any?>>()
                 combinedActions.addAll(unlockActions)
                 combinedActions.add(fixedWaitMap(800))
+                if (preActions.isNotEmpty()) {
+                    combinedActions.addAll(expandLoopedActions(preActions, preLoopCount, preLoopIntervalMillis))
+                    combinedActions.add(fixedWaitMap(500))
+                }
                 combinedActions.add(
                     mapOf(
                         "type" to "launchApp",
@@ -212,11 +220,39 @@ class AutoSwipeService : AccessibilityService() {
                 combinedActions.add(fixedWaitMap(delaySeconds.coerceAtLeast(0) * 1000))
                 combinedActions.addAll(expandLoopedActions(actions, loopCount, loopIntervalMillis))
                 service.handler.post {
+                    service.stopScriptRun()
                     updateConfig(
                         0,
                         0,
                         combinedActions,
-                        "解锁并执行 ${configName ?: packageLabel}",
+                        buildRunName(preConfigName, configName, packageLabel, true),
+                        1,
+                        0,
+                    )
+                }
+                return true
+            }
+
+            if (service != null && preActions.isNotEmpty()) {
+                val combinedActions = mutableListOf<Map<String, Any?>>()
+                combinedActions.addAll(expandLoopedActions(preActions, preLoopCount, preLoopIntervalMillis))
+                combinedActions.add(fixedWaitMap(500))
+                combinedActions.add(
+                    mapOf(
+                        "type" to "launchApp",
+                        "packageName" to packageName,
+                        "label" to packageLabel,
+                    ),
+                )
+                combinedActions.add(fixedWaitMap(delaySeconds.coerceAtLeast(0) * 1000))
+                combinedActions.addAll(expandLoopedActions(actions, loopCount, loopIntervalMillis))
+                service.handler.post {
+                    service.stopScriptRun()
+                    updateConfig(
+                        0,
+                        0,
+                        combinedActions,
+                        buildRunName(preConfigName, configName, packageLabel, false),
                         1,
                         0,
                     )
@@ -313,6 +349,21 @@ class AutoSwipeService : AccessibilityService() {
                 "waitMillis" to millis,
                 "seconds" to ((millis + 999) / 1000).coerceIn(1, 10000),
             )
+        }
+
+        private fun buildRunName(
+            preConfigName: String?,
+            configName: String?,
+            packageLabel: String,
+            includesUnlock: Boolean,
+        ): String {
+            val pre = if (preConfigName.isNullOrBlank()) "" else "前置 ${preConfigName} -> "
+            val main = configName ?: packageLabel
+            return if (includesUnlock) {
+                "解锁并执行 ${pre}${main}"
+            } else {
+                "${pre}${main}"
+            }
         }
 
         fun parseActionsJson(raw: String?): List<Map<String, Any?>> {
@@ -1047,6 +1098,10 @@ class AutoSwipeService : AccessibilityService() {
                     "openAppAndRunConfig" -> {
                         val packageName = call.argument<String>("packageName")
                         val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
+                        val preConfigName = call.argument<String>("preConfigName")
+                        val preActions = call.argument<List<Map<String, Any?>>>("preActions") ?: emptyList()
+                        val preLoopCount = call.argument<Int>("preLoopCount") ?: 1
+                        val preLoopIntervalMillis = call.argument<Int>("preLoopIntervalMillis") ?: 0
                         val configName = call.argument<String>("configName")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
@@ -1061,6 +1116,10 @@ class AutoSwipeService : AccessibilityService() {
                                     this,
                                     packageName,
                                     packageLabel,
+                                    preConfigName,
+                                    preActions,
+                                    preLoopCount,
+                                    preLoopIntervalMillis,
                                     configName,
                                     actions,
                                     loopCount,

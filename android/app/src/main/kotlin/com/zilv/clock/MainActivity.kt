@@ -94,6 +94,10 @@ class MainActivity : FlutterActivity() {
                     "openAppAndRunConfig" -> {
                         val packageName = call.argument<String>("packageName")
                         val packageLabel = call.argument<String>("packageLabel") ?: "目标应用"
+                        val preConfigName = call.argument<String>("preConfigName")
+                        val preActions = call.argument<List<Map<String, Any?>>>("preActions") ?: emptyList()
+                        val preLoopCount = call.argument<Int>("preLoopCount") ?: 1
+                        val preLoopIntervalMillis = call.argument<Int>("preLoopIntervalMillis") ?: 0
                         val configName = call.argument<String>("configName")
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
@@ -107,6 +111,10 @@ class MainActivity : FlutterActivity() {
                                     this,
                                     packageName,
                                     packageLabel,
+                                    preConfigName,
+                                    preActions,
+                                    preLoopCount,
+                                    preLoopIntervalMillis,
                                     configName,
                                     actions,
                                     loopCount,

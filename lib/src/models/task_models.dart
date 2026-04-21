@@ -21,6 +21,7 @@ class AssistantTaskDefinition {
     this.ringtoneValue,
     this.showQuickLaunch = false,
     this.gestureConfigId,
+    this.preGestureConfigId,
     this.autoOpenDelaySeconds = 0,
   });
 
@@ -39,6 +40,7 @@ class AssistantTaskDefinition {
   final String? ringtoneValue;
   final bool showQuickLaunch;
   final String? gestureConfigId;
+  final String? preGestureConfigId;
   final int autoOpenDelaySeconds;
 
   String get timeLabel {
@@ -83,9 +85,11 @@ class AssistantTaskDefinition {
     String? ringtoneValue,
     bool? showQuickLaunch,
     String? gestureConfigId,
+    String? preGestureConfigId,
     int? autoOpenDelaySeconds,
     bool clearEnd = false,
     bool clearGesture = false,
+    bool clearPreGesture = false,
   }) {
     return AssistantTaskDefinition(
       id: id ?? this.id,
@@ -105,6 +109,9 @@ class AssistantTaskDefinition {
       gestureConfigId: clearGesture
           ? null
           : (gestureConfigId ?? this.gestureConfigId),
+      preGestureConfigId: clearPreGesture
+          ? null
+          : (preGestureConfigId ?? this.preGestureConfigId),
       autoOpenDelaySeconds: autoOpenDelaySeconds ?? this.autoOpenDelaySeconds,
     );
   }
@@ -126,6 +133,7 @@ class AssistantTaskDefinition {
       'ringtoneValue': ringtoneValue,
       'showQuickLaunch': showQuickLaunch,
       'gestureConfigId': gestureConfigId,
+      'preGestureConfigId': preGestureConfigId,
       'autoOpenDelaySeconds': autoOpenDelaySeconds,
     };
   }
@@ -152,6 +160,7 @@ class AssistantTaskDefinition {
       ringtoneValue: json['ringtoneValue'] as String?,
       showQuickLaunch: json['showQuickLaunch'] as bool? ?? false,
       gestureConfigId: json['gestureConfigId'] as String?,
+      preGestureConfigId: json['preGestureConfigId'] as String?,
       autoOpenDelaySeconds: json['autoOpenDelaySeconds'] as int? ?? 0,
     );
   }

@@ -53,6 +53,10 @@ class AlarmActivity : ComponentActivity() {
         setContentView(R.layout.activity_alarm)
         val targetAppPackage = intent.getStringExtra("targetAppPackage")
         val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
+        val preConfigName = intent.getStringExtra("preGestureConfigName")
+        val preActionsJson = intent.getStringExtra("preGestureActionsJson")
+        val preLoopCount = intent.getIntExtra("preGestureLoopCount", 1).coerceAtLeast(1)
+        val preLoopIntervalMillis = intent.getIntExtra("preGestureLoopIntervalMillis", 0).coerceAtLeast(0)
         val configName = intent.getStringExtra("gestureConfigName")
         val actionsJson = intent.getStringExtra("gestureActionsJson")
         val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
@@ -63,6 +67,8 @@ class AlarmActivity : ComponentActivity() {
         findViewById<TextView>(R.id.alarmBody).text = body
         findViewById<TextView>(R.id.alarmHint).text = if (autoOpenDelaySeconds > 0) {
             "提醒已触发，${autoOpenDelaySeconds} 秒后自动打开 $targetAppLabel。"
+        } else if (!preConfigName.isNullOrBlank()) {
+            "亮屏未锁时先执行前置脚本：$preConfigName，然后再打开 $targetAppLabel。"
         } else if (configName.isNullOrBlank()) {
             "提醒已触发，点击下方按钮打开 $targetAppLabel。"
         } else {
@@ -73,6 +79,10 @@ class AlarmActivity : ComponentActivity() {
             launchTask(
                 targetAppPackage = targetAppPackage,
                 targetAppLabel = targetAppLabel,
+                preConfigName = preConfigName,
+                preActionsJson = preActionsJson,
+                preLoopCount = preLoopCount,
+                preLoopIntervalMillis = preLoopIntervalMillis,
                 configName = configName,
                 actionsJson = actionsJson,
                 loopCount = loopCount,
@@ -87,6 +97,10 @@ class AlarmActivity : ComponentActivity() {
                 launchTask(
                     targetAppPackage = targetAppPackage,
                     targetAppLabel = targetAppLabel,
+                    preConfigName = preConfigName,
+                    preActionsJson = preActionsJson,
+                    preLoopCount = preLoopCount,
+                    preLoopIntervalMillis = preLoopIntervalMillis,
                     configName = configName,
                     actionsJson = actionsJson,
                     loopCount = loopCount,
@@ -101,6 +115,10 @@ class AlarmActivity : ComponentActivity() {
     private fun launchTask(
         targetAppPackage: String?,
         targetAppLabel: String,
+        preConfigName: String?,
+        preActionsJson: String?,
+        preLoopCount: Int,
+        preLoopIntervalMillis: Int,
         configName: String?,
         actionsJson: String?,
         loopCount: Int,
@@ -113,6 +131,10 @@ class AlarmActivity : ComponentActivity() {
                 this@AlarmActivity,
                 targetAppPackage,
                 targetAppLabel,
+                preConfigName,
+                AutoSwipeService.parseActionsJson(preActionsJson),
+                preLoopCount,
+                preLoopIntervalMillis,
                 configName,
                 AutoSwipeService.parseActionsJson(actionsJson),
                 loopCount,

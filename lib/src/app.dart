@@ -323,6 +323,10 @@ class _DashboardPageState extends State<DashboardPage>
     }
 
     final configs = await _repository.loadGestureConfigs();
+    final preConfigId = task.preGestureConfigId;
+    final preConfig = preConfigId == null
+        ? null
+        : configs.where((c) => c.id == preConfigId).firstOrNull;
     final configId = task.gestureConfigId;
     final config = configId == null
         ? null
@@ -330,6 +334,11 @@ class _DashboardPageState extends State<DashboardPage>
     final ok = await _alarmBridge.openAppAndRunConfig(
       packageName: state.selectedAppPackage,
       packageLabel: state.selectedAppLabel,
+      preConfigName: preConfig?.name,
+      preActions:
+          preConfig?.actions.map((a) => a.toJson()).toList() ?? const [],
+      preLoopCount: preConfig?.loopCount ?? 1,
+      preLoopIntervalMillis: preConfig?.loopIntervalMillis ?? 0,
       configName: config?.name,
       actions: config?.actions.map((a) => a.toJson()).toList() ?? const [],
       loopCount: config?.loopCount ?? 1,
@@ -348,7 +357,9 @@ class _DashboardPageState extends State<DashboardPage>
     _showMessage(
       config == null
           ? '已打开 ${state.selectedAppLabel}'
-          : '已打开 ${state.selectedAppLabel}，5 秒后执行 ${config.name}',
+          : preConfig == null
+          ? '已打开 ${state.selectedAppLabel}，5 秒后执行 ${config.name}'
+          : '先执行前置脚本 ${preConfig.name}，再打开 ${state.selectedAppLabel}',
       type: ToastType.info,
     );
   }
@@ -1557,10 +1568,13 @@ class _TaskManagementSettingsPageState
         ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
+    final pre = (task.preGestureConfigId?.isNotEmpty ?? false)
+        ? ' · 含前置脚本'
+        : '';
     final autoOpen = task.autoOpenDelaySeconds > 0
         ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
         : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$autoOpen';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen';
   }
 
   String _kindGroupLabel(AssistantTaskKind kind) {
@@ -2056,6 +2070,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
+  String? _preGestureConfigId;
   String? _gestureConfigId;
   List<GestureConfig> _availableConfigs = [];
   bool _showError = false;
@@ -2089,6 +2104,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
+    _preGestureConfigId = task?.preGestureConfigId;
     _gestureConfigId = task?.gestureConfigId;
     _loadConfigs();
     _titleController.addListener(() {
@@ -2161,6 +2177,33 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   }
 
   Future<void> _pickGestureConfig() async {
+    final selected = await _pickConfigId(
+      title: '选择执行脚本',
+      allowNoneLabel: '无 (不关联脚本)',
+    );
+    if (selected != null) {
+      setState(() {
+        _gestureConfigId = selected == 'none' ? null : selected;
+      });
+    }
+  }
+
+  Future<void> _pickPreGestureConfig() async {
+    final selected = await _pickConfigId(
+      title: '选择前置脚本',
+      allowNoneLabel: '无 (不执行前置脚本)',
+    );
+    if (selected != null) {
+      setState(() {
+        _preGestureConfigId = selected == 'none' ? null : selected;
+      });
+    }
+  }
+
+  Future<String?> _pickConfigId({
+    required String title,
+    required String allowNoneLabel,
+  }) async {
     final selected = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -2169,7 +2212,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('无 (不关联脚本)'),
+              title: Text(allowNoneLabel),
               onTap: () => Navigator.of(context).pop('none'),
             ),
             if (_availableConfigs.isNotEmpty) const Divider(),
@@ -2183,12 +2226,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
         ),
       ),
     );
-
-    if (selected != null) {
-      setState(() {
-        _gestureConfigId = selected == 'none' ? null : selected;
-      });
-    }
+    return selected;
   }
 
   @override
@@ -2376,15 +2414,30 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             _EditorSectionCard(
               accent: const Color(0xFF8EB8FF),
               title: '脚本配置',
-              child: _EditorPickerTile(
-                label: '绑定脚本',
-                value:
-                    _availableConfigs
-                        .where((c) => c.id == _gestureConfigId)
-                        .firstOrNull
-                        ?.name ??
-                    '未关联',
-                onTap: _pickGestureConfig,
+              child: Column(
+                children: [
+                  _EditorPickerTile(
+                    label: '前置脚本（仅亮屏未锁时）',
+                    value:
+                        _availableConfigs
+                            .where((c) => c.id == _preGestureConfigId)
+                            .firstOrNull
+                            ?.name ??
+                        '未关联',
+                    onTap: _pickPreGestureConfig,
+                  ),
+                  const SizedBox(height: 12),
+                  _EditorPickerTile(
+                    label: '执行脚本',
+                    value:
+                        _availableConfigs
+                            .where((c) => c.id == _gestureConfigId)
+                            .firstOrNull
+                            ?.name ??
+                        '未关联',
+                    onTap: _pickGestureConfig,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -2462,6 +2515,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     ringtoneSource: _ringtoneSource,
                     ringtoneValue: _ringtoneFilePath,
                     showQuickLaunch: _showQuickLaunch,
+                    preGestureConfigId: _preGestureConfigId,
                     gestureConfigId: _gestureConfigId,
                     autoOpenDelaySeconds:
                         int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
@@ -3382,10 +3436,13 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
         ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
+    final pre = (task.preGestureConfigId?.isNotEmpty ?? false)
+        ? ' · 含前置脚本'
+        : '';
     final autoOpen = task.autoOpenDelaySeconds > 0
         ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
         : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$autoOpen';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen';
   }
 
   @override

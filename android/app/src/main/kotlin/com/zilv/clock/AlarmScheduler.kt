@@ -64,6 +64,10 @@ object AlarmScheduler {
                 putExtra("gestureActionsJson", reminder["gestureActionsJson"] as String?)
                 putExtra("gestureLoopCount", (reminder["gestureLoopCount"] as? Number)?.toInt())
                 putExtra("gestureLoopIntervalMillis", (reminder["gestureLoopIntervalMillis"] as? Number)?.toInt())
+                putExtra("preGestureConfigName", reminder["preGestureConfigName"] as String?)
+                putExtra("preGestureActionsJson", reminder["preGestureActionsJson"] as String?)
+                putExtra("preGestureLoopCount", (reminder["preGestureLoopCount"] as? Number)?.toInt())
+                putExtra("preGestureLoopIntervalMillis", (reminder["preGestureLoopIntervalMillis"] as? Number)?.toInt())
                 putExtra("autoOpenDelaySeconds", (reminder["autoOpenDelaySeconds"] as? Number)?.toInt() ?: 0)
                 putExtra("notificationId", requestCode)
             }
@@ -117,6 +121,10 @@ object AlarmScheduler {
                     "gestureActionsJson" to if (obj.isNull("gestureActionsJson")) null else obj.getString("gestureActionsJson"),
                     "gestureLoopCount" to if (obj.isNull("gestureLoopCount")) null else obj.getInt("gestureLoopCount"),
                     "gestureLoopIntervalMillis" to if (obj.isNull("gestureLoopIntervalMillis")) null else obj.getInt("gestureLoopIntervalMillis"),
+                    "preGestureConfigName" to if (obj.isNull("preGestureConfigName")) null else obj.getString("preGestureConfigName"),
+                    "preGestureActionsJson" to if (obj.isNull("preGestureActionsJson")) null else obj.getString("preGestureActionsJson"),
+                    "preGestureLoopCount" to if (obj.isNull("preGestureLoopCount")) null else obj.getInt("preGestureLoopCount"),
+                    "preGestureLoopIntervalMillis" to if (obj.isNull("preGestureLoopIntervalMillis")) null else obj.getInt("preGestureLoopIntervalMillis"),
                     "autoOpenDelaySeconds" to if (obj.isNull("autoOpenDelaySeconds")) 0 else obj.getInt("autoOpenDelaySeconds"),
                 )
             )

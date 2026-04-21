@@ -18,6 +18,10 @@ class AlarmReminder {
     this.gestureActionsJson,
     this.gestureLoopCount,
     this.gestureLoopIntervalMillis,
+    this.preGestureConfigName,
+    this.preGestureActionsJson,
+    this.preGestureLoopCount,
+    this.preGestureLoopIntervalMillis,
     this.autoOpenDelaySeconds,
   });
 
@@ -35,6 +39,10 @@ class AlarmReminder {
   final String? gestureActionsJson;
   final int? gestureLoopCount;
   final int? gestureLoopIntervalMillis;
+  final String? preGestureConfigName;
+  final String? preGestureActionsJson;
+  final int? preGestureLoopCount;
+  final int? preGestureLoopIntervalMillis;
   final int? autoOpenDelaySeconds;
 
   Map<String, Object?> toJson() {
@@ -53,6 +61,10 @@ class AlarmReminder {
       'gestureActionsJson': gestureActionsJson,
       'gestureLoopCount': gestureLoopCount,
       'gestureLoopIntervalMillis': gestureLoopIntervalMillis,
+      'preGestureConfigName': preGestureConfigName,
+      'preGestureActionsJson': preGestureActionsJson,
+      'preGestureLoopCount': preGestureLoopCount,
+      'preGestureLoopIntervalMillis': preGestureLoopIntervalMillis,
       'autoOpenDelaySeconds': autoOpenDelaySeconds,
     };
   }
@@ -148,6 +160,10 @@ class AlarmBridge {
   Future<bool> openAppAndRunConfig({
     required String packageName,
     required String packageLabel,
+    String? preConfigName,
+    List<Map<String, Object?>> preActions = const [],
+    int preLoopCount = 1,
+    int preLoopIntervalMillis = 0,
     String? configName,
     List<Map<String, Object?>> actions = const [],
     int loopCount = 1,
@@ -157,6 +173,10 @@ class AlarmBridge {
     final result = await _channel.invokeMethod<bool>('openAppAndRunConfig', {
       'packageName': packageName,
       'packageLabel': packageLabel,
+      'preConfigName': preConfigName,
+      'preActions': preActions,
+      'preLoopCount': preLoopCount,
+      'preLoopIntervalMillis': preLoopIntervalMillis,
       'configName': configName,
       'actions': actions,
       'loopCount': loopCount,

@@ -92,6 +92,22 @@ class NotificationService {
                   definition,
                   gestureConfigs,
                 ),
+                preGestureConfigName: _preGestureConfigName(
+                  definition,
+                  gestureConfigs,
+                ),
+                preGestureActionsJson: _preGestureActionsJson(
+                  definition,
+                  gestureConfigs,
+                ),
+                preGestureLoopCount: _preGestureLoopCount(
+                  definition,
+                  gestureConfigs,
+                ),
+                preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
+                  definition,
+                  gestureConfigs,
+                ),
                 autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
               ),
             );
@@ -132,6 +148,22 @@ class NotificationService {
                     gestureConfigs,
                   ),
                   gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureConfigName: _preGestureConfigName(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureActionsJson: _preGestureActionsJson(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureLoopCount: _preGestureLoopCount(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
                     definition,
                     gestureConfigs,
                   ),
@@ -177,6 +209,22 @@ class NotificationService {
                     definition,
                     gestureConfigs,
                   ),
+                  preGestureConfigName: _preGestureConfigName(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureActionsJson: _preGestureActionsJson(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureLoopCount: _preGestureLoopCount(
+                    definition,
+                    gestureConfigs,
+                  ),
+                  preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
+                    definition,
+                    gestureConfigs,
+                  ),
                   autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
                 ),
               );
@@ -192,26 +240,25 @@ class NotificationService {
   }
 
   GestureConfig? _gestureConfigFor(
-    AssistantTaskDefinition definition,
+    String? configId,
     List<GestureConfig> configs,
   ) {
-    final id = definition.gestureConfigId;
-    if (id == null || id.isEmpty) return null;
-    return configs.where((config) => config.id == id).firstOrNull;
+    if (configId == null || configId.isEmpty) return null;
+    return configs.where((config) => config.id == configId).firstOrNull;
   }
 
   String? _gestureConfigName(
     AssistantTaskDefinition definition,
     List<GestureConfig> configs,
   ) {
-    return _gestureConfigFor(definition, configs)?.name;
+    return _gestureConfigFor(definition.gestureConfigId, configs)?.name;
   }
 
   String? _gestureActionsJson(
     AssistantTaskDefinition definition,
     List<GestureConfig> configs,
   ) {
-    final config = _gestureConfigFor(definition, configs);
+    final config = _gestureConfigFor(definition.gestureConfigId, configs);
     if (config == null) return null;
     return jsonEncode(config.actions.map((action) => action.toJson()).toList());
   }
@@ -220,14 +267,50 @@ class NotificationService {
     AssistantTaskDefinition definition,
     List<GestureConfig> configs,
   ) {
-    return _gestureConfigFor(definition, configs)?.loopCount;
+    return _gestureConfigFor(definition.gestureConfigId, configs)?.loopCount;
   }
 
   int? _gestureLoopIntervalMillis(
     AssistantTaskDefinition definition,
     List<GestureConfig> configs,
   ) {
-    return _gestureConfigFor(definition, configs)?.loopIntervalMillis;
+    return _gestureConfigFor(
+      definition.gestureConfigId,
+      configs,
+    )?.loopIntervalMillis;
+  }
+
+  String? _preGestureConfigName(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(definition.preGestureConfigId, configs)?.name;
+  }
+
+  String? _preGestureActionsJson(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    final config = _gestureConfigFor(definition.preGestureConfigId, configs);
+    if (config == null) return null;
+    return jsonEncode(config.actions.map((action) => action.toJson()).toList());
+  }
+
+  int? _preGestureLoopCount(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(definition.preGestureConfigId, configs)?.loopCount;
+  }
+
+  int? _preGestureLoopIntervalMillis(
+    AssistantTaskDefinition definition,
+    List<GestureConfig> configs,
+  ) {
+    return _gestureConfigFor(
+      definition.preGestureConfigId,
+      configs,
+    )?.loopIntervalMillis;
   }
 
   Future<void> _showSummary(DailyTaskState state) async {
