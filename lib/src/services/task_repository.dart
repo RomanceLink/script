@@ -10,6 +10,9 @@ class TaskRepository {
   static const String _unlockGestureConfigKey = 'unlock_gesture_config_v1';
   static const String _lastGestureConfigIdKey = 'last_gesture_config_id_v1';
   static const String _dailyMottosKey = 'daily_mottos_v1';
+  static const String _dailyMottoSourceUrlKey = 'daily_motto_source_url_v1';
+  static const String _dailyMottoLastFetchDateKey =
+      'daily_motto_last_fetch_date_v1';
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -62,6 +65,33 @@ class TaskRepository {
           .where((item) => item.isNotEmpty)
           .toList(),
     );
+  }
+
+  Future<String?> loadDailyMottoSourceUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getString(_dailyMottoSourceUrlKey);
+  }
+
+  Future<void> saveDailyMottoSourceUrl(String? url) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = url?.trim() ?? '';
+    if (value.isEmpty) {
+      await prefs.remove(_dailyMottoSourceUrlKey);
+      return;
+    }
+    await prefs.setString(_dailyMottoSourceUrlKey, value);
+  }
+
+  Future<String?> loadDailyMottoLastFetchDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getString(_dailyMottoLastFetchDateKey);
+  }
+
+  Future<void> saveDailyMottoLastFetchDate(String dateKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dailyMottoLastFetchDateKey, dateKey);
   }
 
   Future<GestureConfig?> loadUnlockGestureConfig() async {

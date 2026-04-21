@@ -519,25 +519,22 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.viewInsetsOf(context);
-    final availableHeight =
-        MediaQuery.sizeOf(context).height -
-        MediaQuery.paddingOf(context).vertical -
-        40;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final safeVertical = MediaQuery.paddingOf(context).vertical;
+    final maxDialogHeight =
+        (screenHeight - safeVertical - viewInsets.bottom - 24).clamp(
+          220.0,
+          420.0,
+        );
     return Dialog(
-      insetPadding: EdgeInsets.fromLTRB(
-        22,
-        16,
-        22,
-        (viewInsets.bottom + 16).clamp(16.0, availableHeight * 0.45),
-      ),
+      alignment: Alignment.bottomCenter,
+      insetPadding: EdgeInsets.fromLTRB(18, 12, 18, viewInsets.bottom + 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: (availableHeight - viewInsets.bottom).clamp(260.0, 520.0),
-        ),
+        constraints: BoxConstraints(maxHeight: maxDialogHeight),
         child: SingleChildScrollView(
           reverse: true,
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -548,7 +545,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _compactField(
                 controller: _nameController,
                 label: '名称',
@@ -580,14 +577,30 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
                 ],
               ),
               const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('无限循环'),
-                subtitle: const Text('开启后，该配置会一直循环执行'),
-                value: _infiniteLoop,
-                onChanged: (value) => setState(() => _infiniteLoop = value),
+              InkWell(
+                onTap: () => setState(() => _infiniteLoop = !_infiniteLoop),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '无限循环',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Switch(
+                        value: _infiniteLoop,
+                        onChanged: (value) =>
+                            setState(() => _infiniteLoop = value),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(

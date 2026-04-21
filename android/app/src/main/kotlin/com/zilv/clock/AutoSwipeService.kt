@@ -1096,9 +1096,11 @@ class AutoSwipeService : AccessibilityService() {
                         val min = call.argument<Int>("min") ?: 0
                         val max = call.argument<Int>("max") ?: 0
                         val name = call.argument<String>("name")
+                        val beforeLoopActions = call.argument<List<Map<String, Any?>>>("beforeLoopActions") ?: emptyList()
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
                         val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
+                        val infiniteLoop = call.argument<Boolean>("infiniteLoop") ?: false
                         result.success(null)
                         handler.post {
                             hideFlutterOverlayWindow()
@@ -1109,6 +1111,8 @@ class AutoSwipeService : AccessibilityService() {
                                 name,
                                 loopCount,
                                 loopIntervalMillis,
+                                beforeLoopActions,
+                                infiniteLoop,
                             )
                         }
                     }

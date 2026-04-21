@@ -104,12 +104,103 @@ class _FloatingAutomationOverlayShellState
   }
 
   Future<void> _runConfig(GestureConfig config) async {
+    ({
+      String name,
+      List<Map<String, Object?>> beforeLoopActions,
+      List<Map<String, Object?>> loopActions,
+      int loopCount,
+      int loopIntervalMillis,
+      bool infiniteLoop,
+    })?
+    resolvePlan(
+      GestureConfig? item,
+      List<GestureConfig> all, {
+      Set<String>? visited,
+    }) {
+      if (item == null) {
+        return null;
+      }
+      final nextVisited = {...?visited};
+      if (!nextVisited.add(item.id)) {
+        return (
+          name: item.name,
+          beforeLoopActions: item.actions
+              .map((action) => action.toJson())
+              .toList(),
+          loopActions: const [],
+          loopCount: 1,
+          loopIntervalMillis: 0,
+          infiniteLoop: false,
+        );
+      }
+      List<Map<String, Object?>> finiteActions(GestureConfig config) {
+        final out = <Map<String, Object?>>[];
+        for (var i = 0; i < config.loopCount.clamp(1, 9999); i++) {
+          out.addAll(config.actions.map((action) => action.toJson()));
+          if (i < config.loopCount - 1 && config.loopIntervalMillis > 0) {
+            out.add(
+              WaitAction.fixedMilliseconds(
+                milliseconds: config.loopIntervalMillis,
+              ).toJson(),
+            );
+          }
+        }
+        return out;
+      }
+
+      if (item.infiniteLoop) {
+        return (
+          name: item.name,
+          beforeLoopActions: const [],
+          loopActions: item.actions.map((action) => action.toJson()).toList(),
+          loopCount: item.loopCount,
+          loopIntervalMillis: item.loopIntervalMillis,
+          infiniteLoop: true,
+        );
+      }
+      final child = all
+          .where((entry) => entry.id == item.followUpConfigId)
+          .firstOrNull;
+      final childPlan = resolvePlan(child, all, visited: nextVisited);
+      final current = finiteActions(item);
+      if (childPlan == null) {
+        return (
+          name: item.name,
+          beforeLoopActions: current,
+          loopActions: const [],
+          loopCount: 1,
+          loopIntervalMillis: 0,
+          infiniteLoop: false,
+        );
+      }
+      return (
+        name: '${item.name} -> ${childPlan.name}',
+        beforeLoopActions: [...current, ...childPlan.beforeLoopActions],
+        loopActions: childPlan.loopActions,
+        loopCount: childPlan.loopCount,
+        loopIntervalMillis: childPlan.loopIntervalMillis,
+        infiniteLoop: childPlan.infiniteLoop,
+      );
+    }
+
+    final configs = await _repository.loadGestureConfigs();
+    final selected =
+        configs.where((entry) => entry.id == config.id).firstOrNull ?? config;
+    final plan = resolvePlan(selected, configs);
     await _repository.saveLastGestureConfigId(config.id);
     await _alarmBridge.runGestureConfig(
-      name: config.name,
-      actions: config.actions.map((action) => action.toJson()).toList(),
-      loopCount: config.loopCount,
-      loopIntervalMillis: config.loopIntervalMillis,
+      name: plan?.name ?? config.name,
+      beforeLoopActions: plan?.beforeLoopActions ?? const [],
+      actions:
+          plan?.loopActions ??
+          config.actions.map((action) => action.toJson()).toList(),
+      loopCount: plan == null
+          ? config.loopCount
+          : (plan.infiniteLoop ? plan.loopCount : 1),
+      loopIntervalMillis: plan == null
+          ? config.loopIntervalMillis
+          : (plan.infiniteLoop ? plan.loopIntervalMillis : 0),
+      infiniteLoop: plan?.infiniteLoop ?? false,
     );
   }
 

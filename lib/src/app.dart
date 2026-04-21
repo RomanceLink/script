@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:html/parser.dart' as html_parser;
+import 'package:http/http.dart' as http;
 
 import 'gesture_pages.dart';
 import 'logic/task_definitions.dart';
@@ -21,6 +23,44 @@ enum ToastType { success, error, info, warning }
 const _appSeed = Color(0xFF4A9D8F);
 const _lightSurface = Color(0xFFF7FAF8);
 const _darkSurface = Color(0xFF0F1718);
+const _defaultDailyMottoSourceUrl = 'https://www.wenxue360.com/gushiwen/';
+
+String _dateKey(DateTime now) {
+  return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+}
+
+Future<List<String>> fetchDailyMottosFromUrl(String rawUrl) async {
+  final url = rawUrl.trim();
+  if (url.isEmpty) {
+    return const [];
+  }
+  final response = await http.get(Uri.parse(url));
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw Exception('抓取失败：${response.statusCode}');
+  }
+  final document = html_parser.parse(response.body);
+  final anchors = document.querySelectorAll('div.post-body a, .post-body a');
+  final results = <String>[];
+  for (final anchor in anchors) {
+    final text = anchor.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (text.length < 4 || text.length > 40) {
+      continue;
+    }
+    if (text.contains('相关古诗文') ||
+        text.contains('古诗文') ||
+        text.contains('文学360')) {
+      continue;
+    }
+    if (results.contains(text)) {
+      continue;
+    }
+    results.add(text);
+    if (results.length >= 10) {
+      break;
+    }
+  }
+  return results;
+}
 
 ThemeData _scriptAssistantTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
@@ -186,6 +226,21 @@ class _DashboardPageState extends State<DashboardPage>
         await _notifications.scheduleForState(state, state.taskDefinitions);
         _focusTaskId = await _alarmBridge.consumeLaunchTaskId();
       }
+      final sourceUrl =
+          await _repository.loadDailyMottoSourceUrl() ??
+          _defaultDailyMottoSourceUrl;
+      final lastFetchDate = await _repository.loadDailyMottoLastFetchDate();
+      final todayKey = _dateKey(DateTime.now());
+      if (sourceUrl.isNotEmpty && lastFetchDate != todayKey) {
+        try {
+          final fetched = await fetchDailyMottosFromUrl(sourceUrl);
+          if (fetched.isNotEmpty) {
+            await _repository.saveDailyMottos(fetched);
+            await _repository.saveDailyMottoSourceUrl(sourceUrl);
+            await _repository.saveDailyMottoLastFetchDate(todayKey);
+          }
+        } catch (_) {}
+      }
       final gestureConfigs = await _repository.loadGestureConfigs();
       final dailyMottos = await _repository.loadDailyMottos();
       if (!mounted) {
@@ -326,8 +381,9 @@ class _DashboardPageState extends State<DashboardPage>
       out.addAll(config.actions.map((action) => action.toJson()));
       if (i < loops - 1 && config.loopIntervalMillis > 0) {
         out.add(
-          WaitAction.fixedMilliseconds(milliseconds: config.loopIntervalMillis)
-              .toJson(),
+          WaitAction.fixedMilliseconds(
+            milliseconds: config.loopIntervalMillis,
+          ).toJson(),
         );
       }
     }
@@ -341,7 +397,8 @@ class _DashboardPageState extends State<DashboardPage>
     int loopCount,
     int loopIntervalMillis,
     bool infiniteLoop,
-  })? _resolveGestureExecutionPlan(
+  })?
+  _resolveGestureExecutionPlan(
     GestureConfig? config,
     List<GestureConfig> configs, {
     bool allowInfinite = true,
@@ -575,7 +632,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   String _todayKey(DateTime now) {
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return _dateKey(now);
   }
 
   String _dailyMotto(DateTime now) {
@@ -771,50 +828,47 @@ class _DashboardPageState extends State<DashboardPage>
                 const SizedBox(height: 14),
                 if (tasks.isEmpty)
                   Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 28,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primaryContainer
-                                        .withValues(alpha: 0.55),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Icon(
-                                    Icons.inbox_rounded,
-                                    size: 32,
-                                    color: theme.colorScheme.primary,
-                                  ),
+                    child: Card(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 28,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer
+                                      .withValues(alpha: 0.55),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  '暂无首页任务',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                child: Icon(
+                                  Icons.inbox_rounded,
+                                  size: 32,
+                                  color: theme.colorScheme.primary,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '去设置页开启“首页显示”，常用任务就会出现在这里。',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                '暂无首页任务',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '去设置页开启“首页显示”，常用任务就会出现在这里。',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -2745,7 +2799,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   ];
 
   List<String> _mottos = const [];
+  String _sourceUrl = _defaultDailyMottoSourceUrl;
   bool _loading = true;
+  bool _fetching = false;
 
   @override
   void initState() {
@@ -2755,11 +2811,20 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
 
   Future<void> _load() async {
     final values = await widget.repository.loadDailyMottos();
+    final sourceUrl =
+        await widget.repository.loadDailyMottoSourceUrl() ??
+        _defaultDailyMottoSourceUrl;
+    final lastFetchDate = await widget.repository.loadDailyMottoLastFetchDate();
+    final todayKey = _dateKey(DateTime.now());
     if (!mounted) return;
     setState(() {
       _mottos = values.isEmpty ? [..._presetMottos] : values;
+      _sourceUrl = sourceUrl;
       _loading = false;
     });
+    if (sourceUrl.isNotEmpty && lastFetchDate != todayKey) {
+      await _fetchFromSource(silentOnFailure: true);
+    }
   }
 
   Future<void> _save() async {
@@ -2817,6 +2882,56 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     await _save();
   }
 
+  Future<void> _editSourceUrl() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _TemplateNameSheet(
+        title: '在线抓取地址',
+        fieldLabel: '网页地址',
+        actionLabel: '保存',
+        initialValue: _sourceUrl,
+      ),
+    );
+    if (!mounted || result == null || result.trim().isEmpty) {
+      return;
+    }
+    setState(() => _sourceUrl = result.trim());
+    await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
+    await _fetchFromSource();
+  }
+
+  Future<void> _fetchFromSource({bool silentOnFailure = false}) async {
+    if (_fetching) {
+      return;
+    }
+    setState(() => _fetching = true);
+    try {
+      final mottos = await fetchDailyMottosFromUrl(_sourceUrl);
+      if (mottos.isEmpty) {
+        throw Exception('没有抓到可用内容');
+      }
+      setState(() => _mottos = mottos);
+      await widget.repository.saveDailyMottos(mottos);
+      await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
+      await widget.repository.saveDailyMottoLastFetchDate(
+        _dateKey(DateTime.now()),
+      );
+      if (mounted) {
+        VibrantHUD.show(context, '已在线抓取 10 条箴言', type: ToastType.success);
+      }
+    } catch (error) {
+      if (!silentOnFailure && mounted) {
+        VibrantHUD.show(context, '$error', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _fetching = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -2834,6 +2949,55 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '在线抓取',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _sourceUrl,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _editSourceUrl,
+                          child: const Text('设置地址'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: _fetching ? null : _fetchFromSource,
+                          child: Text(_fetching ? '抓取中' : '立即抓取'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '每天首次打开时，会自动从该网页抓取 10 条并保存。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           ..._mottos.indexed.map((entry) {
             final index = entry.$1;
             final item = entry.$2;

@@ -197,18 +197,22 @@ class AlarmBridge {
 
   Future<void> runGestureConfig({
     required String name,
+    List<Map<String, Object?>> beforeLoopActions = const [],
     required List<Map<String, Object?>> actions,
     int loopCount = 1,
     int loopIntervalMillis = 0,
+    bool infiniteLoop = false,
   }) async {
     await _channel.invokeMethod('performAutoSwipe', {
       'min':
           0, // In scripted mode, we might not use random intervals at the top level
       'max': 0,
       'actions': actions,
+      'beforeLoopActions': beforeLoopActions,
       'name': name,
       'loopCount': loopCount,
       'loopIntervalMillis': loopIntervalMillis,
+      'infiniteLoop': infiniteLoop,
     });
   }
 

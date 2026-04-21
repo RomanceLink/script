@@ -135,10 +135,21 @@ class MainActivity : FlutterActivity() {
                         val min = call.argument<Int>("min") ?: 30
                         val max = call.argument<Int>("max") ?: 60
                         val name = call.argument<String>("name")
+                        val beforeLoopActions = call.argument<List<Map<String, Any?>>>("beforeLoopActions") ?: emptyList()
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
                         val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
-                        AutoSwipeService.updateConfig(min, max, actions, name, loopCount, loopIntervalMillis)
+                        val infiniteLoop = call.argument<Boolean>("infiniteLoop") ?: false
+                        AutoSwipeService.updateConfig(
+                            min,
+                            max,
+                            actions,
+                            name,
+                            loopCount,
+                            loopIntervalMillis,
+                            beforeLoopActions,
+                            infiniteLoop,
+                        )
                         result.success(null)
                     }
                     "scheduleSelfTest" -> {
