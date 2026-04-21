@@ -14,6 +14,10 @@ class TaskRepository {
   static const String _dailyMottoLastFetchDateKey =
       'daily_motto_last_fetch_date_v1';
   static const String _pinnedDailyMottoKey = 'pinned_daily_motto_v1';
+  static const String _dailyMottoImageUrlKey = 'daily_motto_image_url_v1';
+  static const String _dailyMottoImagePathKey = 'daily_motto_image_path_v1';
+  static const String _dailyMottoImageFetchDateKey =
+      'daily_motto_image_fetch_date_v1';
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -110,6 +114,51 @@ class TaskRepository {
   Future<void> saveDailyMottoLastFetchDate(String dateKey) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_dailyMottoLastFetchDateKey, dateKey);
+  }
+
+  Future<String?> loadDailyMottoImageUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final value = prefs.getString(_dailyMottoImageUrlKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> saveDailyMottoImageUrl(String? url) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = url?.trim() ?? '';
+    if (value.isEmpty) {
+      await prefs.remove(_dailyMottoImageUrlKey);
+      return;
+    }
+    await prefs.setString(_dailyMottoImageUrlKey, value);
+  }
+
+  Future<String?> loadDailyMottoImagePath() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final value = prefs.getString(_dailyMottoImagePathKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> saveDailyMottoImagePath(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = path?.trim() ?? '';
+    if (value.isEmpty) {
+      await prefs.remove(_dailyMottoImagePathKey);
+      return;
+    }
+    await prefs.setString(_dailyMottoImagePathKey, value);
+  }
+
+  Future<String?> loadDailyMottoImageFetchDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getString(_dailyMottoImageFetchDateKey);
+  }
+
+  Future<void> saveDailyMottoImageFetchDate(String dateKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dailyMottoImageFetchDateKey, dateKey);
   }
 
   Future<GestureConfig?> loadUnlockGestureConfig() async {

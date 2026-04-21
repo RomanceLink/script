@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +64,30 @@ Future<List<String>> fetchDailyMottosFromUrl(String rawUrl) async {
     }
   }
   return results;
+}
+
+Future<String?> fetchDailyMottoImageUrl() async {
+  final response = await http.get(
+    Uri.parse(
+      'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN',
+    ),
+  );
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw Exception('图片抓取失败：${response.statusCode}');
+  }
+  final decoded =
+      jsonDecode(utf8.decode(response.bodyBytes, allowMalformed: true))
+          as Map<String, Object?>;
+  final images = decoded['images'] as List<Object?>? ?? const [];
+  final first = images.firstOrNull;
+  if (first is! Map<String, Object?>) {
+    return null;
+  }
+  final url = (first['url'] as String?)?.trim();
+  if (url == null || url.isEmpty) {
+    return null;
+  }
+  return url.startsWith('http') ? url : 'https://www.bing.com$url';
 }
 
 bool _looksLikeMojibake(String value) {
@@ -206,6 +231,8 @@ class _DashboardPageState extends State<DashboardPage>
   List<GestureConfig> _gestureConfigs = [];
   List<String> _dailyMottos = const [];
   String? _pinnedDailyMotto;
+  String? _dailyMottoImageUrl;
+  String? _dailyMottoImagePath;
   bool _handlingOverlayCommand = false;
 
   @override
@@ -261,6 +288,20 @@ class _DashboardPageState extends State<DashboardPage>
       final gestureConfigs = await _repository.loadGestureConfigs();
       final dailyMottos = await _repository.loadDailyMottos();
       final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
+      var dailyMottoImageUrl = await _repository.loadDailyMottoImageUrl();
+      final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
+      final dailyMottoImageFetchDate = await _repository
+          .loadDailyMottoImageFetchDate();
+      if (dailyMottoImageFetchDate != todayKey) {
+        try {
+          final fetchedImageUrl = await fetchDailyMottoImageUrl();
+          if (fetchedImageUrl != null && fetchedImageUrl.isNotEmpty) {
+            dailyMottoImageUrl = fetchedImageUrl;
+            await _repository.saveDailyMottoImageUrl(fetchedImageUrl);
+            await _repository.saveDailyMottoImageFetchDate(todayKey);
+          }
+        } catch (_) {}
+      }
       if (!mounted) {
         return;
       }
@@ -269,6 +310,8 @@ class _DashboardPageState extends State<DashboardPage>
         _gestureConfigs = gestureConfigs;
         _dailyMottos = dailyMottos;
         _pinnedDailyMotto = pinnedDailyMotto;
+        _dailyMottoImageUrl = dailyMottoImageUrl;
+        _dailyMottoImagePath = dailyMottoImagePath;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -637,11 +680,15 @@ class _DashboardPageState extends State<DashboardPage>
       final configs = await _repository.loadGestureConfigs();
       final dailyMottos = await _repository.loadDailyMottos();
       final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
+      final dailyMottoImageUrl = await _repository.loadDailyMottoImageUrl();
+      final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
       if (mounted) {
         setState(() {
           _gestureConfigs = configs;
           _dailyMottos = dailyMottos;
           _pinnedDailyMotto = pinnedDailyMotto;
+          _dailyMottoImageUrl = dailyMottoImageUrl;
+          _dailyMottoImagePath = dailyMottoImagePath;
         });
       }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
@@ -809,54 +856,70 @@ class _DashboardPageState extends State<DashboardPage>
                   subtitle: nextReminder == null
                       ? '今天无后续提醒'
                       : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
-                  stats: ['首页显示 ${tasks.length} 项', '已完成 $doneCount 项'],
-                  settingsAction: _HeaderIconAction(
-                    icon: Icons.settings,
-                    onTap: _openSettings,
-                    foreground: theme.colorScheme.primary,
-                    background: theme.colorScheme.surface.withValues(
-                      alpha: 0.58,
-                    ),
-                  ),
-                  launchAction: _HeaderIconAction(
-                    icon: Icons.play_arrow_rounded,
-                    onTap: _startAutomationMenu,
-                    foreground: theme.colorScheme.primary,
-                    background: theme.colorScheme.surface.withValues(
-                      alpha: 0.58,
-                    ),
-                  ),
-                  resetAction: _HeaderIconAction(
-                    icon: Icons.refresh_rounded,
-                    onTap: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('重置今日记录'),
-                          content: const Text('确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('取消'),
-                            ),
-                            FilledButton.tonal(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              style: FilledButton.styleFrom(
-                                foregroundColor: theme.colorScheme.error,
-                              ),
-                              child: const Text('确定重置'),
-                            ),
-                          ],
+                  summary: '总共 ${tasks.length} 项，完成 $doneCount 项',
+                  imageProvider: _dailyMottoImagePath != null
+                      ? FileImage(File(_dailyMottoImagePath!))
+                      : (_dailyMottoImageUrl != null
+                            ? NetworkImage(_dailyMottoImageUrl!)
+                            : null),
+                  actionRow: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _HeaderIconAction(
+                        icon: Icons.play_arrow_rounded,
+                        onTap: _startAutomationMenu,
+                        foreground: theme.colorScheme.primary,
+                        background: theme.colorScheme.surface.withValues(
+                          alpha: 0.58,
                         ),
-                      );
-                      if (confirm == true) {
-                        await _resetForNewDay();
-                      }
-                    },
-                    foreground: theme.colorScheme.primary,
-                    background: theme.colorScheme.surface.withValues(
-                      alpha: 0.58,
-                    ),
+                      ),
+                      const SizedBox(width: 6),
+                      _HeaderIconAction(
+                        icon: Icons.refresh_rounded,
+                        onTap: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('重置今日记录'),
+                              content: const Text(
+                                '确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text('取消'),
+                                ),
+                                FilledButton.tonal(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  style: FilledButton.styleFrom(
+                                    foregroundColor: theme.colorScheme.error,
+                                  ),
+                                  child: const Text('确定重置'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await _resetForNewDay();
+                          }
+                        },
+                        foreground: theme.colorScheme.primary,
+                        background: theme.colorScheme.surface.withValues(
+                          alpha: 0.58,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _HeaderIconAction(
+                        icon: Icons.settings,
+                        onTap: _openSettings,
+                        foreground: theme.colorScheme.primary,
+                        background: theme.colorScheme.surface.withValues(
+                          alpha: 0.58,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -920,14 +983,6 @@ class _DashboardPageState extends State<DashboardPage>
                       },
                       itemBuilder: (context, index) {
                         final task = tasks[index];
-                        Widget compactTask(Widget child) {
-                          return FractionallySizedBox(
-                            widthFactor: 1,
-                            heightFactor: 0.74,
-                            alignment: Alignment.topCenter,
-                            child: child,
-                          );
-                        }
 
                         switch (task.kind) {
                           case AssistantTaskKind.feedWindow:
@@ -939,47 +994,45 @@ class _DashboardPageState extends State<DashboardPage>
                               now,
                               task,
                             );
-                            return compactTask(
-                              _TaskDeckCard(
-                                task: task,
-                                accent: const Color(0xFF5EA98D),
-                                icon: Icons.play_circle_outline_rounded,
-                                status: state.isCompleted(task.id)
-                                    ? '已完成'
-                                    : (isActive
-                                          ? '进行中'
-                                          : (isExpired ? '任务已过期' : '未开始')),
-                                headline: task.timeLabel,
-                                detail: state.isEnabled(task.id)
-                                    ? (state.isCompleted(task.id)
-                                          ? '本时段已完成，今日无需再记录。'
-                                          : (isExpired
-                                                ? '任务时间已过，没关系，补上吧！'
-                                                : (isActive
-                                                      ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                      : '还没到开始时间，请耐心等待。')))
-                                    : '今日未启用，不会提醒。',
-                                progressLabel: state.isCompleted(task.id)
-                                    ? '完成状态'
-                                    : '当前状态',
-                                progressValue: state.isCompleted(task.id)
-                                    ? '已完成'
-                                    : (isActive
-                                          ? '可执行'
-                                          : (isExpired ? '已逾期' : '未开始')),
-                                primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                                onPrimary: () => _markSingleTaskDone(task.id),
-                                primaryEnabled:
-                                    state.isEnabled(task.id) &&
-                                    !state.isCompleted(task.id) &&
-                                    (isActive || isExpired),
-                                showQuickLaunch:
-                                    task.showQuickLaunch ||
-                                    (task.gestureConfigId?.isNotEmpty ?? false),
-                                appLabel: state.selectedAppLabel,
-                                configLabel: _configLabelFor(task),
-                                onOpenApp: () => _openSelectedApp(task),
-                              ),
+                            return _TaskDeckCard(
+                              task: task,
+                              accent: const Color(0xFF5EA98D),
+                              icon: Icons.play_circle_outline_rounded,
+                              status: state.isCompleted(task.id)
+                                  ? '已完成'
+                                  : (isActive
+                                        ? '进行中'
+                                        : (isExpired ? '任务已过期' : '未开始')),
+                              headline: task.timeLabel,
+                              detail: state.isEnabled(task.id)
+                                  ? (state.isCompleted(task.id)
+                                        ? '本时段已完成，今日无需再记录。'
+                                        : (isExpired
+                                              ? '任务时间已过，没关系，补上吧！'
+                                              : (isActive
+                                                    ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                    : '还没到开始时间，请耐心等待。')))
+                                  : '今日未启用，不会提醒。',
+                              progressLabel: state.isCompleted(task.id)
+                                  ? '完成状态'
+                                  : '当前状态',
+                              progressValue: state.isCompleted(task.id)
+                                  ? '已完成'
+                                  : (isActive
+                                        ? '可执行'
+                                        : (isExpired ? '已逾期' : '未开始')),
+                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                              onPrimary: () => _markSingleTaskDone(task.id),
+                              primaryEnabled:
+                                  state.isEnabled(task.id) &&
+                                  !state.isCompleted(task.id) &&
+                                  (isActive || isExpired),
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
+                              appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
+                              onOpenApp: () => _openSelectedApp(task),
                             );
                           case AssistantTaskKind.fixedPoint:
                             final isExpired = TaskEngine.isTaskExpired(
@@ -987,89 +1040,85 @@ class _DashboardPageState extends State<DashboardPage>
                               task,
                             );
                             final isDue = TaskEngine.isFixedTaskDue(now, task);
-                            return compactTask(
-                              _TaskDeckCard(
-                                task: task,
-                                accent: const Color(0xFF6B8FD6),
-                                icon: Icons.alarm_rounded,
-                                status: state.isCompleted(task.id)
-                                    ? '已完成'
-                                    : (isDue
-                                          ? (isExpired ? '任务已过期' : '到点')
-                                          : '未开始'),
-                                headline: task.timeLabel,
-                                detail: state.isEnabled(task.id)
-                                    ? (state.isCompleted(task.id)
-                                          ? '该提醒已完成。'
-                                          : (isExpired
-                                                ? '任务已过，现在标记补卡吧。'
-                                                : (isDue
-                                                      ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                      : '还没到提醒时间。')))
-                                    : '今日未启用，不会提醒。',
-                                progressLabel: '提醒时间',
-                                progressValue: task.timeLabel,
-                                primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                                onPrimary: () => _markSingleTaskDone(task.id),
-                                primaryEnabled:
-                                    state.isEnabled(task.id) &&
-                                    !state.isCompleted(task.id) &&
-                                    isDue,
-                                showQuickLaunch:
-                                    task.showQuickLaunch ||
-                                    (task.gestureConfigId?.isNotEmpty ?? false),
-                                appLabel: state.selectedAppLabel,
-                                configLabel: _configLabelFor(task),
-                                onOpenApp: () => _openSelectedApp(task),
-                              ),
+                            return _TaskDeckCard(
+                              task: task,
+                              accent: const Color(0xFF6B8FD6),
+                              icon: Icons.alarm_rounded,
+                              status: state.isCompleted(task.id)
+                                  ? '已完成'
+                                  : (isDue
+                                        ? (isExpired ? '任务已过期' : '到点')
+                                        : '未开始'),
+                              headline: task.timeLabel,
+                              detail: state.isEnabled(task.id)
+                                  ? (state.isCompleted(task.id)
+                                        ? '该提醒已完成。'
+                                        : (isExpired
+                                              ? '任务已过，现在标记补卡吧。'
+                                              : (isDue
+                                                    ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                    : '还没到提醒时间。')))
+                                  : '今日未启用，不会提醒。',
+                              progressLabel: '提醒时间',
+                              progressValue: task.timeLabel,
+                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                              onPrimary: () => _markSingleTaskDone(task.id),
+                              primaryEnabled:
+                                  state.isEnabled(task.id) &&
+                                  !state.isCompleted(task.id) &&
+                                  isDue,
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
+                              appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
+                              onOpenApp: () => _openSelectedApp(task),
                             );
                           case AssistantTaskKind.adCooldown:
                             final count = state.intervalCompleted(task.id);
                             final progressText = task.infiniteLoop
                                 ? '$count / ∞'
                                 : '$count / ${task.targetCount}';
-                            return compactTask(
-                              _TaskDeckCard(
-                                task: task,
-                                accent: const Color(0xFFDA8C63),
-                                icon: Icons.hourglass_bottom_rounded,
-                                status: progressText,
-                                headline: '间隔 ${task.intervalLabel}',
-                                detail: TaskEngine.counterTaskLabel(
-                                  now,
-                                  state,
-                                  task,
-                                ),
-                                progressLabel: '今日进度',
-                                progressValue: progressText,
-                                primaryLabel:
-                                    (!task.infiniteLoop &&
-                                        count >= task.targetCount)
-                                    ? '今日已完成'
-                                    : (TaskEngine.canCompleteCounterTask(
-                                            now,
-                                            state,
-                                            task,
-                                          )
-                                          ? '本次已完成'
-                                          : '倒计时中'),
-                                onPrimary: () => _markCounterTaskDone(task),
-                                primaryEnabled:
-                                    state.isEnabled(task.id) &&
-                                    (task.infiniteLoop ||
-                                        count < task.targetCount) &&
-                                    TaskEngine.canCompleteCounterTask(
-                                      now,
-                                      state,
-                                      task,
-                                    ),
-                                showQuickLaunch:
-                                    task.showQuickLaunch ||
-                                    (task.gestureConfigId?.isNotEmpty ?? false),
-                                appLabel: state.selectedAppLabel,
-                                configLabel: _configLabelFor(task),
-                                onOpenApp: () => _openSelectedApp(task),
+                            return _TaskDeckCard(
+                              task: task,
+                              accent: const Color(0xFFDA8C63),
+                              icon: Icons.hourglass_bottom_rounded,
+                              status: progressText,
+                              headline: '间隔 ${task.intervalLabel}',
+                              detail: TaskEngine.counterTaskLabel(
+                                now,
+                                state,
+                                task,
                               ),
+                              progressLabel: '今日进度',
+                              progressValue: progressText,
+                              primaryLabel:
+                                  (!task.infiniteLoop &&
+                                      count >= task.targetCount)
+                                  ? '今日已完成'
+                                  : (TaskEngine.canCompleteCounterTask(
+                                          now,
+                                          state,
+                                          task,
+                                        )
+                                        ? '本次已完成'
+                                        : '倒计时中'),
+                              onPrimary: () => _markCounterTaskDone(task),
+                              primaryEnabled:
+                                  state.isEnabled(task.id) &&
+                                  (task.infiniteLoop ||
+                                      count < task.targetCount) &&
+                                  TaskEngine.canCompleteCounterTask(
+                                    now,
+                                    state,
+                                    task,
+                                  ),
+                              showQuickLaunch:
+                                  task.showQuickLaunch ||
+                                  (task.gestureConfigId?.isNotEmpty ?? false),
+                              appLabel: state.selectedAppLabel,
+                              configLabel: _configLabelFor(task),
+                              onOpenApp: () => _openSelectedApp(task),
                             );
                         }
                       },
@@ -2850,8 +2899,11 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   List<String> _mottos = const [];
   String? _pinnedMotto;
   String _sourceUrl = _defaultDailyMottoSourceUrl;
+  String? _imageUrl;
+  String? _imagePath;
   bool _loading = true;
   bool _fetching = false;
+  bool _fetchingImage = false;
 
   @override
   void initState() {
@@ -2865,6 +2917,8 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         await widget.repository.loadDailyMottoSourceUrl() ??
         _defaultDailyMottoSourceUrl;
     final pinnedMotto = await widget.repository.loadPinnedDailyMotto();
+    final imageUrl = await widget.repository.loadDailyMottoImageUrl();
+    final imagePath = await widget.repository.loadDailyMottoImagePath();
     final lastFetchDate = await widget.repository.loadDailyMottoLastFetchDate();
     final todayKey = _dateKey(DateTime.now());
     if (!mounted) return;
@@ -2872,6 +2926,8 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       _mottos = values.isEmpty ? [..._presetMottos] : values;
       _pinnedMotto = pinnedMotto;
       _sourceUrl = sourceUrl;
+      _imageUrl = imageUrl;
+      _imagePath = imagePath;
       _loading = false;
     });
     final hasBrokenMottos = values.any(_looksLikeMojibake);
@@ -2963,6 +3019,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         fieldLabel: '箴言内容',
         actionLabel: '保存',
         initialValue: initialValue,
+        multiline: true,
       ),
     );
     if (!mounted || result == null || result.isEmpty) return;
@@ -3092,6 +3149,64 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     );
   }
 
+  Future<void> _useBingImage() async {
+    if (_fetchingImage) {
+      return;
+    }
+    setState(() => _fetchingImage = true);
+    try {
+      final imageUrl = await fetchDailyMottoImageUrl();
+      if (imageUrl == null || imageUrl.isEmpty) {
+        throw Exception('没有抓到可用图片');
+      }
+      await widget.repository.saveDailyMottoImageUrl(imageUrl);
+      await widget.repository.saveDailyMottoImagePath(null);
+      await widget.repository.saveDailyMottoImageFetchDate(
+        _dateKey(DateTime.now()),
+      );
+      if (!mounted) return;
+      setState(() {
+        _imageUrl = imageUrl;
+        _imagePath = null;
+      });
+      VibrantHUD.show(context, '已切换到微软每日壁纸', type: ToastType.success);
+    } catch (error) {
+      if (mounted) {
+        VibrantHUD.show(context, '$error', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _fetchingImage = false);
+      }
+    }
+  }
+
+  Future<void> _pickMottoImage() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    final path = result?.files.single.path;
+    if (path == null || path.isEmpty) {
+      return;
+    }
+    await widget.repository.saveDailyMottoImagePath(path);
+    if (!mounted) return;
+    setState(() => _imagePath = path);
+    VibrantHUD.show(context, '已设置箴言图片', type: ToastType.success);
+  }
+
+  Future<void> _clearMottoImage() async {
+    await widget.repository.saveDailyMottoImagePath(null);
+    await widget.repository.saveDailyMottoImageUrl(null);
+    if (!mounted) return;
+    setState(() {
+      _imagePath = null;
+      _imageUrl = null;
+    });
+    VibrantHUD.show(context, '已清除箴言图片', type: ToastType.success);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -3156,6 +3271,36 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                       label: const Text('打开网页识别保存'),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _fetchingImage ? null : _useBingImage,
+                          icon: const Icon(Icons.wallpaper_rounded),
+                          label: Text(_fetchingImage ? '更新中' : '微软壁纸'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _pickMottoImage,
+                          icon: const Icon(Icons.photo_library_rounded),
+                          label: const Text('图库选择'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_imagePath != null || _imageUrl != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: _clearMottoImage,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('清除图片'),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Text(
                     '每天首次打开时，会自动从该网页抓取 10 条并保存。',
@@ -3308,6 +3453,7 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
         fieldLabel: '内容',
         actionLabel: '保存',
         initialValue: value,
+        multiline: true,
       ),
     );
   }
@@ -3722,12 +3868,14 @@ class _TemplateNameSheet extends StatefulWidget {
     required this.fieldLabel,
     required this.actionLabel,
     this.initialValue = '',
+    this.multiline = false,
   });
 
   final String title;
   final String fieldLabel;
   final String actionLabel;
   final String initialValue;
+  final bool multiline;
 
   @override
   State<_TemplateNameSheet> createState() => _TemplateNameSheetState();
@@ -3803,8 +3951,15 @@ class _TemplateNameSheetState extends State<_TemplateNameSheet> {
                       key: const ValueKey('template_name_field'),
                       controller: _controller,
                       autofocus: true,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _submit(),
+                      keyboardType: widget.multiline
+                          ? TextInputType.multiline
+                          : TextInputType.text,
+                      textInputAction: widget.multiline
+                          ? TextInputAction.newline
+                          : TextInputAction.done,
+                      onSubmitted: widget.multiline ? null : (_) => _submit(),
+                      minLines: widget.multiline ? 4 : 1,
+                      maxLines: widget.multiline ? 8 : 1,
                       decoration: InputDecoration(labelText: widget.fieldLabel),
                     ),
                     const SizedBox(height: 12),

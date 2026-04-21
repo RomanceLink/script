@@ -12,7 +12,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('上午刷视频'), findsOneWidget);
-    expect(find.textContaining('首页显示 9 项'), findsOneWidget);
+    expect(find.textContaining('总共 9 项，完成 0 项'), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
   });
 

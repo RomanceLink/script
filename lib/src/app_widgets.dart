@@ -152,24 +152,55 @@ class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
     required this.title,
     required this.subtitle,
-    required this.stats,
-    required this.settingsAction,
-    required this.launchAction,
-    required this.resetAction,
+    required this.summary,
+    this.imageProvider,
+    required this.actionRow,
   });
 
   final String title;
   final String subtitle;
-  final List<String> stats;
-  final Widget settingsAction;
-  final Widget launchAction;
-  final Widget resetAction;
+  final String summary;
+  final ImageProvider<Object>? imageProvider;
+  final Widget actionRow;
+
+  List<String> _poemLines(String text) {
+    final phrases = text
+        .split(RegExp(r'(?<=[，。！？；：])'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (phrases.isEmpty) {
+      return [text];
+    }
+    final lines = <String>[];
+    var index = 0;
+    while (index < phrases.length) {
+      final current = phrases[index];
+      lines.add(current);
+      index += 1;
+      if (lines.length >= 4) {
+        break;
+      }
+    }
+    return lines;
+  }
+
+  double _poemFontSize(List<String> lines) {
+    final longest = lines.fold<int>(
+      0,
+      (best, line) => line.length > best ? line.length : best,
+    );
+    if (longest >= 22) return 18;
+    if (longest >= 16) return 20;
+    return 22;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final statsText = stats.join(' · ');
+    final poemLines = _poemLines(title);
+    final poemFontSize = _poemFontSize(poemLines);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
       decoration: BoxDecoration(
@@ -199,7 +230,7 @@ class _HeaderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  statsText,
+                  summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(
@@ -209,7 +240,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              settingsAction,
+              actionRow,
             ],
           ),
           const SizedBox(height: 12),
@@ -218,40 +249,36 @@ class _HeaderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  poemLines.join('\n'),
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: poemFontSize,
                     fontWeight: FontWeight.w900,
-                    height: 1.18,
+                    height: 1.28,
+                    fontFamilyFallback: const [
+                      'KaiTi',
+                      'STKaiti',
+                      'Kaiti SC',
+                      'Noto Serif SC',
+                      'serif',
+                    ],
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: launchAction,
-              ),
+              _HeaderPortrait(imageProvider: imageProvider),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              resetAction,
-            ],
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -286,6 +313,38 @@ class _HeaderIconAction extends StatelessWidget {
           child: Icon(icon, size: 18, color: foreground),
         ),
       ),
+    );
+  }
+}
+
+class _HeaderPortrait extends StatelessWidget {
+  const _HeaderPortrait({required this.imageProvider});
+
+  final ImageProvider<Object>? imageProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 104,
+      height: 112,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.44),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
+        image: imageProvider == null
+            ? null
+            : DecorationImage(image: imageProvider!, fit: BoxFit.cover),
+      ),
+      child: imageProvider == null
+          ? Icon(
+              Icons.image_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 28,
+            )
+          : null,
     );
   }
 }
