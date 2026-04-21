@@ -13,6 +13,7 @@ class TaskRepository {
   static const String _dailyMottoSourceUrlKey = 'daily_motto_source_url_v1';
   static const String _dailyMottoLastFetchDateKey =
       'daily_motto_last_fetch_date_v1';
+  static const String _pinnedDailyMottoKey = 'pinned_daily_motto_v1';
 
   Future<List<GestureConfig>> loadGestureConfigs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -65,6 +66,23 @@ class TaskRepository {
           .where((item) => item.isNotEmpty)
           .toList(),
     );
+  }
+
+  Future<String?> loadPinnedDailyMotto() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final value = prefs.getString(_pinnedDailyMottoKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> savePinnedDailyMotto(String? motto) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = motto?.trim() ?? '';
+    if (value.isEmpty) {
+      await prefs.remove(_pinnedDailyMottoKey);
+      return;
+    }
+    await prefs.setString(_pinnedDailyMottoKey, value);
   }
 
   Future<String?> loadDailyMottoSourceUrl() async {

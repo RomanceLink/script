@@ -16,6 +16,9 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_timezone-5.0.2" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/device_apps-2.2.0" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/file_picker-11.0.2" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter-4.13.1" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.3" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_android-4.11.0" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

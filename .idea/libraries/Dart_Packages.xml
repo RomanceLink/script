@@ -58,6 +58,13 @@
             </list>
           </value>
         </entry>
+        <entry key="csslib">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/csslib-1.0.2/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="cupertino_icons">
           <value>
             <list>
@@ -181,6 +188,13 @@
           <value>
             <list>
               <option value="$USER_HOME$/fvm/versions/3.35.1/packages/flutter_web_plugins/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="html">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/html-0.15.6/lib" />
             </list>
           </value>
         </entry>
@@ -429,6 +443,34 @@
             </list>
           </value>
         </entry>
+        <entry key="webview_flutter">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter-4.13.1/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="webview_flutter_android">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_android-4.11.0/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="webview_flutter_platform_interface">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_platform_interface-2.15.1/lib" />
+            </list>
+          </value>
+        </entry>
+        <entry key="webview_flutter_wkwebview">
+          <value>
+            <list>
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.3/lib" />
+            </list>
+          </value>
+        </entry>
         <entry key="win32">
           <value>
             <list>
@@ -461,6 +503,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/clock-1.1.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/collection-1.19.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/cross_file-0.3.5+2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/csslib-1.0.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/cupertino_icons-1.0.9/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/dbus-0.7.12/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/device_apps-2.2.0/lib" />
@@ -476,6 +519,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_local_notifications_windows-2.0.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.34/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_timezone-5.0.2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/html-0.15.6/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/http-1.6.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/http_parser-4.1.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/leak_tracker-11.0.2/lib" />
@@ -510,6 +554,10 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vector_math-2.2.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vm_service-15.0.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/web-1.1.1/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter-4.13.1/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_android-4.11.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_platform_interface-2.15.1/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.3/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/win32-5.15.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/xdg_directories-1.1.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/xml-6.6.1/lib" />

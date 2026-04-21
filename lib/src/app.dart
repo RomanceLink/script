@@ -205,6 +205,7 @@ class _DashboardPageState extends State<DashboardPage>
   int _currentTaskPage = 0;
   List<GestureConfig> _gestureConfigs = [];
   List<String> _dailyMottos = const [];
+  String? _pinnedDailyMotto;
   bool _handlingOverlayCommand = false;
 
   @override
@@ -259,6 +260,7 @@ class _DashboardPageState extends State<DashboardPage>
       }
       final gestureConfigs = await _repository.loadGestureConfigs();
       final dailyMottos = await _repository.loadDailyMottos();
+      final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
       if (!mounted) {
         return;
       }
@@ -266,6 +268,7 @@ class _DashboardPageState extends State<DashboardPage>
         _state = state;
         _gestureConfigs = gestureConfigs;
         _dailyMottos = dailyMottos;
+        _pinnedDailyMotto = pinnedDailyMotto;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -633,10 +636,12 @@ class _DashboardPageState extends State<DashboardPage>
     if (next != null) {
       final configs = await _repository.loadGestureConfigs();
       final dailyMottos = await _repository.loadDailyMottos();
+      final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
       if (mounted) {
         setState(() {
           _gestureConfigs = configs;
           _dailyMottos = dailyMottos;
+          _pinnedDailyMotto = pinnedDailyMotto;
         });
       }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
@@ -652,6 +657,10 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   String _dailyMotto(DateTime now) {
+    final pinned = _pinnedDailyMotto;
+    if (pinned != null && pinned.trim().isNotEmpty) {
+      return pinned;
+    }
     const fallbackMottos = [
       '天生我才必有用，千金散尽还复来',
       '长风破浪会有时，直挂云帆济沧海',
@@ -2815,6 +2824,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   ];
 
   List<String> _mottos = const [];
+  String? _pinnedMotto;
   String _sourceUrl = _defaultDailyMottoSourceUrl;
   bool _loading = true;
   bool _fetching = false;
@@ -2830,11 +2840,13 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     final sourceUrl =
         await widget.repository.loadDailyMottoSourceUrl() ??
         _defaultDailyMottoSourceUrl;
+    final pinnedMotto = await widget.repository.loadPinnedDailyMotto();
     final lastFetchDate = await widget.repository.loadDailyMottoLastFetchDate();
     final todayKey = _dateKey(DateTime.now());
     if (!mounted) return;
     setState(() {
       _mottos = values.isEmpty ? [..._presetMottos] : values;
+      _pinnedMotto = pinnedMotto;
       _sourceUrl = sourceUrl;
       _loading = false;
     });
@@ -2847,11 +2859,77 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
 
   Future<void> _save() async {
     await widget.repository.saveDailyMottos(_mottos);
+    if (_pinnedMotto != null && !_mottos.contains(_pinnedMotto)) {
+      _pinnedMotto = null;
+      await widget.repository.savePinnedDailyMotto(null);
+    }
     if (!mounted) return;
     VibrantHUD.show(context, '每日箴言已保存', type: ToastType.success);
   }
 
+  Future<void> _setHomeMotto(String motto) async {
+    setState(() => _pinnedMotto = motto);
+    await widget.repository.savePinnedDailyMotto(motto);
+    if (!mounted) return;
+    VibrantHUD.show(context, '已设为首页显示', type: ToastType.success);
+  }
+
+  Future<void> _deleteItem(int index) async {
+    final item = _mottos[index];
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '删除箴言',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              Text(item),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('删除'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() {
+      _mottos = [
+        for (var i = 0; i < _mottos.length; i++)
+          if (i != index) _mottos[i],
+      ];
+      if (_pinnedMotto == item) {
+        _pinnedMotto = null;
+      }
+    });
+    await widget.repository.saveDailyMottos(_mottos);
+    if (_pinnedMotto == null) {
+      await widget.repository.savePinnedDailyMotto(null);
+    }
+    if (!mounted) return;
+    VibrantHUD.show(context, '删除成功', type: ToastType.success);
+  }
+
   Future<void> _editItem({String initialValue = '', int? index}) async {
+    final previousValue = index == null ? null : _mottos[index];
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -2872,8 +2950,14 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
           for (var i = 0; i < _mottos.length; i++)
             if (i == index) result else _mottos[i],
         ];
+        if (_pinnedMotto == previousValue) {
+          _pinnedMotto = result;
+        }
       }
     });
+    if (_pinnedMotto == result) {
+      await widget.repository.savePinnedDailyMotto(result);
+    }
     await _save();
   }
 
@@ -2932,6 +3016,10 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       }
       setState(() => _mottos = mottos);
       await widget.repository.saveDailyMottos(mottos);
+      if (_pinnedMotto != null && !mottos.contains(_pinnedMotto)) {
+        _pinnedMotto = null;
+        await widget.repository.savePinnedDailyMotto(null);
+      }
       await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
       await widget.repository.saveDailyMottoLastFetchDate(
         _dateKey(DateTime.now()),
@@ -2961,8 +3049,14 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     }
     setState(() {
       _mottos = result;
+      if (_pinnedMotto != null && !result.contains(_pinnedMotto)) {
+        _pinnedMotto = null;
+      }
     });
     await widget.repository.saveDailyMottos(result);
+    if (_pinnedMotto == null) {
+      await widget.repository.savePinnedDailyMotto(null);
+    }
     await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
     if (!mounted) {
       return;
@@ -3056,10 +3150,17 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
                 title: Text(item),
-                subtitle: const Text('首页按日期随机展示'),
+                subtitle: _pinnedMotto == item ? const Text('当前首页显示') : null,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    TextButton(
+                      onPressed: _pinnedMotto == item
+                          ? null
+                          : () => _setHomeMotto(item),
+                      child: const Text('设为首页'),
+                    ),
+                    const SizedBox(width: 4),
                     _MiniIconButton(
                       onPressed: () =>
                           _editItem(initialValue: item, index: index),
@@ -3067,15 +3168,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     ),
                     const SizedBox(width: 8),
                     _MiniIconButton(
-                      onPressed: () async {
-                        setState(() {
-                          _mottos = [
-                            for (var i = 0; i < _mottos.length; i++)
-                              if (i != index) _mottos[i],
-                          ];
-                        });
-                        await _save();
-                      },
+                      onPressed: () => _deleteItem(index),
                       icon: Icons.delete_outline_rounded,
                     ),
                   ],
@@ -3127,10 +3220,22 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
   }
 
   List<String> _extractReadableLines(String text) {
-    final lines = text
+    final normalized = text
+        .replaceAll(RegExp(r'[，。！？；：]'), '\n')
+        .replaceAll(RegExp(r'[|｜]'), '\n');
+    final lines = normalized
         .split(RegExp(r'[\n\r]+'))
         .map((item) => item.trim().replaceAll(RegExp(r'\s+'), ' '))
-        .where((item) => item.length >= 4 && item.length <= 60)
+        .expand<String>((item) sync* {
+          if (item.length <= 80) {
+            yield item;
+            return;
+          }
+          for (var start = 0; start < item.length; start += 40) {
+            yield item.substring(start, (start + 40).clamp(0, item.length));
+          }
+        })
+        .where((item) => item.length >= 2 && item.length <= 120)
         .where(
           (item) =>
               !item.contains('文学360') &&
@@ -3154,6 +3259,35 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     return results;
   }
 
+  List<String> _rawOcrFallbackLines(String text) {
+    final results = <String>[];
+    for (final raw in text.split(RegExp(r'[\n\r]+'))) {
+      final value = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (value.isEmpty || results.contains(value)) {
+        continue;
+      }
+      results.add(value.length > 120 ? value.substring(0, 120) : value);
+      if (results.length >= 10) {
+        break;
+      }
+    }
+    return results;
+  }
+
+  Future<String?> _editRecognizedLine(String value) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _TemplateNameSheet(
+        title: '编辑识别内容',
+        fieldLabel: '内容',
+        actionLabel: '保存',
+        initialValue: value,
+      ),
+    );
+  }
+
   Future<void> _confirmAndPop(List<String> lines) async {
     if (!mounted) {
       return;
@@ -3162,33 +3296,120 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
       VibrantHUD.show(context, '当前页面没有识别到可保存内容', type: ToastType.warning);
       return;
     }
-    final confirmed = await showModalBottomSheet<bool>(
+    final editedLines = [...lines];
+    final confirmed = await showModalBottomSheet<List<String>>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          children: [
-            Text(
-              '识别结果',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78,
             ),
-            const SizedBox(height: 8),
-            ...lines.map((line) => ListTile(dense: true, title: Text(line))),
-            const SizedBox(height: 8),
-            FilledButton.tonal(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('保存这些内容'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '识别结果',
+                          style: Theme.of(sheetContext).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      Text(
+                        '${editedLines.length} 条',
+                        style: Theme.of(sheetContext).textTheme.bodySmall
+                            ?.copyWith(
+                              color: Theme.of(
+                                sheetContext,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: editedLines.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final line = editedLines[index];
+                      return ListTile(
+                        dense: true,
+                        title: Text(line),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: '编辑',
+                              onPressed: () async {
+                                final result = await _editRecognizedLine(line);
+                                if (result == null || result.trim().isEmpty) {
+                                  return;
+                                }
+                                setSheetState(() {
+                                  editedLines[index] = result.trim();
+                                });
+                              },
+                              icon: const Icon(Icons.edit_rounded),
+                            ),
+                            IconButton(
+                              tooltip: '删除',
+                              onPressed: () {
+                                setSheetState(() {
+                                  editedLines.removeAt(index);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('取消'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: editedLines.isEmpty
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(
+                                  editedLines
+                                      .map((item) => item.trim())
+                                      .where((item) => item.isNotEmpty)
+                                      .toList(),
+                                ),
+                          child: const Text('保存这些内容'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.of(context).pop(lines);
+    if (confirmed != null && confirmed.isNotEmpty && mounted) {
+      Navigator.of(context).pop(confirmed);
     }
   }
 
@@ -3213,13 +3434,8 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     };
   }
 
-  Future<void> _recognizeDomAndSave() async {
-    if (_recognizing) {
-      return;
-    }
-    setState(() => _recognizing = true);
-    try {
-      final raw = await _controller.runJavaScriptReturningResult('''
+  Future<String> _readDomText() async {
+    final raw = await _controller.runJavaScriptReturningResult('''
 (() => {
   const selectors = ['.post-body', '.post', 'article', 'main', 'body'];
   for (const selector of selectors) {
@@ -3231,19 +3447,45 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
   return document.body ? document.body.innerText : '';
 })()
 ''');
-      final text = raw.toString();
-      final normalized = text.startsWith('"') && text.endsWith('"')
-          ? text
-                .substring(1, text.length - 1)
-                .replaceAll(r'\n', '\n')
-                .replaceAll(r'\"', '"')
-          : text;
+    final text = raw.toString();
+    return text.startsWith('"') && text.endsWith('"')
+        ? text
+              .substring(1, text.length - 1)
+              .replaceAll(r'\n', '\n')
+              .replaceAll(r'\"', '"')
+        : text;
+  }
+
+  Future<void> _recognizeDomAndSave() async {
+    if (_recognizing) {
+      return;
+    }
+    setState(() => _recognizing = true);
+    try {
+      final normalized = await _readDomText();
       final lines = _extractReadableLines(normalized);
       await _confirmAndPop(lines);
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
       }
+    } finally {
+      if (mounted) {
+        setState(() => _recognizing = false);
+      }
+    }
+  }
+
+  Future<void> _recognizeClipboardAndSave() async {
+    if (_recognizing) {
+      return;
+    }
+    setState(() => _recognizing = true);
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      final lines = _extractReadableLines(text);
+      await _confirmAndPop(lines.isEmpty ? _rawOcrFallbackLines(text) : lines);
     } finally {
       if (mounted) {
         setState(() => _recognizing = false);
@@ -3269,7 +3511,13 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
           .where((item) => item.isNotEmpty)
           .join('\n');
       final lines = _extractReadableLines(text);
-      await _confirmAndPop(lines);
+      final fallbackLines = lines.isEmpty ? _rawOcrFallbackLines(text) : lines;
+      if (fallbackLines.isEmpty) {
+        final domRaw = await _readDomText();
+        await _confirmAndPop(_extractReadableLines(domRaw));
+        return;
+      }
+      await _confirmAndPop(fallbackLines);
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
@@ -3362,6 +3610,11 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                 onPressed: _recognizing ? null : _recognizeDomAndSave,
                 icon: const Icon(Icons.code_rounded),
                 label: const Text('网页文字'),
+              ),
+              FilledButton.icon(
+                onPressed: _recognizing ? null : _recognizeClipboardAndSave,
+                icon: const Icon(Icons.content_paste_go_rounded),
+                label: const Text('剪切板'),
               ),
               FilledButton.icon(
                 onPressed: _recognizing

@@ -4,11 +4,21 @@ import android.app.Activity
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
+import android.graphics.Rect
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -85,10 +95,16 @@ class MainActivity : FlutterActivity() {
                     }
                     "recognizeScreenText" -> {
                         val region = call.argument<Map<String, Any?>>("region")
-                        if (!AutoSwipeService.recognizeScreenText(region) { lines ->
-                                runOnUiThread { result.success(lines) }
-                            }) {
-                            result.success(emptyList<Map<String, Any?>>())
+                        recognizeCurrentActivityText(region) { activityLines ->
+                            if (hasUsefulOcrText(activityLines)) {
+                                runOnUiThread { result.success(activityLines) }
+                                return@recognizeCurrentActivityText
+                            }
+                            if (!AutoSwipeService.recognizeScreenText(region) { lines ->
+                                    runOnUiThread { result.success(lines) }
+                                }) {
+                                runOnUiThread { result.success(emptyList<Map<String, Any?>>()) }
+                            }
                         }
                     }
                     "showAutomationMenu" -> {
@@ -247,6 +263,161 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             openNotificationSettings()
         }
+    }
+
+    private fun recognizeCurrentActivityText(
+        region: Map<String, Any?>?,
+        callback: (List<Map<String, Any?>>) -> Unit,
+    ) {
+        val root = window?.decorView?.rootView
+        if (root == null || root.width <= 0 || root.height <= 0) {
+            callback(emptyList())
+            return
+        }
+        val bitmap = try {
+            Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888).also { output ->
+                val canvas = Canvas(output)
+                canvas.drawColor(Color.WHITE)
+                root.draw(canvas)
+            }
+        } catch (_: Exception) {
+            callback(emptyList())
+            return
+        }
+        val source = cropBitmap(bitmap, normalizedRegionToRect(region, bitmap.width, bitmap.height))
+        if (source !== bitmap) {
+            bitmap.recycle()
+        }
+        recognizeBitmapText(
+            bitmap = source,
+            offset = normalizedRegionToRect(region, root.width, root.height)?.let {
+                it.left to it.top
+            } ?: (0 to 0),
+            screenWidth = root.width,
+            screenHeight = root.height,
+            callback = callback,
+        )
+    }
+
+    private fun hasUsefulOcrText(lines: List<Map<String, Any?>>): Boolean {
+        val text = lines.joinToString("") { (it["text"] ?: "").toString() }
+        val chineseCount = text.count { it in '\u4e00'..'\u9fff' }
+        return chineseCount >= 6 || text.length >= 16
+    }
+
+    private fun cropBitmap(bitmap: Bitmap, rect: Rect?): Bitmap {
+        if (rect == null) return bitmap
+        return try {
+            Bitmap.createBitmap(bitmap, rect.left, rect.top, rect.width(), rect.height())
+        } catch (_: Exception) {
+            bitmap
+        }
+    }
+
+    private fun normalizedRegionToRect(region: Map<String, Any?>?, width: Int, height: Int): Rect? {
+        if (region == null) return null
+        val left = ((region["left"] as? Number)?.toDouble() ?: 0.0) * width
+        val top = ((region["top"] as? Number)?.toDouble() ?: 0.0) * height
+        val right = ((region["right"] as? Number)?.toDouble() ?: 1.0) * width
+        val bottom = ((region["bottom"] as? Number)?.toDouble() ?: 1.0) * height
+        val rect = Rect(
+            left.toInt().coerceIn(0, width - 1),
+            top.toInt().coerceIn(0, height - 1),
+            right.toInt().coerceIn(1, width),
+            bottom.toInt().coerceIn(1, height),
+        )
+        return if (rect.width() >= 12 && rect.height() >= 12) rect else null
+    }
+
+    private fun recognizeBitmapText(
+        bitmap: Bitmap,
+        offset: Pair<Int, Int>,
+        screenWidth: Int,
+        screenHeight: Int,
+        callback: (List<Map<String, Any?>>) -> Unit,
+    ) {
+        val recognizer = TextRecognition.getClient(
+            ChineseTextRecognizerOptions.Builder().build(),
+        )
+        val enhanced = preprocessOcrBitmap(bitmap)
+        val collected = linkedMapOf<String, Map<String, Any?>>()
+
+        fun collect(result: com.google.mlkit.vision.text.Text) {
+            result.textBlocks.forEach { block ->
+                block.lines.forEach { line ->
+                    val bounds = line.boundingBox ?: return@forEach
+                    val text = line.text.trim()
+                    if (text.isBlank()) return@forEach
+                    val left = bounds.left + offset.first
+                    val top = bounds.top + offset.second
+                    val right = bounds.right + offset.first
+                    val bottom = bounds.bottom + offset.second
+                    val key = "$left,$top,$right,$bottom|$text"
+                    collected[key] = mapOf(
+                        "text" to text,
+                        "bounds" to mapOf(
+                            "left" to (left.toDouble() / screenWidth.coerceAtLeast(1)),
+                            "top" to (top.toDouble() / screenHeight.coerceAtLeast(1)),
+                            "right" to (right.toDouble() / screenWidth.coerceAtLeast(1)),
+                            "bottom" to (bottom.toDouble() / screenHeight.coerceAtLeast(1)),
+                        ),
+                    )
+                }
+            }
+        }
+
+        recognizer.process(InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { original ->
+                collect(original)
+                recognizer.process(InputImage.fromBitmap(enhanced, 0))
+                    .addOnSuccessListener { boosted ->
+                        collect(boosted)
+                        callback(collected.values.toList())
+                    }
+                    .addOnFailureListener {
+                        callback(collected.values.toList())
+                    }
+                    .addOnCompleteListener {
+                        enhanced.recycle()
+                        bitmap.recycle()
+                    }
+            }
+            .addOnFailureListener {
+                recognizer.process(InputImage.fromBitmap(enhanced, 0))
+                    .addOnSuccessListener { boosted ->
+                        collect(boosted)
+                        callback(collected.values.toList())
+                    }
+                    .addOnFailureListener {
+                        callback(emptyList())
+                    }
+                    .addOnCompleteListener {
+                        enhanced.recycle()
+                        bitmap.recycle()
+                    }
+            }
+    }
+
+    private fun preprocessOcrBitmap(source: Bitmap): Bitmap {
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val matrix = ColorMatrix().apply { setSaturation(0f) }
+        val contrast = 1.45f
+        val translate = (-128f * contrast) + 128f
+        val contrastMatrix = ColorMatrix(
+            floatArrayOf(
+                contrast, 0f, 0f, 0f, translate,
+                0f, contrast, 0f, 0f, translate,
+                0f, 0f, contrast, 0f, 0f, translate,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+        matrix.postConcat(contrastMatrix)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = ColorMatrixColorFilter(matrix)
+        }
+        canvas.drawBitmap(source, 0f, 0f, paint)
+        return output
     }
 }
 
