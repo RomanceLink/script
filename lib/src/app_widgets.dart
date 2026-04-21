@@ -366,6 +366,7 @@ class _TaskDeckCard extends StatelessWidget {
     required this.appLabel,
     required this.configLabel,
     required this.onOpenApp,
+    this.taskActions,
   });
 
   final AssistantTaskDefinition task;
@@ -383,6 +384,7 @@ class _TaskDeckCard extends StatelessWidget {
   final String appLabel;
   final String? configLabel;
   final Future<void> Function() onOpenApp;
+  final Widget? taskActions;
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +401,8 @@ class _TaskDeckCard extends StatelessWidget {
     final secondaryButtonText = theme.brightness == Brightness.dark
         ? accent.withValues(alpha: 0.98)
         : accent.withValues(alpha: 0.95);
+    final bool isExpired = status == '任务已过期' || progressValue == '已逾期';
+
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -523,66 +527,203 @@ class _TaskDeckCard extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 10),
-              if (showQuickLaunch)
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: primaryButtonFill,
-                          foregroundColor: primaryButtonText,
-                          minimumSize: const Size(0, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        onPressed: primaryEnabled ? onPrimary : null,
-                        child: Text(primaryLabel),
-                      ),
+              if (taskActions != null) ...[
+                const SizedBox(height: 10),
+                taskActions!,
+              ],
+              const SizedBox(height: 16),
+              // --- 底部操作区 ---
+              Container(
+                padding: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: accent.withValues(alpha: 0.1),
+                      width: 1,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton.tonal(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: secondaryButtonFill,
-                          foregroundColor: secondaryButtonText,
-                          side: BorderSide.none,
-                          minimumSize: const Size(0, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        onPressed: onOpenApp,
-                        child: Text(
-                          '打开$appLabel',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: primaryButtonFill,
-                      foregroundColor: primaryButtonText,
-                      minimumSize: const Size(0, 40),
-                    ),
-                    onPressed: primaryEnabled ? onPrimary : null,
-                    child: Text(primaryLabel),
                   ),
                 ),
+                child: showQuickLaunch
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: _EnhancedTaskButton(
+                              label: primaryLabel,
+                              icon: isExpired
+                                  ? Icons.history_rounded
+                                  : Icons.check_circle_outline_rounded,
+                              backgroundColor: primaryButtonFill,
+                              foregroundColor: primaryButtonText,
+                              onPressed: primaryEnabled ? onPrimary : null,
+                              shadowColor: accent.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _EnhancedTaskButton(
+                              label: '打开$appLabel',
+                              icon: Icons.open_in_new_rounded,
+                              backgroundColor: secondaryButtonFill,
+                              foregroundColor: secondaryButtonText,
+                              onPressed: onOpenApp,
+                              isTonal: true,
+                            ),
+                          ),
+                        ],
+                      )
+                    : _EnhancedTaskButton(
+                        label: primaryLabel,
+                        icon: isExpired
+                            ? Icons.history_rounded
+                            : Icons.check_circle_outline_rounded,
+                        backgroundColor: primaryButtonFill,
+                        foregroundColor: primaryButtonText,
+                        onPressed: primaryEnabled ? onPrimary : null,
+                        shadowColor: accent.withValues(alpha: 0.35),
+                        isFullWidth: true,
+                      ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  Color _idealTextColor(Color background) {
-    return background.computeLuminance() > 0.55
-        ? const Color(0xFF12322B)
-        : Colors.white;
+class _TaskQuickActionChip extends StatelessWidget {
+  const _TaskQuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: accent.withValues(
+        alpha: theme.brightness == Brightness.dark ? 0.18 : 0.12,
+      ),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: accent),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color _idealTextColor(Color background) {
+  return background.computeLuminance() > 0.55
+      ? const Color(0xFF12322B)
+      : Colors.white;
+}
+
+/// 增强型任务按钮，带投影和图标
+class _EnhancedTaskButton extends StatelessWidget {
+  const _EnhancedTaskButton({
+    required this.label,
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.onPressed,
+    this.shadowColor,
+    this.isFullWidth = false,
+    this.isTonal = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback? onPressed;
+  final Color? shadowColor;
+  final bool isFullWidth;
+  final bool isTonal;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Container(
+      height: 44, // 增加高度
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: (onPressed != null && shadowColor != null && !isTonal)
+            ? [
+                BoxShadow(
+                  color: shadowColor!,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: isTonal
+          ? FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                backgroundColor: backgroundColor,
+                foregroundColor: foregroundColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              onPressed: onPressed,
+              icon: Icon(icon, size: 18),
+              label: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: backgroundColor,
+                foregroundColor: foregroundColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              onPressed: onPressed,
+              icon: Icon(icon, size: 18),
+              label: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+    );
+
+    if (isFullWidth) {
+      return SizedBox(width: double.infinity, child: button);
+    }
+    return button;
   }
 }
 

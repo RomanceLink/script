@@ -436,6 +436,203 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
+  Future<void> _updateTaskDefinition(
+    String taskId,
+    AssistantTaskDefinition Function(AssistantTaskDefinition task) transform, {
+    String? message,
+    ToastType type = ToastType.success,
+  }) async {
+    await _mutateState(
+      (state) {
+        final nextTasks = state.taskDefinitions
+            .map((task) => task.id == taskId ? transform(task) : task)
+            .toList();
+        return state.copyWith(taskDefinitions: nextTasks);
+      },
+      message: message,
+      type: type,
+    );
+  }
+
+  Future<void> _resetTaskProgress(AssistantTaskDefinition task) async {
+    await _mutateState((state) {
+      final nextCompleted = {...state.completedTaskIds}..remove(task.id);
+      final nextCounts = {...state.intervalCompletedCounts}..remove(task.id);
+      final nextTimes = {...state.intervalNextAvailableAt}..remove(task.id);
+      return state.copyWith(
+        completedTaskIds: nextCompleted,
+        intervalCompletedCounts: nextCounts,
+        intervalNextAvailableAt: nextTimes,
+      );
+    }, message: '${task.title} 已重置');
+  }
+
+  Future<void> _toggleTaskHomeVisible(AssistantTaskDefinition task) async {
+    await _mutateState((state) {
+      final next = {...state.homeVisibleTaskIds};
+      if (next.contains(task.id)) {
+        next.remove(task.id);
+      } else {
+        next.add(task.id);
+      }
+      return state.copyWith(homeVisibleTaskIds: next);
+    }, message: stateMessageForHomeVisible(task));
+  }
+
+  String stateMessageForHomeVisible(AssistantTaskDefinition task) {
+    final state = _state;
+    if (state == null) {
+      return '任务已更新';
+    }
+    return state.isHomeVisible(task.id) ? '已从首页隐藏' : '已显示到首页';
+  }
+
+  Future<void> _quickEditTask(AssistantTaskDefinition task) async {
+    final edited = await showModalBottomSheet<AssistantTaskDefinition>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) =>
+          TaskEditorSheet(task: task, repository: _repository),
+    );
+    if (edited == null || !mounted) {
+      return;
+    }
+    await _mutateState((state) {
+      final nextTasks = state.taskDefinitions
+          .map((item) => item.id == edited.id ? edited : item)
+          .toList();
+      return state.copyWith(
+        taskDefinitions: nextTasks,
+        enabledTaskIds: {...state.enabledTaskIds, edited.id},
+      );
+    }, message: '任务已保存');
+  }
+
+  Future<void> _pickTaskScriptBinding(AssistantTaskDefinition task) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.link_off_rounded),
+              title: const Text('清除脚本绑定'),
+              onTap: () => Navigator.of(context).pop('clear'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flash_on_rounded),
+              title: const Text('更换执行脚本'),
+              onTap: () => Navigator.of(context).pop('main'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.first_page_rounded),
+              title: const Text('更换前置脚本'),
+              onTap: () => Navigator.of(context).pop('pre'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) {
+      return;
+    }
+    if (result == 'clear') {
+      await _updateTaskDefinition(
+        task.id,
+        (item) => item.copyWith(clearGesture: true, clearPreGesture: true),
+        message: '脚本绑定已清除',
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(result == 'pre' ? '无前置脚本' : '无执行脚本'),
+              onTap: () => Navigator.of(context).pop('none'),
+            ),
+            if (_gestureConfigs.isNotEmpty) const Divider(height: 1),
+            ..._gestureConfigs.map(
+              (config) => ListTile(
+                title: Text(config.name),
+                subtitle: Text(
+                  config.infiniteLoop
+                      ? '无限循环 · 间隔 ${config.loopIntervalMillis} 毫秒'
+                      : '${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒',
+                ),
+                onTap: () => Navigator.of(context).pop(config.id),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    await _updateTaskDefinition(
+      task.id,
+      (item) => switch (result) {
+        'pre' =>
+          selected == 'none'
+              ? item.copyWith(clearPreGesture: true)
+              : item.copyWith(preGestureConfigId: selected),
+        _ =>
+          selected == 'none'
+              ? item.copyWith(clearGesture: true)
+              : item.copyWith(gestureConfigId: selected),
+      },
+      message: result == 'pre' ? '前置脚本已更新' : '执行脚本已更新',
+    );
+  }
+
+  Widget _buildTaskQuickActions(AssistantTaskDefinition task, Color accent) {
+    final state = _state;
+    if (state == null) {
+      return const SizedBox.shrink();
+    }
+    final homeVisible = state.isHomeVisible(task.id);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _TaskQuickActionChip(
+          icon: Icons.restart_alt_rounded,
+          label: '重置',
+          onTap: () => _resetTaskProgress(task),
+          accent: accent,
+        ),
+        _TaskQuickActionChip(
+          icon: homeVisible
+              ? Icons.visibility_off_rounded
+              : Icons.visibility_rounded,
+          label: homeVisible ? '首页隐藏' : '首页显示',
+          onTap: () => _toggleTaskHomeVisible(task),
+          accent: accent,
+        ),
+        _TaskQuickActionChip(
+          icon: Icons.hub_rounded,
+          label: '换绑脚本',
+          onTap: () => _pickTaskScriptBinding(task),
+          accent: accent,
+        ),
+        _TaskQuickActionChip(
+          icon: Icons.edit_rounded,
+          label: '快捷编辑',
+          onTap: () => _quickEditTask(task),
+          accent: accent,
+        ),
+      ],
+    );
+  }
+
   List<Map<String, Object?>> _expandFiniteConfigActions(GestureConfig config) {
     final out = <Map<String, Object?>>[];
     final loops = config.loopCount.clamp(1, 9999);
@@ -1033,6 +1230,10 @@ class _DashboardPageState extends State<DashboardPage>
                               appLabel: state.selectedAppLabel,
                               configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
+                              taskActions: _buildTaskQuickActions(
+                                task,
+                                const Color(0xFF5EA98D),
+                              ),
                             );
                           case AssistantTaskKind.fixedPoint:
                             final isExpired = TaskEngine.isTaskExpired(
@@ -1073,6 +1274,10 @@ class _DashboardPageState extends State<DashboardPage>
                               appLabel: state.selectedAppLabel,
                               configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
+                              taskActions: _buildTaskQuickActions(
+                                task,
+                                const Color(0xFF6B8FD6),
+                              ),
                             );
                           case AssistantTaskKind.adCooldown:
                             final count = state.intervalCompleted(task.id);
@@ -1119,6 +1324,10 @@ class _DashboardPageState extends State<DashboardPage>
                               appLabel: state.selectedAppLabel,
                               configLabel: _configLabelFor(task),
                               onOpenApp: () => _openSelectedApp(task),
+                              taskActions: _buildTaskQuickActions(
+                                task,
+                                const Color(0xFFDA8C63),
+                              ),
                             );
                         }
                       },
