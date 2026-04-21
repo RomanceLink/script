@@ -810,44 +810,53 @@ class _DashboardPageState extends State<DashboardPage>
                       ? '今天无后续提醒'
                       : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
                   stats: ['首页显示 ${tasks.length} 项', '已完成 $doneCount 项'],
-                  onReset: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('重置今日记录'),
-                        content: const Text('确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('取消'),
-                          ),
-                          FilledButton.tonal(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            style: FilledButton.styleFrom(
-                              foregroundColor: theme.colorScheme.error,
+                  settingsAction: _HeaderIconAction(
+                    icon: Icons.settings,
+                    onTap: _openSettings,
+                    foreground: theme.colorScheme.primary,
+                    background: theme.colorScheme.surface.withValues(
+                      alpha: 0.58,
+                    ),
+                  ),
+                  launchAction: _HeaderIconAction(
+                    icon: Icons.play_arrow_rounded,
+                    onTap: _startAutomationMenu,
+                    foreground: theme.colorScheme.primary,
+                    background: theme.colorScheme.surface.withValues(
+                      alpha: 0.58,
+                    ),
+                  ),
+                  resetAction: _HeaderIconAction(
+                    icon: Icons.refresh_rounded,
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('重置今日记录'),
+                          content: const Text('确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('取消'),
                             ),
-                            child: const Text('确定重置'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      await _resetForNewDay();
-                    }
-                  },
-                  action: Row(
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: _startAutomationMenu,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        tooltip: '启动悬浮菜单',
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        onPressed: _openSettings,
-                        icon: const Icon(Icons.settings),
-                      ),
-                    ],
+                            FilledButton.tonal(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: FilledButton.styleFrom(
+                                foregroundColor: theme.colorScheme.error,
+                              ),
+                              child: const Text('确定重置'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await _resetForNewDay();
+                      }
+                    },
+                    foreground: theme.colorScheme.primary,
+                    background: theme.colorScheme.surface.withValues(
+                      alpha: 0.58,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -911,6 +920,15 @@ class _DashboardPageState extends State<DashboardPage>
                       },
                       itemBuilder: (context, index) {
                         final task = tasks[index];
+                        Widget compactTask(Widget child) {
+                          return FractionallySizedBox(
+                            widthFactor: 1,
+                            heightFactor: 0.74,
+                            alignment: Alignment.topCenter,
+                            child: child,
+                          );
+                        }
+
                         switch (task.kind) {
                           case AssistantTaskKind.feedWindow:
                             final isExpired = TaskEngine.isTaskExpired(
@@ -921,45 +939,47 @@ class _DashboardPageState extends State<DashboardPage>
                               now,
                               task,
                             );
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFF5EA98D),
-                              icon: Icons.play_circle_outline_rounded,
-                              status: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isActive
-                                        ? '进行中'
-                                        : (isExpired ? '任务已过期' : '未开始')),
-                              headline: task.timeLabel,
-                              detail: state.isEnabled(task.id)
-                                  ? (state.isCompleted(task.id)
-                                        ? '本时段已完成，今日无需再记录。'
-                                        : (isExpired
-                                              ? '任务时间已过，没关系，补上吧！'
-                                              : (isActive
-                                                    ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                    : '还没到开始时间，请耐心等待。')))
-                                  : '今日未启用，不会提醒。',
-                              progressLabel: state.isCompleted(task.id)
-                                  ? '完成状态'
-                                  : '当前状态',
-                              progressValue: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isActive
-                                        ? '可执行'
-                                        : (isExpired ? '已逾期' : '未开始')),
-                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                              onPrimary: () => _markSingleTaskDone(task.id),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  !state.isCompleted(task.id) &&
-                                  (isActive || isExpired),
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
+                            return compactTask(
+                              _TaskDeckCard(
+                                task: task,
+                                accent: const Color(0xFF5EA98D),
+                                icon: Icons.play_circle_outline_rounded,
+                                status: state.isCompleted(task.id)
+                                    ? '已完成'
+                                    : (isActive
+                                          ? '进行中'
+                                          : (isExpired ? '任务已过期' : '未开始')),
+                                headline: task.timeLabel,
+                                detail: state.isEnabled(task.id)
+                                    ? (state.isCompleted(task.id)
+                                          ? '本时段已完成，今日无需再记录。'
+                                          : (isExpired
+                                                ? '任务时间已过，没关系，补上吧！'
+                                                : (isActive
+                                                      ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                      : '还没到开始时间，请耐心等待。')))
+                                    : '今日未启用，不会提醒。',
+                                progressLabel: state.isCompleted(task.id)
+                                    ? '完成状态'
+                                    : '当前状态',
+                                progressValue: state.isCompleted(task.id)
+                                    ? '已完成'
+                                    : (isActive
+                                          ? '可执行'
+                                          : (isExpired ? '已逾期' : '未开始')),
+                                primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                                onPrimary: () => _markSingleTaskDone(task.id),
+                                primaryEnabled:
+                                    state.isEnabled(task.id) &&
+                                    !state.isCompleted(task.id) &&
+                                    (isActive || isExpired),
+                                showQuickLaunch:
+                                    task.showQuickLaunch ||
+                                    (task.gestureConfigId?.isNotEmpty ?? false),
+                                appLabel: state.selectedAppLabel,
+                                configLabel: _configLabelFor(task),
+                                onOpenApp: () => _openSelectedApp(task),
+                              ),
                             );
                           case AssistantTaskKind.fixedPoint:
                             final isExpired = TaskEngine.isTaskExpired(
@@ -967,85 +987,89 @@ class _DashboardPageState extends State<DashboardPage>
                               task,
                             );
                             final isDue = TaskEngine.isFixedTaskDue(now, task);
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFF6B8FD6),
-                              icon: Icons.alarm_rounded,
-                              status: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isDue
-                                        ? (isExpired ? '任务已过期' : '到点')
-                                        : '未开始'),
-                              headline: task.timeLabel,
-                              detail: state.isEnabled(task.id)
-                                  ? (state.isCompleted(task.id)
-                                        ? '该提醒已完成。'
-                                        : (isExpired
-                                              ? '任务已过，现在标记补卡吧。'
-                                              : (isDue
-                                                    ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                    : '还没到提醒时间。')))
-                                  : '今日未启用，不会提醒。',
-                              progressLabel: '提醒时间',
-                              progressValue: task.timeLabel,
-                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                              onPrimary: () => _markSingleTaskDone(task.id),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  !state.isCompleted(task.id) &&
-                                  isDue,
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
+                            return compactTask(
+                              _TaskDeckCard(
+                                task: task,
+                                accent: const Color(0xFF6B8FD6),
+                                icon: Icons.alarm_rounded,
+                                status: state.isCompleted(task.id)
+                                    ? '已完成'
+                                    : (isDue
+                                          ? (isExpired ? '任务已过期' : '到点')
+                                          : '未开始'),
+                                headline: task.timeLabel,
+                                detail: state.isEnabled(task.id)
+                                    ? (state.isCompleted(task.id)
+                                          ? '该提醒已完成。'
+                                          : (isExpired
+                                                ? '任务已过，现在标记补卡吧。'
+                                                : (isDue
+                                                      ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                      : '还没到提醒时间。')))
+                                    : '今日未启用，不会提醒。',
+                                progressLabel: '提醒时间',
+                                progressValue: task.timeLabel,
+                                primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                                onPrimary: () => _markSingleTaskDone(task.id),
+                                primaryEnabled:
+                                    state.isEnabled(task.id) &&
+                                    !state.isCompleted(task.id) &&
+                                    isDue,
+                                showQuickLaunch:
+                                    task.showQuickLaunch ||
+                                    (task.gestureConfigId?.isNotEmpty ?? false),
+                                appLabel: state.selectedAppLabel,
+                                configLabel: _configLabelFor(task),
+                                onOpenApp: () => _openSelectedApp(task),
+                              ),
                             );
                           case AssistantTaskKind.adCooldown:
                             final count = state.intervalCompleted(task.id);
                             final progressText = task.infiniteLoop
                                 ? '$count / ∞'
                                 : '$count / ${task.targetCount}';
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFFDA8C63),
-                              icon: Icons.hourglass_bottom_rounded,
-                              status: progressText,
-                              headline: '间隔 ${task.intervalLabel}',
-                              detail: TaskEngine.counterTaskLabel(
-                                now,
-                                state,
-                                task,
+                            return compactTask(
+                              _TaskDeckCard(
+                                task: task,
+                                accent: const Color(0xFFDA8C63),
+                                icon: Icons.hourglass_bottom_rounded,
+                                status: progressText,
+                                headline: '间隔 ${task.intervalLabel}',
+                                detail: TaskEngine.counterTaskLabel(
+                                  now,
+                                  state,
+                                  task,
+                                ),
+                                progressLabel: '今日进度',
+                                progressValue: progressText,
+                                primaryLabel:
+                                    (!task.infiniteLoop &&
+                                        count >= task.targetCount)
+                                    ? '今日已完成'
+                                    : (TaskEngine.canCompleteCounterTask(
+                                            now,
+                                            state,
+                                            task,
+                                          )
+                                          ? '本次已完成'
+                                          : '倒计时中'),
+                                onPrimary: () => _markCounterTaskDone(task),
+                                primaryEnabled:
+                                    state.isEnabled(task.id) &&
+                                    (task.infiniteLoop ||
+                                        count < task.targetCount) &&
+                                    TaskEngine.canCompleteCounterTask(
+                                      now,
+                                      state,
+                                      task,
+                                    ),
+                                showQuickLaunch:
+                                    task.showQuickLaunch ||
+                                    (task.gestureConfigId?.isNotEmpty ?? false),
+                                appLabel: state.selectedAppLabel,
+                                configLabel: _configLabelFor(task),
+                                onOpenApp: () => _openSelectedApp(task),
                               ),
-                              progressLabel: '今日进度',
-                              progressValue: progressText,
-                              primaryLabel:
-                                  (!task.infiniteLoop &&
-                                      count >= task.targetCount)
-                                  ? '今日已完成'
-                                  : (TaskEngine.canCompleteCounterTask(
-                                          now,
-                                          state,
-                                          task,
-                                        )
-                                        ? '本次已完成'
-                                        : '倒计时中'),
-                              onPrimary: () => _markCounterTaskDone(task),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  (task.infiniteLoop ||
-                                      count < task.targetCount) &&
-                                  TaskEngine.canCompleteCounterTask(
-                                    now,
-                                    state,
-                                    task,
-                                  ),
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
                             );
                         }
                       },

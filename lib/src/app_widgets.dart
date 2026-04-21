@@ -153,21 +153,25 @@ class _HeaderCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.stats,
-    required this.action,
-    this.onReset,
+    required this.settingsAction,
+    required this.launchAction,
+    required this.resetAction,
   });
 
   final String title;
   final String subtitle;
   final List<String> stats;
-  final Widget action;
-  final VoidCallback? onReset;
+  final Widget settingsAction;
+  final Widget launchAction;
+  final Widget resetAction;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final statsText = stats.join(' · ');
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -187,81 +191,67 @@ class _HeaderCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '今日箴言',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (onReset != null) ...[
-                      const SizedBox(width: 8),
-                      _HeaderMiniAction(
-                        label: '重置',
-                        onTap: onReset!,
-                        foreground:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFFFFD7BA)
-                            : const Color(0xFFAD6A3A),
-                        background:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF3A2923)
-                            : const Color(0xFFFFF1E5),
-                        border: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF6F4934)
-                            : const Color(0xFFFFCBA9),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  maxLines: 2,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  statsText,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
                     fontWeight: FontWeight.w900,
-                    height: 1.16,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
+              ),
+              const SizedBox(width: 8),
+              settingsAction,
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: launchAction,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (stats.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: stats
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) =>
-                              _StatPill(label: entry.value, tone: entry.key),
-                        )
-                        .toList(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 104),
-            child: action,
+                ),
+              ),
+              const SizedBox(width: 8),
+              resetAction,
+            ],
           ),
         ],
       ),
@@ -269,20 +259,18 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _HeaderMiniAction extends StatelessWidget {
-  const _HeaderMiniAction({
-    required this.label,
+class _HeaderIconAction extends StatelessWidget {
+  const _HeaderIconAction({
+    required this.icon,
     required this.onTap,
     required this.foreground,
     required this.background,
-    required this.border,
   });
 
-  final String label;
+  final IconData icon;
   final VoidCallback onTap;
   final Color foreground;
   final Color background;
-  final Color border;
 
   @override
   Widget build(BuildContext context) {
@@ -292,56 +280,10 @@ class _HeaderMiniAction extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: border),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatPill extends StatelessWidget {
-  const _StatPill({required this.label, required this.tone});
-
-  final String label;
-  final int tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palettes = theme.brightness == Brightness.dark
-        ? const [
-            (Color(0xFF1F3D39), Color(0xFF8ED8C8)),
-            (Color(0xFF23364A), Color(0xFF9BC2FF)),
-          ]
-        : const [
-            (Color(0xFFDFF5EE), Color(0xFF2F7D6B)),
-            (Color(0xFFE4F0FF), Color(0xFF436EAF)),
-          ];
-    final palette = palettes[tone % palettes.length];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: palette.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: palette.$2,
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 18, color: foreground),
         ),
       ),
     );
@@ -522,7 +464,6 @@ class _TaskDeckCard extends StatelessWidget {
                   );
                 },
               ),
-              const Spacer(),
               const SizedBox(height: 10),
               if (showQuickLaunch)
                 Row(
