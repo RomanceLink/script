@@ -167,7 +167,7 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -178,12 +178,12 @@ class _HeaderCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: colors.shadow.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -196,19 +196,11 @@ class _HeaderCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: 0.42),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '今日箴言',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                    Text(
+                      '今日箴言',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     if (onReset != null) ...[
@@ -231,21 +223,28 @@ class _HeaderCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 8),
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    height: 1.18,
+                    height: 1.16,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(subtitle),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 if (stats.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 8),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 6,
+                    runSpacing: 6,
                     children: stats
                         .asMap()
                         .entries
@@ -259,7 +258,11 @@ class _HeaderCard extends StatelessWidget {
               ],
             ),
           ),
-          action,
+          const SizedBox(width: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 104),
+            child: action,
+          ),
         ],
       ),
     );
@@ -290,7 +293,7 @@ class _HeaderMiniAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
             border: Border.all(color: border),
             borderRadius: BorderRadius.circular(999),
@@ -329,14 +332,14 @@ class _StatPill extends StatelessWidget {
           ];
     final palette = palettes[tone % palettes.length];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: palette.$1,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: theme.textTheme.labelMedium?.copyWith(
+        style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w700,
           color: palette.$2,
         ),
@@ -412,150 +415,164 @@ class _TaskDeckCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(icon, color: accent, size: 28),
+          padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                    child: Icon(icon, color: accent, size: 23),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
                           ),
-                          const SizedBox(height: 6),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (configLabel != null) ...[
+                          const SizedBox(height: 2),
                           Text(
-                            '${task.timeLabel} · 铃声 ${task.ringtoneLabel}',
+                            '绑定配置：$configLabel',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: accent,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          if (configLabel != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              '绑定配置：$configLabel',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
+                        ],
+                      ],
+                    ),
+                  ),
+                  _StatusBadge(label: status, accent: accent),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final useTwoColumns = constraints.maxWidth >= 300;
+                  if (useTwoColumns) {
+                    return Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _InfoPanel(
+                                title: '任务时间',
+                                value: headline,
+                                accent: accent,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _InfoPanel(
+                                title: progressLabel,
+                                value: progressValue,
+                                accent: accent,
                               ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                    _StatusBadge(label: status, accent: accent),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final useTwoColumns = constraints.maxWidth >= 520;
-                    if (useTwoColumns) {
-                      return Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _InfoPanel(
-                                  title: '任务时间',
-                                  value: headline,
-                                  accent: accent,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _InfoPanel(
-                                  title: progressLabel,
-                                  value: progressValue,
-                                  accent: accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          _DetailPanel(detail: detail, accent: accent),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        _InfoPanel(
-                          title: '任务时间',
-                          value: headline,
-                          accent: accent,
                         ),
-                        const SizedBox(height: 12),
-                        _InfoPanel(
-                          title: progressLabel,
-                          value: progressValue,
-                          accent: accent,
-                        ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 8),
                         _DetailPanel(detail: detail, accent: accent),
                       ],
                     );
-                  },
-                ),
-                const SizedBox(height: 14),
-                if (showQuickLaunch)
-                  Row(
+                  }
+                  return Column(
                     children: [
-                      Expanded(
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: primaryButtonFill,
-                            foregroundColor: primaryButtonText,
-                          ),
-                          onPressed: primaryEnabled ? onPrimary : null,
-                          child: Text(primaryLabel),
-                        ),
+                      _InfoPanel(
+                        title: '任务时间',
+                        value: headline,
+                        accent: accent,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.tonal(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: secondaryButtonFill,
-                            foregroundColor: secondaryButtonText,
-                            side: BorderSide.none,
-                          ),
-                          onPressed: onOpenApp,
-                          child: Text('打开$appLabel'),
-                        ),
+                      const SizedBox(height: 8),
+                      _InfoPanel(
+                        title: progressLabel,
+                        value: progressValue,
+                        accent: accent,
                       ),
+                      const SizedBox(height: 8),
+                      _DetailPanel(detail: detail, accent: accent),
                     ],
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: primaryButtonFill,
-                        foregroundColor: primaryButtonText,
+                  );
+                },
+              ),
+              const Spacer(),
+              const SizedBox(height: 10),
+              if (showQuickLaunch)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: primaryButtonFill,
+                          foregroundColor: primaryButtonText,
+                          minimumSize: const Size(0, 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed: primaryEnabled ? onPrimary : null,
+                        child: Text(primaryLabel),
                       ),
-                      onPressed: primaryEnabled ? onPrimary : null,
-                      child: Text(primaryLabel),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: secondaryButtonFill,
+                          foregroundColor: secondaryButtonText,
+                          side: BorderSide.none,
+                          minimumSize: const Size(0, 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed: onOpenApp,
+                        child: Text(
+                          '打开$appLabel',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryButtonFill,
+                      foregroundColor: primaryButtonText,
+                      minimumSize: const Size(0, 40),
+                    ),
+                    onPressed: primaryEnabled ? onPrimary : null,
+                    child: Text(primaryLabel),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -578,14 +595,14 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w800,
           color: accent,
         ),
@@ -610,10 +627,10 @@ class _InfoPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withValues(alpha: 0.56),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
         ),
@@ -621,28 +638,32 @@ class _InfoPanel extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 36,
+            width: 5,
+            height: 30,
             decoration: BoxDecoration(
               color: accent,
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.labelLarge?.copyWith(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   value,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -666,10 +687,10 @@ class _DetailPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withValues(alpha: 0.56),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
         ),
@@ -678,18 +699,20 @@ class _DetailPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 8,
-            height: 36,
+            width: 5,
+            height: 30,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               detail,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
             ),
           ),
         ],

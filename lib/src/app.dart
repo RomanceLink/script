@@ -801,7 +801,7 @@ class _DashboardPageState extends State<DashboardPage>
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(
               children: [
                 _HeaderCard(
@@ -850,7 +850,7 @@ class _DashboardPageState extends State<DashboardPage>
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 if (tasks.isEmpty)
                   Expanded(
                     child: Card(
