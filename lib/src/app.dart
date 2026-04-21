@@ -599,37 +599,43 @@ class _DashboardPageState extends State<DashboardPage>
       return const SizedBox.shrink();
     }
     final homeVisible = state.isHomeVisible(task.id);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _TaskQuickActionChip(
-          icon: Icons.restart_alt_rounded,
-          label: '重置',
-          onTap: () => _resetTaskProgress(task),
-          accent: accent,
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.1 : 0.07,
         ),
-        _TaskQuickActionChip(
-          icon: homeVisible
-              ? Icons.visibility_off_rounded
-              : Icons.visibility_rounded,
-          label: homeVisible ? '首页隐藏' : '首页显示',
-          onTap: () => _toggleTaskHomeVisible(task),
-          accent: accent,
-        ),
-        _TaskQuickActionChip(
-          icon: Icons.hub_rounded,
-          label: '换绑脚本',
-          onTap: () => _pickTaskScriptBinding(task),
-          accent: accent,
-        ),
-        _TaskQuickActionChip(
-          icon: Icons.edit_rounded,
-          label: '快捷编辑',
-          onTap: () => _quickEditTask(task),
-          accent: accent,
-        ),
-      ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _TaskQuickActionChip(
+            label: '重置',
+            onTap: () => _resetTaskProgress(task),
+            accent: accent,
+          ),
+          _TaskQuickActionChip(
+            label: homeVisible ? '首页隐藏' : '首页显示',
+            onTap: () => _toggleTaskHomeVisible(task),
+            accent: accent,
+          ),
+          _TaskQuickActionChip(
+            label: '换绑脚本',
+            onTap: () => _pickTaskScriptBinding(task),
+            accent: accent,
+          ),
+          _TaskQuickActionChip(
+            label: '快捷编辑',
+            onTap: () => _quickEditTask(task),
+            accent: accent,
+          ),
+        ],
+      ),
     );
   }
 
@@ -936,10 +942,9 @@ class _DashboardPageState extends State<DashboardPage>
           ];
   }
 
-  String? _configLabelFor(AssistantTaskDefinition task) {
-    final id = task.gestureConfigId;
+  String _describeConfig(String? id) {
     if (id == null || id.isEmpty) {
-      return null;
+      return '未绑定';
     }
     final config = _gestureConfigs.where((item) => item.id == id).firstOrNull;
     if (config == null) {
@@ -951,6 +956,13 @@ class _DashboardPageState extends State<DashboardPage>
         : '约 ${estimateGestureConfigDuration(config).label}';
     final followUpLabel = config.followUpConfigId == null ? '' : ' · 含追加配置';
     return '${config.name} · $loopLabel · 间隔 ${config.loopIntervalMillis} 毫秒$followUpLabel · $durationLabel';
+  }
+
+  List<String> _configDetailsFor(AssistantTaskDefinition task) {
+    return [
+      '前置配置：${_describeConfig(task.preGestureConfigId)}',
+      '执行配置：${_describeConfig(task.gestureConfigId)}',
+    ];
   }
 
   @override
@@ -1228,7 +1240,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   task.showQuickLaunch ||
                                   (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
+                              configDetails: _configDetailsFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                               taskActions: _buildTaskQuickActions(
                                 task,
@@ -1272,7 +1284,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   task.showQuickLaunch ||
                                   (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
+                              configDetails: _configDetailsFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                               taskActions: _buildTaskQuickActions(
                                 task,
@@ -1322,7 +1334,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   task.showQuickLaunch ||
                                   (task.gestureConfigId?.isNotEmpty ?? false),
                               appLabel: state.selectedAppLabel,
-                              configLabel: _configLabelFor(task),
+                              configDetails: _configDetailsFor(task),
                               onOpenApp: () => _openSelectedApp(task),
                               taskActions: _buildTaskQuickActions(
                                 task,
@@ -2781,6 +2793,22 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
         child: ListView(
           shrinkWrap: true,
           children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  tooltip: '返回',
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.task == null ? '新建任务' : '快捷编辑任务',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
             _EditorHeroCard(kindLabel: _kindLabel(_kind)),
             const SizedBox(height: 14),
             _EditorSectionCard(

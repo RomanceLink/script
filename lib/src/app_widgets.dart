@@ -364,7 +364,7 @@ class _TaskDeckCard extends StatelessWidget {
     required this.primaryEnabled,
     required this.showQuickLaunch,
     required this.appLabel,
-    required this.configLabel,
+    required this.configDetails,
     required this.onOpenApp,
     this.taskActions,
   });
@@ -382,7 +382,7 @@ class _TaskDeckCard extends StatelessWidget {
   final bool primaryEnabled;
   final bool showQuickLaunch;
   final String appLabel;
-  final String? configLabel;
+  final List<String> configDetails;
   final Future<void> Function() onOpenApp;
   final Widget? taskActions;
 
@@ -458,18 +458,6 @@ class _TaskDeckCard extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        if (configLabel != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            '绑定配置：$configLabel',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -477,60 +465,103 @@ class _TaskDeckCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final useTwoColumns = constraints.maxWidth >= 300;
-                  if (useTwoColumns) {
-                    return Column(
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _InfoPanel(
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      if (configDetails.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(
+                              alpha: theme.brightness == Brightness.dark
+                                  ? 0.14
+                                  : 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final line in configDetails)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text(
+                                    line,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: accent,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (taskActions != null) ...[
+                        taskActions!,
+                        const SizedBox(height: 12),
+                      ],
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final useTwoColumns = constraints.maxWidth >= 300;
+                          if (useTwoColumns) {
+                            return Column(
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: _InfoPanel(
+                                        title: '任务时间',
+                                        value: headline,
+                                        accent: accent,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _InfoPanel(
+                                        title: progressLabel,
+                                        value: progressValue,
+                                        accent: accent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                _DetailPanel(detail: detail, accent: accent),
+                              ],
+                            );
+                          }
+                          return Column(
+                            children: [
+                              _InfoPanel(
                                 title: '任务时间',
                                 value: headline,
                                 accent: accent,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _InfoPanel(
+                              const SizedBox(height: 8),
+                              _InfoPanel(
                                 title: progressLabel,
                                 value: progressValue,
                                 accent: accent,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _DetailPanel(detail: detail, accent: accent),
-                      ],
-                    );
-                  }
-                  return Column(
-                    children: [
-                      _InfoPanel(
-                        title: '任务时间',
-                        value: headline,
-                        accent: accent,
+                              const SizedBox(height: 8),
+                              _DetailPanel(detail: detail, accent: accent),
+                            ],
+                          );
+                        },
                       ),
-                      const SizedBox(height: 8),
-                      _InfoPanel(
-                        title: progressLabel,
-                        value: progressValue,
-                        accent: accent,
-                      ),
-                      const SizedBox(height: 8),
-                      _DetailPanel(detail: detail, accent: accent),
                     ],
-                  );
-                },
+                  ),
+                ),
               ),
-              if (taskActions != null) ...[
-                const SizedBox(height: 10),
-                taskActions!,
-              ],
               const SizedBox(height: 16),
               // --- 底部操作区 ---
               Container(
@@ -593,13 +624,11 @@ class _TaskDeckCard extends StatelessWidget {
 
 class _TaskQuickActionChip extends StatelessWidget {
   const _TaskQuickActionChip({
-    required this.icon,
     required this.label,
     required this.onTap,
     required this.accent,
   });
 
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
   final Color accent;
@@ -617,19 +646,12 @@ class _TaskQuickActionChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: accent),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: accent,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+          child: Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ),
