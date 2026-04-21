@@ -777,6 +777,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
         10000000,
       );
 
+  double _actionListHeight(BuildContext context) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final desired = (_actions.length * 84.0).clamp(180.0, screenHeight * 0.46);
+    return desired.toDouble();
+  }
+
   Future<void> _pickFollowUpConfig() async {
     final currentId = widget.config?.id;
     final result = await showModalBottomSheet<String>(
@@ -2177,30 +2183,54 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               ),
                             ),
                           )
-                        : ReorderableListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _actions.length,
-                            onReorder: (oldIndex, newIndex) {
-                              setState(() {
-                                if (oldIndex < newIndex) newIndex -= 1;
-                                final item = _actions.removeAt(oldIndex);
-                                _actions.insert(newIndex, item);
-                              });
-                            },
-                            itemBuilder: (context, index) {
-                              final action = _actions[index];
-                              return _ModernActionTile(
-                                key: ValueKey('${action.runtimeType}-$index'),
-                                index: index,
-                                action: action,
-                                onDelete: () =>
-                                    setState(() => _actions.removeAt(index)),
-                                onEdit: _isPositionEditable(action)
-                                    ? () => _editAction(index)
-                                    : null,
-                              );
-                            },
+                        : SizedBox(
+                            height: _actionListHeight(context),
+                            child: ReorderableListView.builder(
+                              buildDefaultDragHandles: false,
+                              physics: const ClampingScrollPhysics(),
+                              itemCount: _actions.length,
+                              proxyDecorator: (child, index, animation) {
+                                return AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, _) {
+                                    final elevation = Tween<double>(
+                                      begin: 0,
+                                      end: 10,
+                                    ).evaluate(animation);
+                                    return Material(
+                                      elevation: elevation,
+                                      shadowColor: Colors.black.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(16),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: child,
+                                    );
+                                  },
+                                );
+                              },
+                              onReorder: (oldIndex, newIndex) {
+                                setState(() {
+                                  if (oldIndex < newIndex) newIndex -= 1;
+                                  final item = _actions.removeAt(oldIndex);
+                                  _actions.insert(newIndex, item);
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                final action = _actions[index];
+                                return _ModernActionTile(
+                                  key: ValueKey('${action.runtimeType}-$index'),
+                                  index: index,
+                                  action: action,
+                                  onDelete: () =>
+                                      setState(() => _actions.removeAt(index)),
+                                  onEdit: _isPositionEditable(action)
+                                      ? () => _editAction(index)
+                                      : null,
+                                );
+                              },
+                            ),
                           ),
                   ),
                   const SizedBox(height: 32),
