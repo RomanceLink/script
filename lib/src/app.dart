@@ -152,6 +152,7 @@ class _DashboardPageState extends State<DashboardPage>
   String? _focusTaskId;
   int _currentTaskPage = 0;
   List<GestureConfig> _gestureConfigs = [];
+  List<String> _dailyMottos = const [];
   bool _handlingOverlayCommand = false;
 
   @override
@@ -186,12 +187,14 @@ class _DashboardPageState extends State<DashboardPage>
         _focusTaskId = await _alarmBridge.consumeLaunchTaskId();
       }
       final gestureConfigs = await _repository.loadGestureConfigs();
+      final dailyMottos = await _repository.loadDailyMottos();
       if (!mounted) {
         return;
       }
       setState(() {
         _state = state;
         _gestureConfigs = gestureConfigs;
+        _dailyMottos = dailyMottos;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -292,16 +295,16 @@ class _DashboardPageState extends State<DashboardPage>
     final now = DateTime.now();
     await _mutateState(
       (state) {
-        final nextCount = (state.intervalCompleted(task.id) + 1).clamp(
-          0,
-          task.targetCount,
-        );
+        final rawNextCount = state.intervalCompleted(task.id) + 1;
+        final nextCount = task.infiniteLoop
+            ? rawNextCount
+            : rawNextCount.clamp(0, task.targetCount);
         final nextCounts = {
           ...state.intervalCompletedCounts,
           task.id: nextCount,
         };
         final nextTimes = {...state.intervalNextAvailableAt};
-        if (nextCount >= task.targetCount) {
+        if (!task.infiniteLoop && nextCount >= task.targetCount) {
           nextTimes.remove(task.id);
         } else {
           nextTimes[task.id] = now.add(task.cooldownDuration);
@@ -313,6 +316,88 @@ class _DashboardPageState extends State<DashboardPage>
       },
       message: '记录成功，计时开始！',
       type: ToastType.success,
+    );
+  }
+
+  List<Map<String, Object?>> _expandFiniteConfigActions(GestureConfig config) {
+    final out = <Map<String, Object?>>[];
+    final loops = config.loopCount.clamp(1, 9999);
+    for (var i = 0; i < loops; i++) {
+      out.addAll(config.actions.map((action) => action.toJson()));
+      if (i < loops - 1 && config.loopIntervalMillis > 0) {
+        out.add(
+          WaitAction.fixedMilliseconds(milliseconds: config.loopIntervalMillis)
+              .toJson(),
+        );
+      }
+    }
+    return out;
+  }
+
+  ({
+    String name,
+    List<Map<String, Object?>> beforeLoopActions,
+    List<Map<String, Object?>> loopActions,
+    int loopCount,
+    int loopIntervalMillis,
+    bool infiniteLoop,
+  })? _resolveGestureExecutionPlan(
+    GestureConfig? config,
+    List<GestureConfig> configs, {
+    bool allowInfinite = true,
+    Set<String>? visited,
+  }) {
+    if (config == null) {
+      return null;
+    }
+    final nextVisited = {...?visited};
+    if (!nextVisited.add(config.id)) {
+      return (
+        name: config.name,
+        beforeLoopActions: _expandFiniteConfigActions(config),
+        loopActions: const [],
+        loopCount: 1,
+        loopIntervalMillis: 0,
+        infiniteLoop: false,
+      );
+    }
+    if (config.infiniteLoop && allowInfinite) {
+      return (
+        name: config.name,
+        beforeLoopActions: const [],
+        loopActions: config.actions.map((action) => action.toJson()).toList(),
+        loopCount: config.loopCount,
+        loopIntervalMillis: config.loopIntervalMillis,
+        infiniteLoop: true,
+      );
+    }
+    final currentActions = _expandFiniteConfigActions(config);
+    final child = configs
+        .where((item) => item.id == config.followUpConfigId)
+        .firstOrNull;
+    final childPlan = _resolveGestureExecutionPlan(
+      child,
+      configs,
+      allowInfinite: allowInfinite,
+      visited: nextVisited,
+    );
+    if (childPlan == null) {
+      return (
+        name: config.name,
+        beforeLoopActions: currentActions,
+        loopActions: const [],
+        loopCount: 1,
+        loopIntervalMillis: 0,
+        infiniteLoop: false,
+      );
+    }
+    return (
+      name: '${config.name} -> ${childPlan.name}',
+      beforeLoopActions: [...currentActions, ...childPlan.beforeLoopActions],
+      loopActions: childPlan.loopActions,
+      loopCount: childPlan.loopCount,
+      loopIntervalMillis: childPlan.loopIntervalMillis,
+      infiniteLoop: childPlan.infiniteLoop,
     );
   }
 
@@ -331,18 +416,25 @@ class _DashboardPageState extends State<DashboardPage>
     final config = configId == null
         ? null
         : configs.where((c) => c.id == configId).firstOrNull;
+    final prePlan = _resolveGestureExecutionPlan(
+      preConfig,
+      configs,
+      allowInfinite: false,
+    );
+    final mainPlan = _resolveGestureExecutionPlan(config, configs);
     final ok = await _alarmBridge.openAppAndRunConfig(
       packageName: state.selectedAppPackage,
       packageLabel: state.selectedAppLabel,
-      preConfigName: preConfig?.name,
-      preActions:
-          preConfig?.actions.map((a) => a.toJson()).toList() ?? const [],
-      preLoopCount: preConfig?.loopCount ?? 1,
-      preLoopIntervalMillis: preConfig?.loopIntervalMillis ?? 0,
-      configName: config?.name,
-      actions: config?.actions.map((a) => a.toJson()).toList() ?? const [],
-      loopCount: config?.loopCount ?? 1,
-      loopIntervalMillis: config?.loopIntervalMillis ?? 0,
+      preConfigName: prePlan?.name,
+      preActions: prePlan?.beforeLoopActions ?? const [],
+      preLoopCount: 1,
+      preLoopIntervalMillis: 0,
+      configName: mainPlan?.name,
+      beforeLoopActions: mainPlan?.beforeLoopActions ?? const [],
+      actions: mainPlan?.loopActions ?? const [],
+      loopCount: mainPlan?.loopCount ?? 1,
+      loopIntervalMillis: mainPlan?.loopIntervalMillis ?? 0,
+      infiniteLoop: mainPlan?.infiniteLoop ?? false,
       delaySeconds: 5,
     );
     if (!mounted) {
@@ -355,11 +447,11 @@ class _DashboardPageState extends State<DashboardPage>
     }
 
     _showMessage(
-      config == null
+      mainPlan == null
           ? '已打开 ${state.selectedAppLabel}'
-          : preConfig == null
-          ? '已打开 ${state.selectedAppLabel}，5 秒后执行 ${config.name}'
-          : '先执行前置脚本 ${preConfig.name}，再打开 ${state.selectedAppLabel}',
+          : prePlan == null
+          ? '已打开 ${state.selectedAppLabel}，5 秒后执行 ${mainPlan.name}'
+          : '先执行前置脚本 ${prePlan.name}，再打开 ${state.selectedAppLabel}',
       type: ToastType.info,
     );
   }
@@ -406,7 +498,10 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> _createGestureConfigFromOverlay() async {
     final result = await Navigator.of(context).push<GestureConfig>(
-      MaterialPageRoute(builder: (_) => GestureEditPage(launcher: _launcher)),
+      MaterialPageRoute(
+        builder: (_) =>
+            GestureEditPage(launcher: _launcher, repository: _repository),
+      ),
     );
     if (result == null) {
       return;
@@ -464,8 +559,12 @@ class _DashboardPageState extends State<DashboardPage>
 
     if (next != null) {
       final configs = await _repository.loadGestureConfigs();
+      final dailyMottos = await _repository.loadDailyMottos();
       if (mounted) {
-        setState(() => _gestureConfigs = configs);
+        setState(() {
+          _gestureConfigs = configs;
+          _dailyMottos = dailyMottos;
+        });
       }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
     }
@@ -480,7 +579,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   String _dailyMotto(DateTime now) {
-    const mottos = [
+    const fallbackMottos = [
       '天生我才必有用，千金散尽还复来',
       '长风破浪会有时，直挂云帆济沧海',
       '且将新火试新茶，诗酒趁年华',
@@ -488,6 +587,7 @@ class _DashboardPageState extends State<DashboardPage>
       '山高路远，亦要见自己',
       '日日自新，步步生光',
     ];
+    final mottos = _dailyMottos.isEmpty ? fallbackMottos : _dailyMottos;
     final seed = now.year * 10000 + now.month * 100 + now.day;
     return mottos[seed % mottos.length];
   }
@@ -519,7 +619,12 @@ class _DashboardPageState extends State<DashboardPage>
     if (config == null) {
       return '配置已删除';
     }
-    return '${config.name} · ${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒 · 约 ${estimateGestureConfigDuration(config).label}';
+    final loopLabel = config.infiniteLoop ? '无限循环' : '${config.loopCount} 次';
+    final durationLabel = config.infiniteLoop
+        ? '持续执行'
+        : '约 ${estimateGestureConfigDuration(config).label}';
+    final followUpLabel = config.followUpConfigId == null ? '' : ' · 含追加配置';
+    return '${config.name} · $loopLabel · 间隔 ${config.loopIntervalMillis} 毫秒$followUpLabel · $durationLabel';
   }
 
   @override
@@ -596,7 +701,8 @@ class _DashboardPageState extends State<DashboardPage>
         return false;
       }
       return task.kind == AssistantTaskKind.adCooldown
-          ? state.intervalCompleted(task.id) >= task.targetCount
+          ? (!task.infiniteLoop &&
+                state.intervalCompleted(task.id) >= task.targetCount)
           : state.isCompleted(task.id);
     }).length;
 
@@ -665,14 +771,50 @@ class _DashboardPageState extends State<DashboardPage>
                 const SizedBox(height: 14),
                 if (tasks.isEmpty)
                   Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: Text(
-                            '首页当前无任务。去右上角设置页，开启“在首页显示”。',
-                            style: theme.textTheme.bodyLarge,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 28,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primaryContainer
+                                        .withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Icon(
+                                    Icons.inbox_rounded,
+                                    size: 32,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  '暂无首页任务',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '去设置页开启“首页显示”，常用任务就会出现在这里。',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -782,11 +924,14 @@ class _DashboardPageState extends State<DashboardPage>
                             );
                           case AssistantTaskKind.adCooldown:
                             final count = state.intervalCompleted(task.id);
+                            final progressText = task.infiniteLoop
+                                ? '$count / ∞'
+                                : '$count / ${task.targetCount}';
                             return _TaskDeckCard(
                               task: task,
                               accent: const Color(0xFFDA8C63),
                               icon: Icons.hourglass_bottom_rounded,
-                              status: '$count/${task.targetCount}',
+                              status: progressText,
                               headline: '间隔 ${task.intervalLabel}',
                               detail: TaskEngine.counterTaskLabel(
                                 now,
@@ -794,8 +939,10 @@ class _DashboardPageState extends State<DashboardPage>
                                 task,
                               ),
                               progressLabel: '今日进度',
-                              progressValue: '$count / ${task.targetCount}',
-                              primaryLabel: count >= task.targetCount
+                              progressValue: progressText,
+                              primaryLabel:
+                                  (!task.infiniteLoop &&
+                                      count >= task.targetCount)
                                   ? '今日已完成'
                                   : (TaskEngine.canCompleteCounterTask(
                                           now,
@@ -807,7 +954,8 @@ class _DashboardPageState extends State<DashboardPage>
                               onPrimary: () => _markCounterTaskDone(task),
                               primaryEnabled:
                                   state.isEnabled(task.id) &&
-                                  count < task.targetCount &&
+                                  (task.infiniteLoop ||
+                                      count < task.targetCount) &&
                                   TaskEngine.canCompleteCounterTask(
                                     now,
                                     state,
@@ -945,6 +1093,14 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _openMottoPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _DailyMottoSettingsPage(repository: widget.repository),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -975,7 +1131,7 @@ class _SettingsPageState extends State<SettingsPage> {
             iconBackground: const Color(0xFFF3E8FF),
             title: '脚本配置',
             subtitle: '管理自动化配置、启动悬浮菜单。',
-            trailingText: '2 actions',
+            trailingText: '自动化',
             onTap: _openScriptsPage,
           ),
           _SettingsNavCell(
@@ -984,7 +1140,7 @@ class _SettingsPageState extends State<SettingsPage> {
             iconBackground: const Color(0xFFE5F0FF),
             title: '提醒权限与系统设置',
             subtitle: '全屏通知、精确闹钟、辅助功能、自测。',
-            trailingText: '6 items',
+            trailingText: '6项',
             onTap: _openPermissionsPage,
           ),
           _SettingsNavCell(
@@ -993,7 +1149,7 @@ class _SettingsPageState extends State<SettingsPage> {
             iconBackground: const Color(0xFFFFEFD9),
             title: '任务管理',
             subtitle: '编辑任务、排序、启用状态、首页显示。',
-            trailingText: '${_draft.taskDefinitions.length} tasks',
+            trailingText: '${_draft.taskDefinitions.length}个任务',
             onTap: _openTasksPage,
           ),
           _SettingsNavCell(
@@ -1002,8 +1158,17 @@ class _SettingsPageState extends State<SettingsPage> {
             iconBackground: const Color(0xFFF2E4FF),
             title: '模板库',
             subtitle: '保存当前整套任务，整组复用与编辑。',
-            trailingText: '${_draft.templateGroups.length} groups',
+            trailingText: '${_draft.templateGroups.length}个模板',
             onTap: _openTemplatesPage,
+          ),
+          _SettingsNavCell(
+            icon: Icons.auto_awesome_rounded,
+            iconTint: const Color(0xFFB85082),
+            iconBackground: const Color(0xFFFFE5F2),
+            title: '每日箴言',
+            subtitle: '可添加预设，也可自定义编辑。',
+            trailingText: '自定义',
+            onTap: _openMottoPage,
           ),
         ],
       ),
@@ -1565,7 +1730,9 @@ class _TaskManagementSettingsPageState
       AssistantTaskKind.fixedPoint => '固定时间',
     };
     final suffix = task.kind == AssistantTaskKind.adCooldown
-        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
+        ? (task.infiniteLoop
+              ? ' · 无限循环 / 间隔${task.intervalLabel}'
+              : ' · ${task.targetCount}次 / 间隔${task.intervalLabel}')
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
     final pre = (task.preGestureConfigId?.isNotEmpty ?? false)
@@ -2070,6 +2237,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
+  late bool _infiniteLoop;
   String? _preGestureConfigId;
   String? _gestureConfigId;
   List<GestureConfig> _availableConfigs = [];
@@ -2104,6 +2272,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
+    _infiniteLoop = task?.infiniteLoop ?? false;
     _preGestureConfigId = task?.preGestureConfigId;
     _gestureConfigId = task?.gestureConfigId;
     _loadConfigs();
@@ -2302,11 +2471,21 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                   ),
                   if (isCounter) ...[
                     const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('无限循环'),
+                      subtitle: const Text('开启后，不再受循环次数限制'),
+                      value: _infiniteLoop,
+                      onChanged: (value) =>
+                          setState(() => _infiniteLoop = value),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _targetController,
+                            enabled: !_infiniteLoop,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                               labelText: '循环次数',
@@ -2414,28 +2593,33 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             _EditorSectionCard(
               accent: const Color(0xFF8EB8FF),
               title: '脚本配置',
-              child: Column(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _EditorPickerTile(
-                    label: '前置脚本（仅亮屏未锁时）',
-                    value:
-                        _availableConfigs
-                            .where((c) => c.id == _preGestureConfigId)
-                            .firstOrNull
-                            ?.name ??
-                        '未关联',
-                    onTap: _pickPreGestureConfig,
+                  Expanded(
+                    child: _EditorPickerTile(
+                      label: '前置脚本',
+                      value:
+                          _availableConfigs
+                              .where((c) => c.id == _preGestureConfigId)
+                              .firstOrNull
+                              ?.name ??
+                          '未关联',
+                      onTap: _pickPreGestureConfig,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _EditorPickerTile(
-                    label: '执行脚本',
-                    value:
-                        _availableConfigs
-                            .where((c) => c.id == _gestureConfigId)
-                            .firstOrNull
-                            ?.name ??
-                        '未关联',
-                    onTap: _pickGestureConfig,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _EditorPickerTile(
+                      label: '执行脚本',
+                      value:
+                          _availableConfigs
+                              .where((c) => c.id == _gestureConfigId)
+                              .firstOrNull
+                              ?.name ??
+                          '未关联',
+                      onTap: _pickGestureConfig,
+                    ),
                   ),
                 ],
               ),
@@ -2517,6 +2701,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     showQuickLaunch: _showQuickLaunch,
                     preGestureConfigId: _preGestureConfigId,
                     gestureConfigId: _gestureConfigId,
+                    infiniteLoop: _infiniteLoop,
                     autoOpenDelaySeconds:
                         int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
                   ),
@@ -2536,6 +2721,156 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       AssistantTaskKind.adCooldown => '循环计次任务',
       AssistantTaskKind.fixedPoint => '固定时间任务',
     };
+  }
+}
+
+class _DailyMottoSettingsPage extends StatefulWidget {
+  const _DailyMottoSettingsPage({required this.repository});
+
+  final TaskRepository repository;
+
+  @override
+  State<_DailyMottoSettingsPage> createState() =>
+      _DailyMottoSettingsPageState();
+}
+
+class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
+  static const List<String> _presetMottos = [
+    '天生我才必有用，千金散尽还复来',
+    '长风破浪会有时，直挂云帆济沧海',
+    '且将新火试新茶，诗酒趁年华',
+    '莫道桑榆晚，为霞尚满天',
+    '山高路远，亦要见自己',
+    '日日自新，步步生光',
+  ];
+
+  List<String> _mottos = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final values = await widget.repository.loadDailyMottos();
+    if (!mounted) return;
+    setState(() {
+      _mottos = values.isEmpty ? [..._presetMottos] : values;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save() async {
+    await widget.repository.saveDailyMottos(_mottos);
+    if (!mounted) return;
+    VibrantHUD.show(context, '每日箴言已保存', type: ToastType.success);
+  }
+
+  Future<void> _editItem({String initialValue = '', int? index}) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _TemplateNameSheet(
+        title: index == null ? '新增箴言' : '编辑箴言',
+        fieldLabel: '箴言内容',
+        actionLabel: '保存',
+        initialValue: initialValue,
+      ),
+    );
+    if (!mounted || result == null || result.isEmpty) return;
+    setState(() {
+      if (index == null) {
+        _mottos = [..._mottos, result];
+      } else {
+        _mottos = [
+          for (var i = 0; i < _mottos.length; i++)
+            if (i == index) result else _mottos[i],
+        ];
+      }
+    });
+    await _save();
+  }
+
+  Future<void> _pickPreset() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: _presetMottos
+              .map(
+                (item) => ListTile(
+                  title: Text(item),
+                  onTap: () => Navigator.of(context).pop(item),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+    if (result == null) return;
+    setState(() => _mottos = [..._mottos, result]);
+    await _save();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('每日箴言'),
+        actions: [TextButton(onPressed: _pickPreset, child: const Text('预设'))],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _editItem(),
+        label: const Text('新增箴言'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        children: [
+          ..._mottos.indexed.map((entry) {
+            final index = entry.$1;
+            final item = entry.$2;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                title: Text(item),
+                subtitle: const Text('首页按日期随机展示'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MiniIconButton(
+                      onPressed: () =>
+                          _editItem(initialValue: item, index: index),
+                      icon: Icons.edit_rounded,
+                    ),
+                    const SizedBox(width: 8),
+                    _MiniIconButton(
+                      onPressed: () async {
+                        setState(() {
+                          _mottos = [
+                            for (var i = 0; i < _mottos.length; i++)
+                              if (i != index) _mottos[i],
+                          ];
+                        });
+                        await _save();
+                      },
+                      icon: Icons.delete_outline_rounded,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 }
 
@@ -3433,7 +3768,9 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
       AssistantTaskKind.fixedPoint => '固定时间',
     };
     final suffix = task.kind == AssistantTaskKind.adCooldown
-        ? ' · ${task.targetCount}次 / 间隔${task.intervalLabel}'
+        ? (task.infiniteLoop
+              ? ' · 无限循环 / 间隔${task.intervalLabel}'
+              : ' · ${task.targetCount}次 / 间隔${task.intervalLabel}')
         : '';
     final quick = task.showQuickLaunch ? ' · 快捷打开应用' : '';
     final pre = (task.preGestureConfigId?.isNotEmpty ?? false)

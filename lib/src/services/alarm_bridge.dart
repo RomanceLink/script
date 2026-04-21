@@ -165,9 +165,11 @@ class AlarmBridge {
     int preLoopCount = 1,
     int preLoopIntervalMillis = 0,
     String? configName,
+    List<Map<String, Object?>> beforeLoopActions = const [],
     List<Map<String, Object?>> actions = const [],
     int loopCount = 1,
     int loopIntervalMillis = 0,
+    bool infiniteLoop = false,
     int delaySeconds = 5,
   }) async {
     final result = await _channel.invokeMethod<bool>('openAppAndRunConfig', {
@@ -178,9 +180,11 @@ class AlarmBridge {
       'preLoopCount': preLoopCount,
       'preLoopIntervalMillis': preLoopIntervalMillis,
       'configName': configName,
+      'beforeLoopActions': beforeLoopActions,
       'actions': actions,
       'loopCount': loopCount,
       'loopIntervalMillis': loopIntervalMillis,
+      'infiniteLoop': infiniteLoop,
       'delaySeconds': delaySeconds,
     });
     return result ?? false;

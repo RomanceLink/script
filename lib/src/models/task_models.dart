@@ -22,6 +22,7 @@ class AssistantTaskDefinition {
     this.showQuickLaunch = false,
     this.gestureConfigId,
     this.preGestureConfigId,
+    this.infiniteLoop = false,
     this.autoOpenDelaySeconds = 0,
   });
 
@@ -41,6 +42,7 @@ class AssistantTaskDefinition {
   final bool showQuickLaunch;
   final String? gestureConfigId;
   final String? preGestureConfigId;
+  final bool infiniteLoop;
   final int autoOpenDelaySeconds;
 
   String get timeLabel {
@@ -86,6 +88,7 @@ class AssistantTaskDefinition {
     bool? showQuickLaunch,
     String? gestureConfigId,
     String? preGestureConfigId,
+    bool? infiniteLoop,
     int? autoOpenDelaySeconds,
     bool clearEnd = false,
     bool clearGesture = false,
@@ -112,6 +115,7 @@ class AssistantTaskDefinition {
       preGestureConfigId: clearPreGesture
           ? null
           : (preGestureConfigId ?? this.preGestureConfigId),
+      infiniteLoop: infiniteLoop ?? this.infiniteLoop,
       autoOpenDelaySeconds: autoOpenDelaySeconds ?? this.autoOpenDelaySeconds,
     );
   }
@@ -134,6 +138,7 @@ class AssistantTaskDefinition {
       'showQuickLaunch': showQuickLaunch,
       'gestureConfigId': gestureConfigId,
       'preGestureConfigId': preGestureConfigId,
+      'infiniteLoop': infiniteLoop,
       'autoOpenDelaySeconds': autoOpenDelaySeconds,
     };
   }
@@ -161,6 +166,7 @@ class AssistantTaskDefinition {
       showQuickLaunch: json['showQuickLaunch'] as bool? ?? false,
       gestureConfigId: json['gestureConfigId'] as String?,
       preGestureConfigId: json['preGestureConfigId'] as String?,
+      infiniteLoop: json['infiniteLoop'] as bool? ?? false,
       autoOpenDelaySeconds: json['autoOpenDelaySeconds'] as int? ?? 0,
     );
   }
@@ -616,6 +622,8 @@ class GestureConfig {
     this.actions = const [],
     this.loopCount = 1,
     this.loopIntervalMillis = 0,
+    this.followUpConfigId,
+    this.infiniteLoop = false,
   });
 
   final String id;
@@ -623,6 +631,8 @@ class GestureConfig {
   final List<GestureAction> actions;
   final int loopCount;
   final int loopIntervalMillis;
+  final String? followUpConfigId;
+  final bool infiniteLoop;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -630,6 +640,8 @@ class GestureConfig {
     'actions': actions.map((a) => a.toJson()).toList(),
     'loopCount': loopCount.clamp(1, 9999),
     'loopIntervalMillis': loopIntervalMillis.clamp(0, 10000000),
+    'followUpConfigId': followUpConfigId,
+    'infiniteLoop': infiniteLoop,
   };
 
   factory GestureConfig.fromJson(Map<String, Object?> json) {
@@ -643,6 +655,8 @@ class GestureConfig {
       loopCount: ((json['loopCount'] as num?)?.toInt() ?? 1).clamp(1, 9999),
       loopIntervalMillis: ((json['loopIntervalMillis'] as num?)?.toInt() ?? 0)
           .clamp(0, 10000000),
+      followUpConfigId: json['followUpConfigId'] as String?,
+      infiniteLoop: json['infiniteLoop'] as bool? ?? false,
     );
   }
 
@@ -652,6 +666,9 @@ class GestureConfig {
     List<GestureAction>? actions,
     int? loopCount,
     int? loopIntervalMillis,
+    String? followUpConfigId,
+    bool? infiniteLoop,
+    bool clearFollowUp = false,
   }) {
     return GestureConfig(
       id: id ?? this.id,
@@ -659,6 +676,10 @@ class GestureConfig {
       actions: actions ?? this.actions,
       loopCount: loopCount ?? this.loopCount,
       loopIntervalMillis: loopIntervalMillis ?? this.loopIntervalMillis,
+      followUpConfigId: clearFollowUp
+          ? null
+          : (followUpConfigId ?? this.followUpConfigId),
+      infiniteLoop: infiniteLoop ?? this.infiniteLoop,
     );
   }
 }

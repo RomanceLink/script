@@ -86,6 +86,7 @@ class AutoSwipeService : AccessibilityService() {
     private var minSeconds = 0
     private var maxSeconds = 0
     private var loopCount = 1
+    private var infiniteLoop = false
     private var loopIntervalMillis = 0L
     private var remainingLoops = 0
     private var scriptName: String? = null
@@ -96,6 +97,7 @@ class AutoSwipeService : AccessibilityService() {
     private var lastNightModeMask = Configuration.UI_MODE_NIGHT_UNDEFINED
 
     private val gestureActions = mutableListOf<Map<String, Any?>>()
+    private val setupActions = mutableListOf<Map<String, Any?>>()
     private val runtimeActions = mutableListOf<Map<String, Any?>>()
     private val availableConfigs = mutableListOf<Map<String, Any?>>()
     private val floatingRecordActions = mutableListOf<Map<String, Any?>>()
@@ -109,6 +111,7 @@ class AutoSwipeService : AccessibilityService() {
     private var resumeActionIndex = 0
     private var currentWaitUntilMillis = 0L
     private var pausedWaitRemainingMillis = 0L
+    private var loopStartIndex = 0
     private var playbackTicker: Runnable? = null
     private var activeRecordingSurface: RecordingSurface? = null
     private var activeRecordingAutoStopOnHome = false
@@ -123,6 +126,7 @@ class AutoSwipeService : AccessibilityService() {
     private var unlockMotionTicker: Runnable? = null
     private var unlockMotionTrailOverlay: View? = null
     private var unlockMotionTrailVisible = false
+    private var gesturePreviewOverlay: View? = null
     private val unlockMotionTrailSegments = mutableListOf<RecordedSegment>()
     private var unlockRecordWaitingForRecord = false
     private var unlockRecordFinalizing = false
@@ -142,6 +146,8 @@ class AutoSwipeService : AccessibilityService() {
             name: String? = null,
             loopCount: Int = 1,
             loopIntervalMillis: Int = 0,
+            setupActions: List<Map<String, Any?>> = emptyList(),
+            infiniteLoop: Boolean = false,
         ) {
             instance?.apply {
                 handler.removeCallbacksAndMessages(null)
@@ -149,14 +155,17 @@ class AutoSwipeService : AccessibilityService() {
                 minSeconds = min
                 maxSeconds = max
                 this.loopCount = loopCount.coerceIn(1, 9999)
+                this.infiniteLoop = infiniteLoop
                 this.loopIntervalMillis = loopIntervalMillis.coerceIn(0, 10_000_000).toLong()
                 remainingLoops = this.loopCount
                 scriptName = name
+                this.setupActions.clear()
+                this.setupActions.addAll(setupActions.map(::normalizeMap))
                 gestureActions.clear()
                 gestureActions.addAll(actions.map(::normalizeMap))
                 updateStatusText()
 
-                if (min == 0 && max == 0 && gestureActions.isNotEmpty()) {
+                if (min == 0 && max == 0 && (gestureActions.isNotEmpty() || this.setupActions.isNotEmpty())) {
                     startScriptRun()
                 }
             }
@@ -191,9 +200,11 @@ class AutoSwipeService : AccessibilityService() {
             preLoopCount: Int = 1,
             preLoopIntervalMillis: Int = 0,
             configName: String?,
+            beforeLoopActions: List<Map<String, Any?>> = emptyList(),
             actions: List<Map<String, Any?>>,
             loopCount: Int = 1,
             loopIntervalMillis: Int = 0,
+            infiniteLoop: Boolean = false,
             delaySeconds: Int = 5,
         ): Boolean {
             val service = instance
@@ -218,16 +229,18 @@ class AutoSwipeService : AccessibilityService() {
                     ),
                 )
                 combinedActions.add(fixedWaitMap(delaySeconds.coerceAtLeast(0) * 1000))
-                combinedActions.addAll(expandLoopedActions(actions, loopCount, loopIntervalMillis))
+                combinedActions.addAll(beforeLoopActions.map(::normalizeMap))
                 service.handler.post {
                     service.stopScriptRun()
                     updateConfig(
                         0,
                         0,
-                        combinedActions,
+                        actions,
                         buildRunName(preConfigName, configName, packageLabel, true),
-                        1,
-                        0,
+                        loopCount,
+                        loopIntervalMillis,
+                        combinedActions,
+                        infiniteLoop,
                     )
                 }
                 return true
@@ -245,16 +258,18 @@ class AutoSwipeService : AccessibilityService() {
                     ),
                 )
                 combinedActions.add(fixedWaitMap(delaySeconds.coerceAtLeast(0) * 1000))
-                combinedActions.addAll(expandLoopedActions(actions, loopCount, loopIntervalMillis))
+                combinedActions.addAll(beforeLoopActions.map(::normalizeMap))
                 service.handler.post {
                     service.stopScriptRun()
                     updateConfig(
                         0,
                         0,
-                        combinedActions,
+                        actions,
                         buildRunName(preConfigName, configName, packageLabel, false),
-                        1,
-                        0,
+                        loopCount,
+                        loopIntervalMillis,
+                        combinedActions,
+                        infiniteLoop,
                     )
                 }
                 return true
@@ -268,7 +283,7 @@ class AutoSwipeService : AccessibilityService() {
             service ?: return true
             service.handler.postDelayed({
                 service.showFloatingWindow(expanded = false, attachToRightEdge = true)
-                if (actions.isNotEmpty()) {
+                if (actions.isNotEmpty() || beforeLoopActions.isNotEmpty()) {
                     updateConfig(
                         0,
                         0,
@@ -276,6 +291,8 @@ class AutoSwipeService : AccessibilityService() {
                         configName ?: packageLabel,
                         loopCount,
                         loopIntervalMillis,
+                        beforeLoopActions,
+                        infiniteLoop,
                     )
                 }
             }, delaySeconds.coerceAtLeast(0) * 1000L)
@@ -1103,9 +1120,11 @@ class AutoSwipeService : AccessibilityService() {
                         val preLoopCount = call.argument<Int>("preLoopCount") ?: 1
                         val preLoopIntervalMillis = call.argument<Int>("preLoopIntervalMillis") ?: 0
                         val configName = call.argument<String>("configName")
+                        val beforeLoopActions = call.argument<List<Map<String, Any?>>>("beforeLoopActions") ?: emptyList()
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
                         val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
+                        val infiniteLoop = call.argument<Boolean>("infiniteLoop") ?: false
                         val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
                         result.success(
                             if (packageName.isNullOrBlank()) {
@@ -1121,9 +1140,11 @@ class AutoSwipeService : AccessibilityService() {
                                     preLoopCount,
                                     preLoopIntervalMillis,
                                     configName,
+                                    beforeLoopActions,
                                     actions,
                                     loopCount,
                                     loopIntervalMillis,
+                                    infiniteLoop,
                                     delaySeconds,
                                 )
                             },
@@ -2333,35 +2354,113 @@ class AutoSwipeService : AccessibilityService() {
         // Chooser panels are full-screen centered overlays now, so they do not follow the menu.
     }
 
+    private data class ResolvedConfigPlan(
+        val name: String,
+        val setupActions: List<Map<String, Any?>>,
+        val loopActions: List<Map<String, Any?>>,
+        val loopCount: Int,
+        val loopIntervalMillis: Int,
+        val infiniteLoop: Boolean,
+    )
+
+    private fun resolveConfigPlan(
+        config: Map<String, Any?>,
+        visited: MutableSet<String> = mutableSetOf(),
+    ): ResolvedConfigPlan {
+        val configId = config["id"] as? String
+        if (!configId.isNullOrBlank() && !visited.add(configId)) {
+            val actions = asMapList(config["actions"]).map(::normalizeMap)
+            return ResolvedConfigPlan(
+                name = config["name"] as? String ?: "配置",
+                setupActions = actions,
+                loopActions = emptyList(),
+                loopCount = 1,
+                loopIntervalMillis = 0,
+                infiniteLoop = false,
+            )
+        }
+        val name = config["name"] as? String ?: "配置"
+        val actions = asMapList(config["actions"]).map(::normalizeMap)
+        val loops = ((config["loopCount"] as? Number)?.toInt() ?: 1).coerceIn(1, 9999)
+        val interval = ((config["loopIntervalMillis"] as? Number)?.toInt() ?: 0).coerceIn(0, 10_000_000)
+        val infinite = config["infiniteLoop"] as? Boolean ?: false
+        val followUpId = config["followUpConfigId"] as? String
+        if (infinite) {
+            return ResolvedConfigPlan(
+                name = name,
+                setupActions = emptyList(),
+                loopActions = actions,
+                loopCount = loops,
+                loopIntervalMillis = interval,
+                infiniteLoop = true,
+            )
+        }
+        val setup = expandLoopedActions(actions, loops, interval).map(::normalizeMap).toMutableList()
+        val child = availableConfigs.firstOrNull { (it["id"] as? String) == followUpId }
+        if (child == null) {
+            return ResolvedConfigPlan(
+                name = name,
+                setupActions = setup,
+                loopActions = emptyList(),
+                loopCount = 1,
+                loopIntervalMillis = 0,
+                infiniteLoop = false,
+            )
+        }
+        val childPlan = resolveConfigPlan(child, visited)
+        setup.addAll(childPlan.setupActions)
+        return ResolvedConfigPlan(
+            name = "$name -> ${childPlan.name}",
+            setupActions = setup,
+            loopActions = childPlan.loopActions,
+            loopCount = childPlan.loopCount,
+            loopIntervalMillis = childPlan.loopIntervalMillis,
+            infiniteLoop = childPlan.infiniteLoop,
+        )
+    }
+
     private fun startConfig(config: Map<String, Any?>) {
-        val actions = asMapList(config["actions"])
-        if (actions.isEmpty()) {
+        val plan = resolveConfigPlan(config)
+        if (plan.setupActions.isEmpty() && plan.loopActions.isEmpty()) {
             return
         }
         handler.removeCallbacksAndMessages(null)
         minSeconds = 0
         maxSeconds = 0
-        loopCount = ((config["loopCount"] as? Number)?.toInt() ?: 1).coerceIn(1, 9999)
-        loopIntervalMillis =
-            ((config["loopIntervalMillis"] as? Number)?.toLong() ?: 0L).coerceIn(0L, 10_000_000L)
+        loopCount = plan.loopCount.coerceIn(1, 9999)
+        infiniteLoop = plan.infiniteLoop
+        loopIntervalMillis = plan.loopIntervalMillis.toLong().coerceIn(0L, 10_000_000L)
         remainingLoops = loopCount
-        scriptName = config["name"] as? String ?: "配置"
+        scriptName = plan.name
+        setupActions.clear()
+        setupActions.addAll(plan.setupActions)
         gestureActions.clear()
-        gestureActions.addAll(actions)
+        gestureActions.addAll(plan.loopActions)
         startScriptRun()
     }
 
     private fun startScriptRun() {
-        if (gestureActions.isEmpty()) {
+        if (gestureActions.isEmpty() && setupActions.isEmpty()) {
             return
         }
         runtimeActions.clear()
+        runtimeActions.addAll(setupActions.map(::planRuntimeAction))
+        loopStartIndex = runtimeActions.size
         runtimeActions.addAll(gestureActions.map(::planRuntimeAction))
-        remainingLoops = loopCount.coerceAtLeast(1)
+        remainingLoops = if (infiniteLoop) Int.MAX_VALUE else loopCount.coerceAtLeast(1)
         runStartedAt = SystemClock.uptimeMillis()
         val singleRunMillis = estimateActionsMillis(runtimeActions)
+        val loopOnlyMillis = estimateActionsMillis(runtimeActions.drop(loopStartIndex))
         runTotalMillis =
-            singleRunMillis * remainingLoops + loopIntervalMillis * (remainingLoops - 1).coerceAtLeast(0)
+            if (infiniteLoop) {
+                0L
+            } else if (loopStartIndex >= runtimeActions.size) {
+                singleRunMillis.toLong()
+            } else {
+                singleRunMillis.toLong() +
+                    loopOnlyMillis * (remainingLoops - 1).coerceAtLeast(0).toLong() +
+                    loopIntervalMillis * (remainingLoops - 1).coerceAtLeast(0).toLong()
+            }
         isRunning = true
         isPaused = false
         currentActionIndex = -1
@@ -2378,8 +2477,12 @@ class AutoSwipeService : AccessibilityService() {
         isRunning = false
         isPaused = false
         handler.removeCallbacksAndMessages(null)
+        clearGesturePreviewOverlay()
         playbackTicker = null
+        setupActions.clear()
         runtimeActions.clear()
+        loopStartIndex = 0
+        infiniteLoop = false
         remainingLoops = 0
         currentActionIndex = -1
         resumeActionIndex = 0
@@ -2388,6 +2491,21 @@ class AutoSwipeService : AccessibilityService() {
         updateStatusText()
         if (floatingView != null) {
             showFloatingWindow(expanded = true)
+        }
+    }
+
+    private fun clearGesturePreviewOverlay() {
+        val overlay = gesturePreviewOverlay ?: return
+        gesturePreviewOverlay = null
+        try {
+            if (overlay.isAttachedToWindow) {
+                windowManager?.removeViewImmediate(overlay)
+            }
+        } catch (_: Exception) {
+            try {
+                windowManager?.removeView(overlay)
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -2439,11 +2557,13 @@ class AutoSwipeService : AccessibilityService() {
         if (index >= runtimeActions.size) {
             currentActionIndex = runtimeActions.size
             currentWaitUntilMillis = 0L
-            if (remainingLoops > 1) {
-                remainingLoops -= 1
+            if (loopStartIndex < runtimeActions.size && (infiniteLoop || remainingLoops > 1)) {
+                if (!infiniteLoop) {
+                    remainingLoops -= 1
+                }
                 val delay = loopIntervalMillis.coerceAtLeast(0L)
                 updateStatusText()
-                handler.postDelayed({ executeActionIndex(0) }, delay)
+                handler.postDelayed({ executeActionIndex(loopStartIndex) }, delay)
             } else if (minSeconds > 0 || maxSeconds > 0) {
                 val delay = if (maxSeconds > minSeconds) {
                     (random.nextInt(maxSeconds - minSeconds + 1) + minSeconds) * 1000L
@@ -2456,7 +2576,10 @@ class AutoSwipeService : AccessibilityService() {
                 isRunning = false
                 isPaused = false
                 playbackTicker = null
+                setupActions.clear()
                 runtimeActions.clear()
+                loopStartIndex = 0
+                infiniteLoop = false
                 remainingLoops = 0
                 currentActionIndex = -1
                 resumeActionIndex = 0
@@ -2955,6 +3078,7 @@ class AutoSwipeService : AccessibilityService() {
         val lp = fullScreenOverlayParams().apply {
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
+        clearGesturePreviewOverlay()
         val overlay = object : View(this) {
             private val density = resources.displayMetrics.density
             private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -3016,14 +3140,22 @@ class AutoSwipeService : AccessibilityService() {
         }
         try {
             windowManager?.addView(overlay, lp)
+            gesturePreviewOverlay = overlay
             handler.postDelayed({
-                try {
-                    windowManager?.removeView(overlay)
-                } catch (_: Exception) {
+                if (gesturePreviewOverlay === overlay) {
+                    clearGesturePreviewOverlay()
+                } else {
+                    try {
+                        if (overlay.isAttachedToWindow) {
+                            windowManager?.removeViewImmediate(overlay)
+                        }
+                    } catch (_: Exception) {
+                    }
                 }
                 handler.postDelayed(onDone, 140)
             }, 220)
         } catch (_: Exception) {
+            clearGesturePreviewOverlay()
             onDone()
         }
     }
@@ -4734,7 +4866,11 @@ class AutoSwipeService : AccessibilityService() {
         if (isRunning) {
             val elapsed = (SystemClock.uptimeMillis() - runStartedAt).coerceAtLeast(0L)
             val totalLoops = loopCount.coerceAtLeast(1)
-            val loopIndex = (totalLoops - remainingLoops + 1).coerceIn(1, totalLoops)
+            val loopIndex = if (infiniteLoop) {
+                max(1, ((elapsed / (estimateActionsMillis(runtimeActions.drop(loopStartIndex)).coerceAtLeast(1) + loopIntervalMillis.coerceAtLeast(0L))) + 1).toInt())
+            } else {
+                (totalLoops - remainingLoops + 1).coerceIn(1, totalLoops)
+            }
             val stepIndex = (currentActionIndex + 1).coerceIn(1, runtimeActions.size.coerceAtLeast(1))
             val totalSteps = runtimeActions.size.coerceAtLeast(1)
             val waitLeft = if (currentWaitUntilMillis > 0L) {
@@ -4743,18 +4879,22 @@ class AutoSwipeService : AccessibilityService() {
                 0L
             }
             button?.contentDescription =
-                "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+                if (infiniteLoop) {
+                    "停止，${formatShortElapsed(elapsed)}/无限"
+                } else {
+                    "停止，${formatShortElapsed(elapsed)}/${formatShortElapsed(runTotalMillis)}"
+                }
             
-            statusLoopView?.text = "轮次 ${loopIndex}/${totalLoops}"
+            statusLoopView?.text = if (infiniteLoop) "轮次 ${loopIndex}/∞" else "轮次 ${loopIndex}/${totalLoops}"
             statusTimeView?.text = formatLongElapsed(elapsed)
             statusStepView?.text = "步骤 ${stepIndex}/${totalSteps}"
             statusWaitView?.text = if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "就绪"
 
             // Keep these for backward compatibility if any other part uses them
             primary?.text =
-                "${if (isPaused) "暂停" else "执行"} 轮 ${loopIndex}/${totalLoops}  步 ${stepIndex}/${totalSteps}  ${formatLongElapsed(elapsed)}"
+                "${if (isPaused) "暂停" else "执行"} 轮 ${if (infiniteLoop) "$loopIndex/∞" else "$loopIndex/$totalLoops"}  步 ${stepIndex}/${totalSteps}  ${formatLongElapsed(elapsed)}"
             secondary?.text =
-                if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else "总时长 ${formatShortElapsed(runTotalMillis)}"
+                if (waitLeft > 0L) "等待 ${formatPreciseWait(waitLeft)}" else if (infiniteLoop) "总时长 持续执行" else "总时长 ${formatShortElapsed(runTotalMillis)}"
             
             pauseMenuButton?.setImageResource(if (isPaused) R.drawable.ic_overlay_play else R.drawable.ic_overlay_pause)
             pauseMenuButton?.contentDescription = if (isPaused) "继续" else "暂停"

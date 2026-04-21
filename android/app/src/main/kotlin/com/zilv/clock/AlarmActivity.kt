@@ -136,9 +136,11 @@ class AlarmActivity : ComponentActivity() {
                 preLoopCount,
                 preLoopIntervalMillis,
                 configName,
+                emptyList(),
                 AutoSwipeService.parseActionsJson(actionsJson),
                 loopCount,
                 loopIntervalMillis,
+                false,
                 5
             )
         } else {

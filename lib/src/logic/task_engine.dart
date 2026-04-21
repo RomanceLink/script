@@ -49,7 +49,7 @@ class TaskEngine {
       return '今日已关闭此任务。';
     }
     final doneCount = state.intervalCompleted(definition.id);
-    if (doneCount >= definition.targetCount) {
+    if (!definition.infiniteLoop && doneCount >= definition.targetCount) {
       return '今日已完成 ${definition.targetCount} 次。';
     }
     final next = state.intervalNextAt(definition.id);
@@ -100,7 +100,8 @@ class TaskEngine {
           }
           break;
         case AssistantTaskKind.adCooldown:
-          if (state.intervalCompleted(definition.id) < definition.targetCount) {
+          if (definition.infiniteLoop ||
+              state.intervalCompleted(definition.id) < definition.targetCount) {
             final when =
                 state.intervalNextAt(definition.id) ??
                 _timeForToday(
@@ -145,13 +146,19 @@ class TaskEngine {
 
     if (definition.kind == AssistantTaskKind.feedWindow &&
         definition.endHour != null) {
-      final end =
-          _timeForToday(now, definition.endHour!, definition.endMinute!);
+      final end = _timeForToday(
+        now,
+        definition.endHour!,
+        definition.endMinute!,
+      );
       return now.isAfter(end.add(gracePeriod));
     }
     if (definition.kind == AssistantTaskKind.fixedPoint) {
-      final due =
-          _timeForToday(now, definition.startHour, definition.startMinute);
+      final due = _timeForToday(
+        now,
+        definition.startHour,
+        definition.startMinute,
+      );
       return now.isAfter(due.add(gracePeriod));
     }
     return false;

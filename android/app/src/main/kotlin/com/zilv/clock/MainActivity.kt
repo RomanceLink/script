@@ -99,9 +99,11 @@ class MainActivity : FlutterActivity() {
                         val preLoopCount = call.argument<Int>("preLoopCount") ?: 1
                         val preLoopIntervalMillis = call.argument<Int>("preLoopIntervalMillis") ?: 0
                         val configName = call.argument<String>("configName")
+                        val beforeLoopActions = call.argument<List<Map<String, Any?>>>("beforeLoopActions") ?: emptyList()
                         val actions = call.argument<List<Map<String, Any?>>>("actions") ?: emptyList()
                         val loopCount = call.argument<Int>("loopCount") ?: 1
                         val loopIntervalMillis = call.argument<Int>("loopIntervalMillis") ?: 0
+                        val infiniteLoop = call.argument<Boolean>("infiniteLoop") ?: false
                         val delaySeconds = call.argument<Int>("delaySeconds") ?: 5
                         if (packageName.isNullOrBlank()) {
                             result.success(false)
@@ -116,9 +118,11 @@ class MainActivity : FlutterActivity() {
                                     preLoopCount,
                                     preLoopIntervalMillis,
                                     configName,
+                                    beforeLoopActions,
                                     actions,
                                     loopCount,
                                     loopIntervalMillis,
+                                    infiniteLoop,
                                     delaySeconds
                                 )
                             )

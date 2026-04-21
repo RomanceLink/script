@@ -174,8 +174,11 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   Future<void> _addOrEdit([GestureConfig? config]) async {
     final result = await Navigator.of(context).push<GestureConfig>(
       MaterialPageRoute(
-        builder: (_) =>
-            GestureEditPage(config: config, launcher: widget.launcher),
+        builder: (_) => GestureEditPage(
+          config: config,
+          launcher: widget.launcher,
+          repository: widget.repository,
+        ),
       ),
     );
 
@@ -415,7 +418,10 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${config.actions.length}步骤 · ${config.loopCount}次循环 · 约${estimateGestureConfigDuration(config).label}',
+                                  '${config.actions.length}步骤 · '
+                                  '${config.infiniteLoop ? '无限循环' : '${config.loopCount}次循环'}'
+                                  '${config.followUpConfigId == null ? '' : ' · 含追加配置'}'
+                                  ' · ${config.infiniteLoop ? '持续执行' : '约${estimateGestureConfigDuration(config).label}'}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),
@@ -466,11 +472,13 @@ class _SchemeSettingsDialog extends StatefulWidget {
     required this.name,
     required this.loopCount,
     required this.loopInterval,
+    required this.infiniteLoop,
   });
 
   final String name;
   final String loopCount;
   final String loopInterval;
+  final bool infiniteLoop;
 
   @override
   State<_SchemeSettingsDialog> createState() => _SchemeSettingsDialogState();
@@ -480,6 +488,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _loopCountController;
   late final TextEditingController _loopIntervalController;
+  late bool _infiniteLoop;
 
   @override
   void initState() {
@@ -487,6 +496,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
     _nameController = TextEditingController(text: widget.name);
     _loopCountController = TextEditingController(text: widget.loopCount);
     _loopIntervalController = TextEditingController(text: widget.loopInterval);
+    _infiniteLoop = widget.infiniteLoop;
   }
 
   @override
@@ -502,6 +512,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
       name: _nameController.text.trim(),
       loopCount: _loopCountController.text.trim(),
       loopInterval: _loopIntervalController.text.trim(),
+      infiniteLoop: _infiniteLoop,
     ));
   }
 
@@ -551,6 +562,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
                     child: _compactField(
                       controller: _loopCountController,
                       label: '循环次数',
+                      enabled: !_infiniteLoop,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.next,
                     ),
@@ -566,6 +578,14 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('无限循环'),
+                subtitle: const Text('开启后，该配置会一直循环执行'),
+                value: _infiniteLoop,
+                onChanged: (value) => setState(() => _infiniteLoop = value),
               ),
               const SizedBox(height: 14),
               Row(
@@ -604,12 +624,14 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
     required TextEditingController controller,
     required String label,
     String? hint,
+    bool enabled = true,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
     ValueChanged<String>? onSubmitted,
   }) {
     return TextField(
       controller: controller,
+      enabled: enabled,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       onSubmitted: onSubmitted,
@@ -628,10 +650,16 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
 }
 
 class GestureEditPage extends StatefulWidget {
-  const GestureEditPage({this.config, required this.launcher, super.key});
+  const GestureEditPage({
+    this.config,
+    required this.launcher,
+    required this.repository,
+    super.key,
+  });
 
   final GestureConfig? config;
   final DouyinLauncher launcher;
+  final TaskRepository repository;
 
   @override
   State<GestureEditPage> createState() => _GestureEditPageState();
@@ -641,6 +669,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
   late TextEditingController _nameController;
   late TextEditingController _loopCountController;
   late TextEditingController _loopIntervalController;
+  bool _infiniteLoop = false;
+  String? _followUpConfigId;
+  List<GestureConfig> _availableConfigs = const [];
   final List<GestureAction> _actions = [];
 
   @override
@@ -653,9 +684,20 @@ class _GestureEditPageState extends State<GestureEditPage> {
     _loopIntervalController = TextEditingController(
       text: '${widget.config?.loopIntervalMillis ?? 0}',
     );
+    _infiniteLoop = widget.config?.infiniteLoop ?? false;
+    _followUpConfigId = widget.config?.followUpConfigId;
     if (widget.config != null) {
       _actions.addAll(widget.config!.actions);
     }
+    _loadConfigs();
+  }
+
+  Future<void> _loadConfigs() async {
+    final configs = await widget.repository.loadGestureConfigs();
+    if (!mounted) return;
+    setState(() {
+      _availableConfigs = configs;
+    });
   }
 
   @override
@@ -674,6 +716,39 @@ class _GestureEditPageState extends State<GestureEditPage> {
         0,
         10000000,
       );
+
+  Future<void> _pickFollowUpConfig() async {
+    final currentId = widget.config?.id;
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('无追加配置'),
+              onTap: () => Navigator.of(context).pop('none'),
+            ),
+            if (_availableConfigs.isNotEmpty) const Divider(),
+            ..._availableConfigs
+                .where((item) => item.id != currentId)
+                .map(
+                  (item) => ListTile(
+                    title: Text(item.name),
+                    onTap: () => Navigator.of(context).pop(item.id),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _followUpConfigId = result == 'none' ? null : result;
+      });
+    }
+  }
 
   void _addAction(GestureAction action) {
     setState(() => _actions.add(action));
@@ -1703,6 +1778,8 @@ class _GestureEditPageState extends State<GestureEditPage> {
       actions: _actions,
       loopCount: _loopCount,
       loopIntervalMillis: _loopIntervalMillis,
+      followUpConfigId: _followUpConfigId,
+      infiniteLoop: _infiniteLoop,
     );
     Navigator.of(context).pop(config);
   }
@@ -1710,13 +1787,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
   Future<void> _editName() async {
     final next =
         await showDialog<
-          ({String name, String loopCount, String loopInterval})
+          ({
+            String name,
+            String loopCount,
+            String loopInterval,
+            bool infiniteLoop,
+          })
         >(
           context: context,
           builder: (context) => _SchemeSettingsDialog(
             name: _nameController.text.trim(),
             loopCount: _loopCountController.text.trim(),
             loopInterval: _loopIntervalController.text.trim(),
+            infiniteLoop: _infiniteLoop,
           ),
         );
     if (!mounted || next == null) {
@@ -1728,6 +1811,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
           '${(int.tryParse(next.loopCount) ?? 1).clamp(1, 9999)}';
       _loopIntervalController.text =
           '${(int.tryParse(next.loopInterval) ?? 0).clamp(0, 10000000)}';
+      _infiniteLoop = next.infiniteLoop;
     });
   }
 
@@ -1879,6 +1963,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
       actions: _actions,
       loopCount: _loopCount,
       loopIntervalMillis: _loopIntervalMillis,
+      infiniteLoop: _infiniteLoop,
     );
 
     return Scaffold(
@@ -1933,7 +2018,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
+                                  _infiniteLoop
+                                      ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
+                                      : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),
@@ -1978,13 +2065,26 @@ class _GestureEditPageState extends State<GestureEditPage> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
+                              _infiniteLoop
+                                  ? '预计耗时：持续执行'
+                                  : '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      _CompactSelectionTile(
+                        label: '追加配置',
+                        value:
+                            _availableConfigs
+                                .where((item) => item.id == _followUpConfigId)
+                                .firstOrNull
+                                ?.name ??
+                            '无',
+                        onTap: _pickFollowUpConfig,
                       ),
                     ],
                   ),
@@ -2159,6 +2259,65 @@ class _ModernSectionCard extends StatelessWidget {
           ),
           Padding(padding: const EdgeInsets.all(16), child: child),
         ],
+      ),
+    );
+  }
+}
+
+class _CompactSelectionTile extends StatelessWidget {
+  const _CompactSelectionTile({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
       ),
     );
   }
