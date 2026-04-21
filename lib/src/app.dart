@@ -2268,6 +2268,8 @@ class _TaskManagementSettingsPageState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isEmpty = _draft.taskDefinitions.isEmpty;
     return Scaffold(
       appBar: AppBar(
         title: const Text('任务管理'),
@@ -2286,10 +2288,69 @@ class _TaskManagementSettingsPageState
         onPressed: () => _editTask(),
         label: const Text('新增任务'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-        children: _buildGroupedTaskSections(context),
-      ),
+      body: isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.8,
+                  width: double.infinity,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 28,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer
+                                  .withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                            child: Icon(
+                              Icons.event_note_rounded,
+                              size: 34,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            '还没有任务',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '点击右下角新增任务，把常用提醒和脚本绑定都配好。',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          FilledButton.icon(
+                            onPressed: () => _editTask(),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('新增第一个任务'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+              children: _buildGroupedTaskSections(context),
+            ),
     );
   }
 }
