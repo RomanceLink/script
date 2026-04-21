@@ -616,11 +616,11 @@ class AutoSwipeService : AccessibilityService() {
             imageTintList = android.content.res.ColorStateList.valueOf(if (darkMode) Color.WHITE else 0xFF1F2A2C.toInt())
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             // 缩小比例后，Padding 也要相应减小
-            setPadding(dp(3), dp(8), dp(3), dp(8))
+            setPadding(dp(3), dp(6), dp(3), dp(6))
             contentDescription = "展开"
             background = sideRoundedBackground(
                 if (darkMode) 0xE6151A1E.toInt() else 0xEEF7FAF8.toInt(),
-                dp(12).toFloat(),
+                dp(10).toFloat(),
                 if (darkMode) 0x66FFFFFF else 0x33212C2E,
                 isRightSide = collapsedEdgeRight
             )
@@ -630,7 +630,7 @@ class AutoSwipeService : AccessibilityService() {
         
         attachDrag(bubble, layoutParams, snapToEdgeOnRelease = true)
         return FrameLayout(this).apply {
-            addView(bubble, FrameLayout.LayoutParams(dp(24), dp(56)))
+            addView(bubble, FrameLayout.LayoutParams(dp(22), dp(45)))
         }
     }
 
@@ -726,8 +726,8 @@ class AutoSwipeService : AccessibilityService() {
         layoutParams: WindowManager.LayoutParams,
     ) {
         val (screenWidth, screenHeight) = screenSize()
-        val fallbackWidth = if (collapsed) dp(40) else dp(220)
-        val fallbackHeight = if (collapsed) dp(48) else dp(48)
+        val fallbackWidth = if (collapsed) dp(30) else dp(220)
+        val fallbackHeight = if (collapsed) dp(45) else dp(48)
         val viewWidth = view?.width ?: 0
         val viewHeight = view?.height ?: 0
         val width = when {
@@ -751,7 +751,7 @@ class AutoSwipeService : AccessibilityService() {
         layoutParams: WindowManager.LayoutParams,
     ) {
         val (screenWidth, _) = screenSize()
-        val width = overlayWidth(view, layoutParams, if (collapsed) dp(40) else dp(220))
+        val width = overlayWidth(view, layoutParams, if (collapsed) dp(30) else dp(220))
         collapsedEdgeRight = layoutParams.x + width / 2 >= screenWidth / 2
         snapOverlayToHorizontalEdge(view, layoutParams, collapsedEdgeRight)
     }
@@ -763,8 +763,8 @@ class AutoSwipeService : AccessibilityService() {
     ) {
         collapsedEdgeRight = right
         val (screenWidth, screenHeight) = screenSize()
-        val width = overlayWidth(view, layoutParams, if (collapsed) dp(40) else dp(220))
-        val height = overlayHeight(view, layoutParams, if (collapsed) dp(48) else dp(48))
+        val width = overlayWidth(view, layoutParams, if (collapsed) dp(30) else dp(220))
+        val height = overlayHeight(view, layoutParams, if (collapsed) dp(45) else dp(48))
         val maxX = (screenWidth - width).coerceAtLeast(0)
         val maxY = (screenHeight - height).coerceAtLeast(0)
         layoutParams.x = if (right) maxX else 0

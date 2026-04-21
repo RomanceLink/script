@@ -508,90 +508,92 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.viewInsetsOf(context);
-    final maxHeight =
+    final availableHeight =
         MediaQuery.sizeOf(context).height -
-        viewInsets.bottom -
         MediaQuery.paddingOf(context).vertical -
-        32;
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight.clamp(260.0, 520.0)),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '方案设置',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+        40;
+    return Dialog(
+      insetPadding: EdgeInsets.fromLTRB(
+        22,
+        16,
+        22,
+        (viewInsets.bottom + 16).clamp(16.0, availableHeight * 0.45),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: (availableHeight - viewInsets.bottom).clamp(260.0, 520.0),
+        ),
+        child: SingleChildScrollView(
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '方案设置',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              _compactField(
+                controller: _nameController,
+                label: '名称',
+                hint: '例如：刷抖音专用',
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _compactField(
+                      controller: _loopCountController,
+                      label: '循环次数',
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _compactField(
-                  controller: _nameController,
-                  label: '名称',
-                  hint: '例如：刷抖音专用',
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _compactField(
-                        controller: _loopCountController,
-                        label: '循环次数',
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                      ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _compactField(
+                      controller: _loopIntervalController,
+                      label: '间隔毫秒',
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submit(),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _compactField(
-                        controller: _loopIntervalController,
-                        label: '间隔毫秒',
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _submit(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 38),
+                        padding: EdgeInsets.zero,
                       ),
+                      child: const Text('取消'),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 38),
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _submit,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 38),
+                        padding: EdgeInsets.zero,
                       ),
+                      child: const Text('保存'),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _submit,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 38),
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Text('保存'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

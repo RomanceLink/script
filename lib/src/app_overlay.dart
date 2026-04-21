@@ -280,13 +280,57 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    Widget buildCloseAction() {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: widget.alarmBridge.closeAutomationOverlay,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: const Text(
+                '关闭',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.78,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty
-          ? const Center(
-              child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                const Center(
+                  child: Text('尚未创建任何配置', style: TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    '先去配置页新建一个方案，再回来执行。',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                buildCloseAction(),
+              ],
             )
           : Center(
               // 整体居中
@@ -294,7 +338,7 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                 // 滚动保护
                 physics: const BouncingScrollPhysics(),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  padding: const EdgeInsets.fromLTRB(0, 16, 0, 6),
                   child: Column(
                     mainAxisSize: MainAxisSize.min, // 紧凑排列
                     children: [
@@ -494,25 +538,8 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      SafeArea(
-                        top: false,
-                        child: TextButton.icon(
-                          onPressed: widget.alarmBridge.closeAutomationOverlay,
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          label: const Text(
-                            '放弃执行',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            foregroundColor: theme.colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 8),
+                      buildCloseAction(),
                     ],
                   ),
                 ),

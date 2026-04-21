@@ -2528,75 +2528,88 @@ class _TemplateNameSheetState extends State<_TemplateNameSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final screenHeight = MediaQuery.sizeOf(context).height;
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          4,
-          16,
-          MediaQuery.of(context).viewInsets.bottom + 18,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: theme.brightness == Brightness.dark
-                      ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
-                      : const [Color(0xFFE7F7F1), Color(0xFFE8F0FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: Text(
-                widget.title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              key: const ValueKey('template_name_field'),
-              controller: _controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(labelText: widget.fieldLabel),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('取消'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.tonal(
-                    key: const ValueKey('template_name_submit_button'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.brightness == Brightness.dark
-                          ? const Color(0xFF1F3D39)
-                          : const Color(0xFFDDF5EC),
-                      foregroundColor: theme.brightness == Brightness.dark
-                          ? const Color(0xFF94DFC9)
-                          : const Color(0xFF2F7D6B),
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.fromLTRB(16, 4, 16, viewInsets.bottom + 12),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: screenHeight * 0.58),
+            child: Material(
+              color: Colors.transparent,
+              child: SingleChildScrollView(
+                reverse: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: theme.brightness == Brightness.dark
+                              ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
+                              : const [Color(0xFFE7F7F1), Color(0xFFE8F0FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Text(
+                        widget.title,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
-                    onPressed: _submit,
-                    child: Text(widget.actionLabel),
-                  ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const ValueKey('template_name_field'),
+                      controller: _controller,
+                      autofocus: true,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(labelText: widget.fieldLabel),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('取消'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.tonal(
+                            key: const ValueKey('template_name_submit_button'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor:
+                                  theme.brightness == Brightness.dark
+                                  ? const Color(0xFF1F3D39)
+                                  : const Color(0xFFDDF5EC),
+                              foregroundColor:
+                                  theme.brightness == Brightness.dark
+                                  ? const Color(0xFF94DFC9)
+                                  : const Color(0xFF2F7D6B),
+                            ),
+                            onPressed: _submit,
+                            child: Text(widget.actionLabel),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
