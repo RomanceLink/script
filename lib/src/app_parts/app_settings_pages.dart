@@ -200,30 +200,116 @@ class _AppSelectionSettingsPageState extends State<_AppSelectionSettingsPage> {
   Future<void> _pickApp() async {
     setState(() => _loadingApps = true);
     final apps = await widget.launcher.listLaunchableApps();
+    final recentPackages = await widget.launcher.loadRecentAppPackages();
     if (!mounted) return;
     setState(() => _loadingApps = false);
     final selected = await showModalBottomSheet<LaunchableApp>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: 520,
-          child: ListView.builder(
-            itemCount: apps.length,
-            itemBuilder: (context, index) {
-              final app = apps[index];
-              return ListTile(
-                title: Text(app.appName),
-                subtitle: Text(app.packageName),
-                onTap: () => Navigator.of(context).pop(app),
-              );
-            },
-          ),
-        ),
-      ),
+      builder: (context) {
+        final controller = TextEditingController();
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filtered = apps.where((app) {
+              if (query.isEmpty) return true;
+              final q = query.toLowerCase();
+              return app.appName.toLowerCase().contains(q) ||
+                  app.packageName.toLowerCase().contains(q);
+            }).toList();
+            final recent = [
+              for (final package in recentPackages)
+                ...filtered.where((app) => app.packageName == package),
+            ];
+            final others = [
+              for (final app in filtered)
+                if (!recent.any((item) => item.packageName == app.packageName))
+                  app,
+            ];
+            return SafeArea(
+              child: SizedBox(
+                height: 520,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: TextField(
+                        controller: controller,
+                        onChanged: (value) =>
+                            setSheetState(() => query = value.trim()),
+                        decoration: const InputDecoration(
+                          labelText: '搜索应用',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          if (recent.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                              child: Text(
+                                '最近使用',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            ...recent.map(
+                              (app) => ListTile(
+                                leading: app.icon == null
+                                    ? const CircleAvatar(
+                                        child: Icon(Icons.apps_rounded),
+                                      )
+                                    : ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Image.memory(
+                                          app.icon!,
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                title: Text(app.appName),
+                                subtitle: Text(app.packageName),
+                                onTap: () => Navigator.of(context).pop(app),
+                              ),
+                            ),
+                            const Divider(height: 12),
+                          ],
+                          ...others.map(
+                            (app) => ListTile(
+                              leading: app.icon == null
+                                  ? const CircleAvatar(
+                                      child: Icon(Icons.apps_rounded),
+                                    )
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.memory(
+                                        app.icon!,
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                              title: Text(app.appName),
+                              subtitle: Text(app.packageName),
+                              onTap: () => Navigator.of(context).pop(app),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
     if (selected == null || !mounted) return;
+    await widget.launcher.markAppAsRecent(selected.packageName);
     setState(() {
       _draft = _draft.copyWith(
         selectedAppPackage: selected.packageName,
@@ -611,4 +697,3 @@ class _PermissionSettingsPage extends StatelessWidget {
     );
   }
 }
-
