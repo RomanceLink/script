@@ -69,6 +69,7 @@ object AlarmScheduler {
                 putExtra("preGestureLoopCount", (reminder["preGestureLoopCount"] as? Number)?.toInt())
                 putExtra("preGestureLoopIntervalMillis", (reminder["preGestureLoopIntervalMillis"] as? Number)?.toInt())
                 putExtra("autoOpenDelaySeconds", (reminder["autoOpenDelaySeconds"] as? Number)?.toInt() ?: 0)
+                putExtra("autoCompleteDelaySeconds", (reminder["autoCompleteDelaySeconds"] as? Number)?.toInt() ?: 0)
                 putExtra("notificationId", requestCode)
             }
             val pendingIntent = PendingIntent.getBroadcast(
@@ -126,6 +127,7 @@ object AlarmScheduler {
                     "preGestureLoopCount" to if (obj.isNull("preGestureLoopCount")) null else obj.getInt("preGestureLoopCount"),
                     "preGestureLoopIntervalMillis" to if (obj.isNull("preGestureLoopIntervalMillis")) null else obj.getInt("preGestureLoopIntervalMillis"),
                     "autoOpenDelaySeconds" to if (obj.isNull("autoOpenDelaySeconds")) 0 else obj.getInt("autoOpenDelaySeconds"),
+                    "autoCompleteDelaySeconds" to if (obj.isNull("autoCompleteDelaySeconds")) 0 else obj.getInt("autoCompleteDelaySeconds"),
                 )
             )
         }

@@ -23,6 +23,7 @@ class AlarmReminder {
     this.preGestureLoopCount,
     this.preGestureLoopIntervalMillis,
     this.autoOpenDelaySeconds,
+    this.autoCompleteDelaySeconds,
   });
 
   final String id;
@@ -44,6 +45,7 @@ class AlarmReminder {
   final int? preGestureLoopCount;
   final int? preGestureLoopIntervalMillis;
   final int? autoOpenDelaySeconds;
+  final int? autoCompleteDelaySeconds;
 
   Map<String, Object?> toJson() {
     return {
@@ -66,6 +68,7 @@ class AlarmReminder {
       'preGestureLoopCount': preGestureLoopCount,
       'preGestureLoopIntervalMillis': preGestureLoopIntervalMillis,
       'autoOpenDelaySeconds': autoOpenDelaySeconds,
+      'autoCompleteDelaySeconds': autoCompleteDelaySeconds,
     };
   }
 }

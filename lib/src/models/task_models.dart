@@ -24,6 +24,8 @@ class AssistantTaskDefinition {
     this.preGestureConfigId,
     this.infiniteLoop = false,
     this.autoOpenDelaySeconds = 0,
+    this.autoCompleteDelayValue = 0,
+    this.autoCompleteDelayUnit = IntervalUnit.minutes,
   });
 
   final String id;
@@ -44,6 +46,8 @@ class AssistantTaskDefinition {
   final String? preGestureConfigId;
   final bool infiniteLoop;
   final int autoOpenDelaySeconds;
+  final int autoCompleteDelayValue;
+  final IntervalUnit autoCompleteDelayUnit;
 
   String get timeLabel {
     if (endHour != null && endMinute != null) {
@@ -71,6 +75,16 @@ class AssistantTaskDefinition {
     return '$cooldownValue $unit';
   }
 
+  Duration get autoCompleteDelayDuration {
+    final value = autoCompleteDelayValue.clamp(0, 10000);
+    return switch (autoCompleteDelayUnit) {
+      IntervalUnit.seconds => Duration(seconds: value),
+      IntervalUnit.minutes => Duration(minutes: value),
+      IntervalUnit.hours => Duration(hours: value),
+      IntervalUnit.days => Duration(days: value),
+    };
+  }
+
   AssistantTaskDefinition copyWith({
     String? id,
     AssistantTaskKind? kind,
@@ -90,6 +104,8 @@ class AssistantTaskDefinition {
     String? preGestureConfigId,
     bool? infiniteLoop,
     int? autoOpenDelaySeconds,
+    int? autoCompleteDelayValue,
+    IntervalUnit? autoCompleteDelayUnit,
     bool clearEnd = false,
     bool clearGesture = false,
     bool clearPreGesture = false,
@@ -117,6 +133,9 @@ class AssistantTaskDefinition {
           : (preGestureConfigId ?? this.preGestureConfigId),
       infiniteLoop: infiniteLoop ?? this.infiniteLoop,
       autoOpenDelaySeconds: autoOpenDelaySeconds ?? this.autoOpenDelaySeconds,
+      autoCompleteDelayValue:
+          autoCompleteDelayValue ?? this.autoCompleteDelayValue,
+      autoCompleteDelayUnit: autoCompleteDelayUnit ?? this.autoCompleteDelayUnit,
     );
   }
 
@@ -140,6 +159,8 @@ class AssistantTaskDefinition {
       'preGestureConfigId': preGestureConfigId,
       'infiniteLoop': infiniteLoop,
       'autoOpenDelaySeconds': autoOpenDelaySeconds,
+      'autoCompleteDelayValue': autoCompleteDelayValue,
+      'autoCompleteDelayUnit': autoCompleteDelayUnit.name,
     };
   }
 
@@ -168,6 +189,10 @@ class AssistantTaskDefinition {
       preGestureConfigId: json['preGestureConfigId'] as String?,
       infiniteLoop: json['infiniteLoop'] as bool? ?? false,
       autoOpenDelaySeconds: json['autoOpenDelaySeconds'] as int? ?? 0,
+      autoCompleteDelayValue: json['autoCompleteDelayValue'] as int? ?? 0,
+      autoCompleteDelayUnit: json['autoCompleteDelayUnit'] == null
+          ? IntervalUnit.minutes
+          : IntervalUnit.values.byName(json['autoCompleteDelayUnit'] as String),
     );
   }
 

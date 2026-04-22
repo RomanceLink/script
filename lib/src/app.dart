@@ -2121,7 +2121,15 @@ class _TaskManagementSettingsPageState
     final autoOpen = task.autoOpenDelaySeconds > 0
         ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
         : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen';
+    final autoComplete = task.autoCompleteDelayValue > 0
+        ? ' · 打开后${task.autoCompleteDelayValue}${switch (task.autoCompleteDelayUnit) {
+            IntervalUnit.seconds => '秒',
+            IntervalUnit.minutes => '分钟',
+            IntervalUnit.hours => '小时',
+            IntervalUnit.days => '天',
+          }}自动完成'
+        : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen$autoComplete';
   }
 
   String _kindGroupLabel(AssistantTaskKind kind) {
@@ -2674,7 +2682,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late TextEditingController _targetController;
   late TextEditingController _cooldownController;
   late TextEditingController _autoOpenDelayController;
+  late TextEditingController _autoCompleteDelayController;
   late IntervalUnit _intervalUnit;
+  late IntervalUnit _autoCompleteDelayUnit;
   late RingtoneSource _ringtoneSource;
   String? _ringtoneFilePath;
   late bool _showQuickLaunch;
@@ -2711,7 +2721,12 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _autoOpenDelayController = TextEditingController(
       text: '${task?.autoOpenDelaySeconds ?? 0}',
     );
+    _autoCompleteDelayController = TextEditingController(
+      text: '${task?.autoCompleteDelayValue ?? 0}',
+    );
     _intervalUnit = task?.intervalUnit ?? IntervalUnit.minutes;
+    _autoCompleteDelayUnit =
+        task?.autoCompleteDelayUnit ?? IntervalUnit.minutes;
     _showQuickLaunch = task?.showQuickLaunch ?? false;
     _infiniteLoop = task?.infiniteLoop ?? false;
     _preGestureConfigId = task?.preGestureConfigId;
@@ -2738,6 +2753,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _targetController.dispose();
     _cooldownController.dispose();
     _autoOpenDelayController.dispose();
+    _autoCompleteDelayController.dispose();
     super.dispose();
   }
 
@@ -3039,8 +3055,31 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: '全屏提醒后自动打开秒数',
-                        helperText: '填 0 为关闭。到时后自动点击“打开应用 / 去完成任务”。',
+                        helperText: '默认 0 关闭。到点会自动点击“打开应用/去完成任务”。',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _autoCompleteDelayController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '打开后自动完成'
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _IntervalUnitSelector(
+                            value: _autoCompleteDelayUnit,
+                            onChanged: (value) => setState(
+                              () => _autoCompleteDelayUnit = value,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -3161,6 +3200,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     infiniteLoop: _infiniteLoop,
                     autoOpenDelaySeconds:
                         int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
+                    autoCompleteDelayValue:
+                        int.tryParse(_autoCompleteDelayController.text.trim()) ??
+                        0,
+                    autoCompleteDelayUnit: _autoCompleteDelayUnit,
                   ),
                 );
               },
@@ -5110,7 +5153,15 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
     final autoOpen = task.autoOpenDelaySeconds > 0
         ? ' · ${task.autoOpenDelaySeconds}秒后自动打开'
         : '';
-    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen';
+    final autoComplete = task.autoCompleteDelayValue > 0
+        ? ' · 打开后${task.autoCompleteDelayValue}${switch (task.autoCompleteDelayUnit) {
+            IntervalUnit.seconds => '秒',
+            IntervalUnit.minutes => '分钟',
+            IntervalUnit.hours => '小时',
+            IntervalUnit.days => '天',
+          }}自动完成'
+        : '';
+    return '$type · ${task.timeLabel}$suffix · 铃声 ${task.ringtoneLabel}$quick$pre$autoOpen$autoComplete';
   }
 
   @override

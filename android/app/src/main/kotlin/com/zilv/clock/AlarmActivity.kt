@@ -17,6 +17,9 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import com.zilv.clock.R
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AlarmActivity : ComponentActivity() {
     private var ringtone: Ringtone? = null
@@ -62,6 +65,7 @@ class AlarmActivity : ComponentActivity() {
         val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
         val loopIntervalMillis = intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
         val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
+        val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
         val openTaskButton = findViewById<TextView>(R.id.openTaskButton)
         findViewById<TextView>(R.id.alarmTitle).text = title
         findViewById<TextView>(R.id.alarmBody).text = body
@@ -86,7 +90,8 @@ class AlarmActivity : ComponentActivity() {
                 configName = configName,
                 actionsJson = actionsJson,
                 loopCount = loopCount,
-                loopIntervalMillis = loopIntervalMillis
+                loopIntervalMillis = loopIntervalMillis,
+                autoCompleteDelaySeconds = autoCompleteDelaySeconds,
             )
         }
         findViewById<TextView>(R.id.dismissButton).setOnClickListener {
@@ -104,7 +109,8 @@ class AlarmActivity : ComponentActivity() {
                     configName = configName,
                     actionsJson = actionsJson,
                     loopCount = loopCount,
-                    loopIntervalMillis = loopIntervalMillis
+                    loopIntervalMillis = loopIntervalMillis,
+                    autoCompleteDelaySeconds = autoCompleteDelaySeconds,
                 )
             }.also {
                 mainHandler.postDelayed(it, autoOpenDelaySeconds * 1000L)
@@ -122,10 +128,19 @@ class AlarmActivity : ComponentActivity() {
         configName: String?,
         actionsJson: String?,
         loopCount: Int,
-        loopIntervalMillis: Int
+        loopIntervalMillis: Int,
+        autoCompleteDelaySeconds: Int,
     ) {
         if (finishedAlarm) return
         stopSound()
+        if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
+            TaskAutoCompleteReceiver.schedule(
+                this,
+                taskId,
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+                autoCompleteDelaySeconds,
+            )
+        }
         if (!targetAppPackage.isNullOrBlank()) {
             AutoSwipeService.openAppAndRunConfig(
                 this@AlarmActivity,
