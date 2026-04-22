@@ -1,5 +1,139 @@
 part of '../gesture_pages.dart';
 
+class _GlassActionTile extends StatelessWidget {
+  const _GlassActionTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.destructive = false,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool destructive;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final tint = !enabled
+        ? theme.colorScheme.onSurfaceVariant
+        : destructive
+        ? const Color(0xFFE05A5A)
+        : theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: tint.withValues(alpha: isDark ? 0.12 : 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              borderRadius: BorderRadius.circular(22),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [
+                            const Color(0xFF223231).withValues(alpha: 0.96),
+                            const Color(0xFF1B282B).withValues(alpha: 0.96),
+                          ]
+                        : [
+                            Colors.white.withValues(alpha: 0.94),
+                            const Color(0xFFF0FBF7).withValues(alpha: 0.88),
+                          ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.70),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: tint.withValues(alpha: isDark ? 0.18 : 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: tint.withValues(alpha: enabled ? 1 : 0.45),
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: enabled ? 1 : 0.45,
+                              ),
+                            ),
+                          ),
+                          if (subtitle != null &&
+                              subtitle!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: enabled ? 1 : 0.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ModernSectionCard extends StatelessWidget {
   const _ModernSectionCard({
     required this.accent,
@@ -14,36 +148,42 @@ class _ModernSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: _automationCardDecoration(theme),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: _automationCardDecoration(theme),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              Padding(padding: const EdgeInsets.all(16), child: child),
+            ],
           ),
-          Padding(padding: const EdgeInsets.all(16), child: child),
-        ],
+        ),
       ),
     );
   }
@@ -71,14 +211,22 @@ class _CompactSelectionTile extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: theme.brightness == Brightness.dark
-                ? const [Color(0xFF183030), Color(0xFF1A2430)]
-                : const [Color(0xFFFFFFFF), Color(0xFFF1F7F4)],
+                ? [
+                    const Color(0xFF183030).withValues(alpha: 0.92),
+                    const Color(0xFF1A2430).withValues(alpha: 0.88),
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.88),
+                    const Color(0xFFEFFBF7).withValues(alpha: 0.78),
+                  ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            color: Colors.white.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.64,
+            ),
           ),
         ),
         child: Row(
@@ -139,14 +287,22 @@ class _ModernActionTile extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: theme.brightness == Brightness.dark
-                ? const [Color(0xFF17302F), Color(0xFF1A2430)]
-                : const [Color(0xFFFFFFFF), Color(0xFFF3F8F5)],
+                ? [
+                    const Color(0xFF17302F).withValues(alpha: 0.92),
+                    const Color(0xFF1A2430).withValues(alpha: 0.88),
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.90),
+                    const Color(0xFFF3FFF9).withValues(alpha: 0.80),
+                  ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+            color: Colors.white.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.62,
+            ),
           ),
         ),
         child: ListTile(

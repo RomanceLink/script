@@ -80,23 +80,34 @@ class _GestureEditPageState extends State<GestureEditPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('无追加配置'),
-              onTap: () => Navigator.of(context).pop('none'),
-            ),
-            if (_availableConfigs.isNotEmpty) const Divider(),
-            ..._availableConfigs
-                .where((item) => item.id != currentId)
-                .map(
-                  (item) => ListTile(
-                    title: Text(item.name),
-                    onTap: () => Navigator.of(context).pop(item.id),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _GlassActionTile(
+                icon: Icons.block_rounded,
+                title: '无追加配置',
+                subtitle: '主配置执行完后直接结束',
+                destructive: true,
+                onTap: () => Navigator.of(context).pop('none'),
+              ),
+              ..._availableConfigs
+                  .where((item) => item.id != currentId)
+                  .map(
+                    (item) => _GlassActionTile(
+                      icon: item.infiniteLoop
+                          ? Icons.all_inclusive_rounded
+                          : Icons.play_circle_outline_rounded,
+                      title: item.name,
+                      subtitle: item.infiniteLoop
+                          ? '无限循环 · 间隔 ${item.loopIntervalMillis} 毫秒'
+                          : '${item.loopCount} 次 · 间隔 ${item.loopIntervalMillis} 毫秒',
+                      onTap: () => Navigator.of(context).pop(item.id),
+                    ),
                   ),
-                ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -152,10 +163,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 icon: Icons.gesture_rounded,
                 color: gestureColor,
               ),
-              ListTile(
-                leading: Icon(Icons.touch_app_rounded, color: gestureColor),
-                title: const Text('录制手势'),
-                subtitle: const Text('点击、滑动、完整轨迹'),
+              _GlassActionTile(
+                icon: Icons.touch_app_rounded,
+                title: '录制手势',
+                subtitle: '点击、滑动、完整轨迹',
                 onTap: () async {
                   Navigator.of(context).pop();
                   await _waitForOverlayDismissal();
@@ -168,19 +179,19 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 icon: Icons.account_tree_rounded,
                 color: logicColor,
               ),
-              ListTile(
-                leading: Icon(Icons.select_all_rounded, color: logicColor),
-                title: const Text('按钮识别'),
-                subtitle: const Text('用无障碍识别按钮文字、ID、描述'),
+              _GlassActionTile(
+                icon: Icons.select_all_rounded,
+                title: '按钮识别',
+                subtitle: '用无障碍识别按钮文字、ID、描述',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickButtonRecognizeAction();
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.image_search_rounded, color: logicColor),
-                title: const Text('图片识别'),
-                subtitle: const Text('圈住一块图片，后续在屏幕中查找匹配'),
+              _GlassActionTile(
+                icon: Icons.image_search_rounded,
+                title: '图片识别',
+                subtitle: '圈住一块图片，后续在屏幕中查找匹配',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickButtonRecognizeAction(
@@ -193,25 +204,28 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 icon: Icons.timer_rounded,
                 color: waitColor,
               ),
-              ListTile(
-                leading: Icon(Icons.timer_rounded, color: waitColor),
-                title: const Text('随机等待'),
+              _GlassActionTile(
+                icon: Icons.timer_rounded,
+                title: '随机等待',
+                subtitle: '在秒数范围内随机暂停',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickRandomWaitAction();
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.more_time_rounded, color: waitColor),
-                title: const Text('毫秒等待'),
+              _GlassActionTile(
+                icon: Icons.more_time_rounded,
+                title: '毫秒等待',
+                subtitle: '精确等待一段毫秒时间',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickMillisecondWaitAction();
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.hourglass_bottom_rounded, color: waitColor),
-                title: const Text('固定等待'),
+              _GlassActionTile(
+                icon: Icons.hourglass_bottom_rounded,
+                title: '固定等待',
+                subtitle: '按秒固定暂停',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickFixedWaitAction();
@@ -222,26 +236,28 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 icon: Icons.settings_suggest_rounded,
                 color: systemColor,
               ),
-              ListTile(
-                leading: Icon(Icons.navigation_rounded, color: systemColor),
-                title: const Text('导航动作'),
-                subtitle: const Text('返回、首页、多任务'),
+              _GlassActionTile(
+                icon: Icons.navigation_rounded,
+                title: '导航动作',
+                subtitle: '返回、首页、多任务',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickNavAction();
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.lock_outline_rounded, color: systemColor),
-                title: const Text('锁屏'),
+              _GlassActionTile(
+                icon: Icons.lock_outline_rounded,
+                title: '锁屏',
+                subtitle: '执行系统锁屏动作',
                 onTap: () {
                   Navigator.of(context).pop();
                   _addAction(const LockScreenAction());
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.rocket_launch_rounded, color: systemColor),
-                title: const Text('启动应用'),
+              _GlassActionTile(
+                icon: Icons.rocket_launch_rounded,
+                title: '启动应用',
+                subtitle: '打开已安装的目标应用',
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickAppAction();
@@ -258,80 +274,87 @@ class _GestureEditPageState extends State<GestureEditPage> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.fiber_manual_record_rounded),
-            title: const Text('录制完整手势轨迹'),
-            subtitle: const Text('像录音一样计时，结束后保存点击、滑动和轨迹'),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _waitForOverlayDismissal();
-              if (!mounted) return;
-              final result = await AlarmBridge().enterPickerMode('record');
-              final actions = _actionsFromRecordedResult(result);
-              if (actions.isNotEmpty) {
-                _addGestureActionsWithBuffers(actions);
-              }
-            },
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.fiber_manual_record_rounded,
+                title: '录制完整手势轨迹',
+                subtitle: '像录音一样计时，结束后保存点击、滑动和轨迹',
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _waitForOverlayDismissal();
+                  if (!mounted) return;
+                  final result = await AlarmBridge().enterPickerMode('record');
+                  final actions = _actionsFromRecordedResult(result);
+                  if (actions.isNotEmpty) {
+                    _addGestureActionsWithBuffers(actions);
+                  }
+                },
+              ),
+              _GlassActionTile(
+                icon: Icons.pin_drop_outlined,
+                title: '录制点击步骤',
+                subtitle: '点击屏幕生成编号圆点，保存后每个点都是独立步骤',
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _waitForOverlayDismissal();
+                  if (!mounted) return;
+                  final result = await AlarmBridge().enterPickerMode(
+                    'clickSteps',
+                  );
+                  final actions = _clickActionsFromSteps(result);
+                  if (actions.isNotEmpty) {
+                    _addGestureActionsWithBuffers(actions);
+                  }
+                },
+              ),
+              _GlassActionTile(
+                icon: Icons.touch_app_outlined,
+                title: '手动标点：单次点击',
+                subtitle: '拖动标记到目标位置后保存',
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _waitForOverlayDismissal();
+                  if (!mounted) return;
+                  final result = await AlarmBridge().enterPickerMode('click');
+                  if (result != null && result['cancelled'] != true) {
+                    _addGestureActionsWithBuffers([
+                      ClickAction(
+                        x1: (result['x1'] as num).toDouble(),
+                        y1: (result['y1'] as num).toDouble(),
+                      ),
+                    ]);
+                  }
+                },
+              ),
+              _GlassActionTile(
+                icon: Icons.swipe_outlined,
+                title: '手动标点：直线滑动',
+                subtitle: '拖动起点和终点后保存',
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _waitForOverlayDismissal();
+                  if (!mounted) return;
+                  final result = await AlarmBridge().enterPickerMode('swipe');
+                  if (result != null && result['cancelled'] != true) {
+                    _addGestureActionsWithBuffers([
+                      SwipeAction(
+                        x1: (result['x1'] as num).toDouble(),
+                        y1: (result['y1'] as num).toDouble(),
+                        x2: (result['x2'] as num).toDouble(),
+                        y2: (result['y2'] as num).toDouble(),
+                      ),
+                    ]);
+                  }
+                },
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.pin_drop_outlined),
-            title: const Text('录制点击步骤'),
-            subtitle: const Text('点击屏幕生成编号圆点，保存后每个点都是独立步骤'),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _waitForOverlayDismissal();
-              if (!mounted) return;
-              final result = await AlarmBridge().enterPickerMode('clickSteps');
-              final actions = _clickActionsFromSteps(result);
-              if (actions.isNotEmpty) {
-                _addGestureActionsWithBuffers(actions);
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.touch_app_outlined),
-            title: const Text('手动标点：单次点击'),
-            subtitle: const Text('拖动标记到目标位置后保存'),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _waitForOverlayDismissal();
-              if (!mounted) return;
-              final result = await AlarmBridge().enterPickerMode('click');
-              if (result != null && result['cancelled'] != true) {
-                _addGestureActionsWithBuffers([
-                  ClickAction(
-                    x1: (result['x1'] as num).toDouble(),
-                    y1: (result['y1'] as num).toDouble(),
-                  ),
-                ]);
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.swipe_outlined),
-            title: const Text('手动标点：直线滑动'),
-            subtitle: const Text('拖动起点和终点后保存'),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _waitForOverlayDismissal();
-              if (!mounted) return;
-              final result = await AlarmBridge().enterPickerMode('swipe');
-              if (result != null && result['cancelled'] != true) {
-                _addGestureActionsWithBuffers([
-                  SwipeAction(
-                    x1: (result['x1'] as num).toDouble(),
-                    y1: (result['y1'] as num).toDouble(),
-                    x2: (result['x2'] as num).toDouble(),
-                    y2: (result['y2'] as num).toDouble(),
-                  ),
-                ]);
-              }
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -488,31 +511,39 @@ class _GestureEditPageState extends State<GestureEditPage> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: const Text('返回键'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _addAction(const NavAction(navType: NavType.back));
-            },
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.keyboard_return_rounded,
+                title: '返回键',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _addAction(const NavAction(navType: NavType.back));
+                },
+              ),
+              _GlassActionTile(
+                icon: Icons.home_rounded,
+                title: '回到桌面',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _addAction(const NavAction(navType: NavType.home));
+                },
+              ),
+              _GlassActionTile(
+                icon: Icons.view_carousel_rounded,
+                title: '多任务界面',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _addAction(const NavAction(navType: NavType.recents));
+                },
+              ),
+            ],
           ),
-          ListTile(
-            title: const Text('回到桌面'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _addAction(const NavAction(navType: NavType.home));
-            },
-          ),
-          ListTile(
-            title: const Text('多任务界面'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _addAction(const NavAction(navType: NavType.recents));
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1149,30 +1180,33 @@ class _GestureEditPageState extends State<GestureEditPage> {
       useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.fiber_manual_record_rounded),
-              title: const Text('录制完整手势轨迹'),
-              onTap: () => Navigator.of(context).pop('record'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.pin_drop_outlined),
-              title: const Text('录制点击步骤'),
-              onTap: () => Navigator.of(context).pop('clickSteps'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.touch_app_outlined),
-              title: const Text('手动标点：单次点击'),
-              onTap: () => Navigator.of(context).pop('click'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.swipe_outlined),
-              title: const Text('手动标点：直线滑动'),
-              onTap: () => Navigator.of(context).pop('swipe'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.fiber_manual_record_rounded,
+                title: '录制完整手势轨迹',
+                onTap: () => Navigator.of(context).pop('record'),
+              ),
+              _GlassActionTile(
+                icon: Icons.pin_drop_outlined,
+                title: '录制点击步骤',
+                onTap: () => Navigator.of(context).pop('clickSteps'),
+              ),
+              _GlassActionTile(
+                icon: Icons.touch_app_outlined,
+                title: '手动标点：单次点击',
+                onTap: () => Navigator.of(context).pop('click'),
+              ),
+              _GlassActionTile(
+                icon: Icons.swipe_outlined,
+                title: '手动标点：直线滑动',
+                onTap: () => Navigator.of(context).pop('swipe'),
+              ),
+            ],
+          ),
         ),
       ),
     );

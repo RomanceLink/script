@@ -218,29 +218,31 @@ class _TaskManagementSettingsPageState
                             context: context,
                             showDragHandle: true,
                             builder: (context) => SafeArea(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    leading: const Icon(
-                                      Icons.edit_rounded,
-                                      color: Color(0xFF436EAF),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  8,
+                                  16,
+                                  18,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _ActionSheetTile(
+                                      icon: Icons.edit_rounded,
+                                      title: '编辑任务',
+                                      onTap: () =>
+                                          Navigator.of(context).pop('edit'),
                                     ),
-                                    title: const Text('编辑任务'),
-                                    onTap: () =>
-                                        Navigator.of(context).pop('edit'),
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(
-                                      Icons.delete_outline_rounded,
-                                      color: Color(0xFFD32F2F),
+                                    _ActionSheetTile(
+                                      icon: Icons.delete_outline_rounded,
+                                      title: '删除任务',
+                                      destructive: true,
+                                      onTap: () =>
+                                          Navigator.of(context).pop('delete'),
                                     ),
-                                    title: const Text('删除任务'),
-                                    onTap: () =>
-                                        Navigator.of(context).pop('delete'),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -667,7 +669,6 @@ class _TemplateLibrarySettingsPageState
     );
   }
 }
-
 
 class TemplateTasksPage extends StatefulWidget {
   const TemplateTasksPage({

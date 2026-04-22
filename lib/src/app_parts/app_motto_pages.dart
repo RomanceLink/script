@@ -130,13 +130,19 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
               const SizedBox(height: 10),
               Text(item.content),
               const SizedBox(height: 16),
-              FilledButton.tonal(
+              _MottoGlassButton(
+                icon: Icons.delete_outline_rounded,
+                label: '删除',
+                destructive: true,
+                fullWidth: true,
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('删除'),
               ),
-              TextButton(
+              const SizedBox(height: 10),
+              _MottoGlassButton(
+                icon: Icons.close_rounded,
+                label: '取消',
+                fullWidth: true,
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
               ),
             ],
           ),
@@ -186,13 +192,19 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
               const SizedBox(height: 10),
               Text('确定删除 ${_selectedDeleteIds.length} 条吗？'),
               const SizedBox(height: 16),
-              FilledButton.tonal(
+              _MottoGlassButton(
+                icon: Icons.delete_outline_rounded,
+                label: '删除',
+                destructive: true,
+                fullWidth: true,
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('删除'),
               ),
-              TextButton(
+              const SizedBox(height: 10),
+              _MottoGlassButton(
+                icon: Icons.close_rounded,
+                label: '取消',
+                fullWidth: true,
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
               ),
             ],
           ),
@@ -257,16 +269,20 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: _presetMottos
-              .map(
-                (item) => ListTile(
-                  title: Text(item),
-                  onTap: () => Navigator.of(context).pop(item),
-                ),
-              )
-              .toList(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: ListView(
+            shrinkWrap: true,
+            children: _presetMottos
+                .map(
+                  (item) => _ActionSheetTile(
+                    icon: Icons.format_quote_rounded,
+                    title: item,
+                    onTap: () => Navigator.of(context).pop(item),
+                  ),
+                )
+                .toList(),
+          ),
         ),
       ),
     );
@@ -492,18 +508,21 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final item in const [1, 2, 3, 4, 5, 10, 15, 30, 60])
-              ListTile(
-                title: Text('$item'),
-                trailing: item == _autoSwitchValue
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () => Navigator.of(context).pop(item),
-              ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final item in const [1, 2, 3, 4, 5, 10, 15, 30, 60])
+                _ActionSheetTile(
+                  icon: item == _autoSwitchValue
+                      ? Icons.check_circle_rounded
+                      : Icons.schedule_rounded,
+                  title: '$item',
+                  onTap: () => Navigator.of(context).pop(item),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -517,23 +536,26 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final unit in IntervalUnit.values)
-              ListTile(
-                title: Text(switch (unit) {
-                  IntervalUnit.seconds => '秒',
-                  IntervalUnit.minutes => '分钟',
-                  IntervalUnit.hours => '小时',
-                  IntervalUnit.days => '天',
-                }),
-                trailing: unit == _autoSwitchUnit
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () => Navigator.of(context).pop(unit),
-              ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final unit in IntervalUnit.values)
+                _ActionSheetTile(
+                  icon: unit == _autoSwitchUnit
+                      ? Icons.check_circle_rounded
+                      : Icons.timer_outlined,
+                  title: switch (unit) {
+                    IntervalUnit.seconds => '秒',
+                    IntervalUnit.minutes => '分钟',
+                    IntervalUnit.hours => '小时',
+                    IntervalUnit.days => '天',
+                  },
+                  onTap: () => Navigator.of(context).pop(unit),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -552,31 +574,42 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         title: const Text('每日箴言'),
         actions: [
           if (_selectingDelete) ...[
-            TextButton(
+            IconButton(
+              tooltip: '删除选中',
               onPressed: _selectedDeleteIds.isEmpty
                   ? null
                   : _deleteSelectedItems,
-              child: Text('删除${_selectedDeleteIds.length}'),
+              icon: Badge(
+                label: Text('${_selectedDeleteIds.length}'),
+                isLabelVisible: _selectedDeleteIds.isNotEmpty,
+                child: const Icon(Icons.delete_sweep_rounded),
+              ),
             ),
-            TextButton(
+            IconButton(
+              tooltip: '取消多选',
               onPressed: () {
                 setState(() {
                   _selectingDelete = false;
                   _selectedDeleteIds.clear();
                 });
               },
-              child: const Text('取消'),
+              icon: const Icon(Icons.close_rounded),
             ),
           ] else ...[
-            TextButton(onPressed: _pickPreset, child: const Text('预设')),
-            TextButton(
+            IconButton(
+              tooltip: '预设',
+              onPressed: _pickPreset,
+              icon: const Icon(Icons.auto_stories_rounded),
+            ),
+            IconButton(
+              tooltip: '多选删除',
               onPressed: () {
                 setState(() {
                   _selectingDelete = true;
                   _selectedDeleteIds.clear();
                 });
               },
-              child: const Text('多选删除'),
+              icon: const Icon(Icons.checklist_rounded),
             ),
           ],
         ],
@@ -612,53 +645,54 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: _MottoGlassButton(
+                          icon: Icons.edit_location_alt_outlined,
+                          label: '设置地址',
                           onPressed: _editSourceUrl,
-                          child: const Text('设置地址'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: FilledButton.tonal(
+                        child: _MottoGlassButton(
+                          icon: Icons.cloud_download_outlined,
+                          label: _fetching ? '抓取中' : '立即抓取',
+                          filled: true,
                           onPressed: _fetching ? null : _fetchFromSource,
-                          child: Text(_fetching ? '抓取中' : '立即抓取'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _openWebRecognizer,
-                      icon: const Icon(Icons.travel_explore_rounded),
-                      label: const Text('打开网页识别保存'),
-                    ),
+                  _MottoGlassButton(
+                    icon: Icons.travel_explore_rounded,
+                    label: '打开网页识别保存',
+                    filled: true,
+                    fullWidth: true,
+                    onPressed: _openWebRecognizer,
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: _MottoGlassButton(
+                          icon: Icons.wallpaper_rounded,
+                          label: _fetchingImage ? '更新中' : '微软壁纸',
                           onPressed: _fetchingImage ? null : _useBingImage,
-                          icon: const Icon(Icons.wallpaper_rounded),
-                          label: Text(_fetchingImage ? '更新中' : '微软壁纸'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: _MottoGlassButton(
+                          icon: Icons.photo_library_rounded,
+                          label: '图库选择',
                           onPressed: _pickMottoImage,
-                          icon: const Icon(Icons.photo_library_rounded),
-                          label: const Text('图库选择'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('首页显示作者和古诗名'),
+                  _MottoSwitchCell(
+                    title: '首页显示作者和古诗名',
                     value: _showMetaOnHome,
                     onChanged: (value) async {
                       setState(() => _showMetaOnHome = value);
@@ -667,10 +701,10 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                       );
                     },
                   ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('首页箴言自动切换'),
-                    subtitle: Text('每 ${_autoSwitchLabel()} 切换'),
+                  const SizedBox(height: 10),
+                  _MottoSwitchCell(
+                    title: '首页箴言自动切换',
+                    subtitle: '每 ${_autoSwitchLabel()} 切换',
                     value: _autoSwitchOnHome,
                     onChanged: (value) async {
                       setState(() => _autoSwitchOnHome = value);
@@ -679,34 +713,31 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                       );
                     },
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('自动切换数值'),
-                    subtitle: Text('当前 $_autoSwitchValue'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                  const SizedBox(height: 10),
+                  _MottoValueCell(
+                    title: '自动切换数值',
+                    subtitle: '当前 $_autoSwitchValue',
                     onTap: _pickAutoSwitchValue,
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('自动切换单位'),
-                    subtitle: Text(switch (_autoSwitchUnit) {
+                  const SizedBox(height: 10),
+                  _MottoValueCell(
+                    title: '自动切换单位',
+                    subtitle: switch (_autoSwitchUnit) {
                       IntervalUnit.seconds => '秒',
                       IntervalUnit.minutes => '分钟',
                       IntervalUnit.hours => '小时',
                       IntervalUnit.days => '天',
-                    }),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                    },
                     onTap: _pickAutoSwitchUnit,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
                   if (_imagePath != null || _imageUrl != null)
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton.icon(
-                        onPressed: _clearMottoImage,
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text('清除图片'),
-                      ),
+                    _MottoGlassButton(
+                      icon: Icons.delete_outline_rounded,
+                      label: '清除图片',
+                      destructive: true,
+                      fullWidth: true,
+                      onPressed: _clearMottoImage,
                     ),
                   const SizedBox(height: 8),
                   Text(
@@ -747,11 +778,17 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     : Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(
-                            onPressed: _pinnedMottoId == item.id
-                                ? null
-                                : () => _setHomeMotto(item),
-                            child: const Text('设为首页'),
+                          SizedBox(
+                            width: 96,
+                            child: _MottoGlassButton(
+                              height: 38,
+                              icon: Icons.home_rounded,
+                              label: '设为首页',
+                              filled: _pinnedMottoId == item.id,
+                              onPressed: _pinnedMottoId == item.id
+                                  ? null
+                                  : () => _setHomeMotto(item),
+                            ),
                           ),
                           const SizedBox(width: 4),
                           _MiniIconButton(
@@ -996,45 +1033,51 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                             ),
                       ),
                       const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: editedLines.length < 2
-                            ? null
-                            : () {
-                                final mergedContent = editedLines
-                                    .map((item) => item.content.trim())
-                                    .where((item) => item.isNotEmpty)
-                                    .join('\n');
-                                final mergedAuthor = editedLines
-                                    .map((item) => item.author?.trim() ?? '')
-                                    .firstWhere(
-                                      (item) => item.isNotEmpty,
-                                      orElse: () => '',
-                                    );
-                                final mergedPoemTitle = editedLines
-                                    .map((item) => item.poemTitle?.trim() ?? '')
-                                    .firstWhere(
-                                      (item) => item.isNotEmpty,
-                                      orElse: () => '',
-                                    );
-                                setSheetState(() {
-                                  editedLines
-                                    ..clear()
-                                    ..add(
-                                      DailyMottoEntry(
-                                        id: dailyMottoEntryId(mergedContent),
-                                        content: mergedContent,
-                                        author: mergedAuthor.isEmpty
-                                            ? null
-                                            : mergedAuthor,
-                                        poemTitle: mergedPoemTitle.isEmpty
-                                            ? null
-                                            : mergedPoemTitle,
-                                      ),
-                                    );
-                                });
-                              },
-                        icon: const Icon(Icons.merge_type_rounded),
-                        label: const Text('合并'),
+                      SizedBox(
+                        width: 96,
+                        child: _MottoGlassButton(
+                          height: 42,
+                          icon: Icons.merge_type_rounded,
+                          label: '合并',
+                          onPressed: editedLines.length < 2
+                              ? null
+                              : () {
+                                  final mergedContent = editedLines
+                                      .map((item) => item.content.trim())
+                                      .where((item) => item.isNotEmpty)
+                                      .join('\n');
+                                  final mergedAuthor = editedLines
+                                      .map((item) => item.author?.trim() ?? '')
+                                      .firstWhere(
+                                        (item) => item.isNotEmpty,
+                                        orElse: () => '',
+                                      );
+                                  final mergedPoemTitle = editedLines
+                                      .map(
+                                        (item) => item.poemTitle?.trim() ?? '',
+                                      )
+                                      .firstWhere(
+                                        (item) => item.isNotEmpty,
+                                        orElse: () => '',
+                                      );
+                                  setSheetState(() {
+                                    editedLines
+                                      ..clear()
+                                      ..add(
+                                        DailyMottoEntry(
+                                          id: dailyMottoEntryId(mergedContent),
+                                          content: mergedContent,
+                                          author: mergedAuthor.isEmpty
+                                              ? null
+                                              : mergedAuthor,
+                                          poemTitle: mergedPoemTitle.isEmpty
+                                              ? null
+                                              : mergedPoemTitle,
+                                        ),
+                                      );
+                                  });
+                                },
+                        ),
                       ),
                     ],
                   ),
@@ -1095,14 +1138,18 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: _MottoGlassButton(
+                          icon: Icons.close_rounded,
+                          label: '取消',
                           onPressed: () => Navigator.of(sheetContext).pop(),
-                          child: const Text('取消'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: FilledButton.tonal(
+                        child: _MottoGlassButton(
+                          icon: Icons.check_rounded,
+                          label: '保存这些内容',
+                          filled: true,
                           onPressed: editedLines.isEmpty
                               ? null
                               : () => Navigator.of(sheetContext).pop(
@@ -1113,7 +1160,6 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                                       )
                                       .toList(),
                                 ),
-                          child: const Text('保存这些内容'),
                         ),
                       ),
                     ],
@@ -1367,24 +1413,32 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  FilledButton.tonalIcon(
+                  _MottoGlassButton(
+                    height: 44,
+                    icon: Icons.code_rounded,
+                    label: '网页文字',
                     onPressed: _recognizing ? null : _recognizeDomAndSave,
-                    icon: const Icon(Icons.code_rounded),
-                    label: const Text('网页文字'),
                   ),
-                  FilledButton.icon(
+                  _MottoGlassButton(
+                    height: 44,
+                    icon: Icons.content_paste_go_rounded,
+                    label: '剪切板',
+                    filled: true,
                     onPressed: _recognizing ? null : _recognizeClipboardAndSave,
-                    icon: const Icon(Icons.content_paste_go_rounded),
-                    label: const Text('剪切板'),
                   ),
-                  FilledButton.icon(
+                  _MottoGlassButton(
+                    height: 44,
+                    icon: Icons.document_scanner_rounded,
+                    label: _recognizing ? '识别中' : '截图OCR',
+                    filled: true,
                     onPressed: _recognizing
                         ? null
                         : () => _recognizeScreenshotAndSave(),
-                    icon: const Icon(Icons.document_scanner_rounded),
-                    label: Text(_recognizing ? '识别中' : '截图OCR'),
                   ),
-                  FilledButton.tonalIcon(
+                  _MottoGlassButton(
+                    height: 44,
+                    icon: Icons.crop_free_rounded,
+                    label: _selectingRegion ? '识别框选' : '框选OCR',
                     onPressed: _recognizing
                         ? null
                         : () {
@@ -1397,18 +1451,18 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                               });
                             }
                           },
-                    icon: const Icon(Icons.crop_free_rounded),
-                    label: Text(_selectingRegion ? '识别框选' : '框选OCR'),
                   ),
                   if (_selectingRegion)
-                    TextButton(
+                    _MottoGlassButton(
+                      height: 44,
+                      icon: Icons.close_rounded,
+                      label: '取消',
                       onPressed: () {
                         setState(() {
                           _selectingRegion = false;
                           _selectedRegion = null;
                         });
                       },
-                      child: const Text('取消'),
                     ),
                 ],
               ),
@@ -1454,6 +1508,290 @@ class _MottoRegionPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MottoRegionPainter oldDelegate) {
     return oldDelegate.region != region;
+  }
+}
+
+class _MottoGlassButton extends StatelessWidget {
+  const _MottoGlassButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.filled = false,
+    this.destructive = false,
+    this.height = 58,
+    this.fullWidth = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool filled;
+  final bool destructive;
+  final double height;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onPressed != null;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = destructive
+        ? const Color(0xFFE15B5B)
+        : theme.colorScheme.primary;
+    final borderRadius = BorderRadius.circular(22);
+    final button = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(
+              alpha: enabled ? (isDark ? 0.16 : 0.10) : 0,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: borderRadius,
+            child: Ink(
+              height: height,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: filled
+                      ? [
+                          accent.withValues(alpha: enabled ? 0.92 : 0.28),
+                          accent.withValues(alpha: enabled ? 0.72 : 0.20),
+                        ]
+                      : isDark
+                      ? [
+                          const Color(0xFF213231).withValues(alpha: 0.96),
+                          const Color(0xFF19282A).withValues(alpha: 0.94),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.92),
+                          const Color(0xFFF0FBF7).withValues(alpha: 0.84),
+                        ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: filled
+                      ? Colors.white.withValues(alpha: isDark ? 0.10 : 0.22)
+                      : Colors.white.withValues(alpha: isDark ? 0.10 : 0.66),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: filled
+                        ? Colors.white.withValues(alpha: enabled ? 1 : 0.46)
+                        : accent.withValues(alpha: enabled ? 1 : 0.42),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: filled
+                            ? Colors.white.withValues(alpha: enabled ? 1 : 0.50)
+                            : accent.withValues(alpha: enabled ? 1 : 0.45),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
+class _MottoSwitchCell extends StatelessWidget {
+  const _MottoSwitchCell({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return _MottoGlassCell(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: Colors.white,
+            activeTrackColor: const Color(0xFF8DE2CE),
+            inactiveThumbColor: Colors.white,
+            inactiveTrackColor: theme.brightness == Brightness.dark
+                ? const Color(0xFF3A4A48)
+                : const Color(0xFFD9E8E2),
+            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MottoValueCell extends StatelessWidget {
+  const _MottoValueCell({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return _MottoGlassCell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.primary,
+            size: 26,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MottoGlassCell extends StatelessWidget {
+  const _MottoGlassCell({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final borderRadius = BorderRadius.circular(22);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(
+              alpha: isDark ? 0.12 : 0.08,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: borderRadius,
+            child: Ink(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [
+                          const Color(0xFF213231).withValues(alpha: 0.96),
+                          const Color(0xFF19282A).withValues(alpha: 0.94),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.92),
+                          const Color(0xFFF0FBF7).withValues(alpha: 0.84),
+                        ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.66),
+                ),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1553,16 +1891,19 @@ class _MottoEntrySheetState extends State<_MottoEntrySheet> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: _MottoGlassButton(
+                          icon: Icons.close_rounded,
+                          label: '取消',
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: FilledButton.tonal(
+                        child: _MottoGlassButton(
+                          icon: Icons.check_rounded,
+                          label: '保存',
+                          filled: true,
                           onPressed: _submit,
-                          child: const Text('保存'),
                         ),
                       ),
                     ],
@@ -1681,27 +2022,20 @@ class _TemplateNameSheetState extends State<_TemplateNameSheet> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
+                          child: _MottoGlassButton(
+                            icon: Icons.close_rounded,
+                            label: '取消',
                             onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('取消'),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: FilledButton.tonal(
+                          child: _MottoGlassButton(
                             key: const ValueKey('template_name_submit_button'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor:
-                                  theme.brightness == Brightness.dark
-                                  ? const Color(0xFF1F3D39)
-                                  : const Color(0xFFDDF5EC),
-                              foregroundColor:
-                                  theme.brightness == Brightness.dark
-                                  ? const Color(0xFF94DFC9)
-                                  : const Color(0xFF2F7D6B),
-                            ),
+                            icon: Icons.check_rounded,
+                            label: widget.actionLabel,
+                            filled: true,
                             onPressed: _submit,
-                            child: Text(widget.actionLabel),
                           ),
                         ),
                       ],

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -105,60 +106,112 @@ bool _looksLikeMojibake(String value) {
 
 ThemeData _scriptAssistantTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
+  final scheme = ColorScheme.fromSeed(
+    seedColor: _appSeed,
+    brightness: brightness,
+  );
+  final glassSurface = isDark
+      ? const Color(0xFF172625).withValues(alpha: 0.92)
+      : Colors.white.withValues(alpha: 0.86);
+  final glassBorder = isDark
+      ? Colors.white.withValues(alpha: 0.14)
+      : Colors.white.withValues(alpha: 0.72);
   return ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _appSeed,
-      brightness: brightness,
-    ),
-    scaffoldBackgroundColor: isDark ? _darkSurface : _lightSurface,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: isDark
+        ? const Color(0xFF0E1717)
+        : const Color(0xFFF4FBF8),
     cardTheme: CardThemeData(
-      color: (isDark ? const Color(0xFF162122) : Colors.white).withValues(
-        alpha: isDark ? 0.9 : 0.84,
-      ),
+      color: glassSurface,
+      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.38),
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-        side: BorderSide(
-          color: isDark ? const Color(0xFF223334) : const Color(0xFFE2ECE7),
-        ),
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(color: glassBorder),
+      ),
+      shadowColor: scheme.primary.withValues(alpha: 0.20),
+    ),
+    appBarTheme: AppBarTheme(
+      centerTitle: false,
+      backgroundColor: (isDark ? const Color(0xFF11201F) : Colors.white)
+          .withValues(alpha: 0.88),
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      titleTextStyle: TextStyle(
+        color: scheme.onSurface,
+        fontSize: 20,
+        fontWeight: FontWeight.w900,
       ),
     ),
-    appBarTheme: const AppBarTheme(
-      centerTitle: false,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
+    dialogTheme: DialogThemeData(
+      backgroundColor: glassSurface,
+      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.32),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+        side: BorderSide(color: glassBorder),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: isDark
+          ? const Color(0xFF172625)
+          : const Color(0xFFF8FFFC),
+      modalBackgroundColor: isDark
+          ? const Color(0xFF172625)
+          : const Color(0xFFF8FFFC),
+      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.35),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      showDragHandle: true,
+    ),
+    listTileTheme: ListTileThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      tileColor: Colors.white.withValues(alpha: isDark ? 0.06 : 0.46),
+      selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.42),
+      iconColor: scheme.primary,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        backgroundColor: isDark
+            ? const Color(0xFF2B6158).withValues(alpha: 0.82)
+            : const Color(0xFFDCF7EF).withValues(alpha: 0.92),
+        foregroundColor: isDark
+            ? const Color(0xFFD8FFF4)
+            : const Color(0xFF116756),
         minimumSize: const Size(0, 44),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: isDark ? 0.06 : 0.64),
+        foregroundColor: scheme.primary,
+        side: BorderSide(color: glassBorder),
         minimumSize: const Size(0, 42),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: isDark ? const Color(0xFF132123) : const Color(0xFFF2F6F3),
+      fillColor: Colors.white.withValues(alpha: isDark ? 0.08 : 0.72),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: glassBorder),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide(
-          color: isDark ? const Color(0xFF79C6B8) : _appSeed,
+          color: isDark ? const Color(0xFF92E6D2) : const Color(0xFF3DBAA0),
+          width: 1.4,
         ),
       ),
     ),
@@ -654,25 +707,32 @@ class _DashboardPageState extends State<DashboardPage>
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.link_off_rounded),
-              title: const Text('清除脚本绑定'),
-              onTap: () => Navigator.of(context).pop('clear'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.flash_on_rounded),
-              title: const Text('更换执行脚本'),
-              onTap: () => Navigator.of(context).pop('main'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.first_page_rounded),
-              title: const Text('更换前置脚本'),
-              onTap: () => Navigator.of(context).pop('pre'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ActionSheetTile(
+                icon: Icons.link_off_rounded,
+                title: '清除脚本绑定',
+                subtitle: '同时清除执行脚本和前置脚本',
+                destructive: true,
+                onTap: () => Navigator.of(context).pop('clear'),
+              ),
+              _ActionSheetTile(
+                icon: Icons.flash_on_rounded,
+                title: '更换执行脚本',
+                subtitle: '设置打开应用后的主配置',
+                onTap: () => Navigator.of(context).pop('main'),
+              ),
+              _ActionSheetTile(
+                icon: Icons.first_page_rounded,
+                title: '更换前置脚本',
+                subtitle: '设置打开应用前先执行的配置',
+                onTap: () => Navigator.of(context).pop('pre'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -691,26 +751,32 @@ class _DashboardPageState extends State<DashboardPage>
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(result == 'pre' ? '无前置脚本' : '无执行脚本'),
-              onTap: () => Navigator.of(context).pop('none'),
-            ),
-            if (_gestureConfigs.isNotEmpty) const Divider(height: 1),
-            ..._gestureConfigs.map(
-              (config) => ListTile(
-                title: Text(config.name),
-                subtitle: Text(
-                  config.infiniteLoop
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _ActionSheetTile(
+                icon: Icons.block_rounded,
+                title: result == 'pre' ? '无前置脚本' : '无执行脚本',
+                subtitle: '清空当前绑定',
+                destructive: true,
+                onTap: () => Navigator.of(context).pop('none'),
+              ),
+              ..._gestureConfigs.map(
+                (config) => _ActionSheetTile(
+                  icon: config.infiniteLoop
+                      ? Icons.all_inclusive_rounded
+                      : Icons.play_circle_outline_rounded,
+                  title: config.name,
+                  subtitle: config.infiniteLoop
                       ? '无限循环 · 间隔 ${config.loopIntervalMillis} 毫秒'
                       : '${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒',
+                  onTap: () => Navigator.of(context).pop(config.id),
                 ),
-                onTap: () => Navigator.of(context).pop(config.id),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1246,10 +1312,18 @@ class _DashboardPageState extends State<DashboardPage>
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: theme.brightness == Brightness.dark
-                ? [const Color(0xFF102021), const Color(0xFF0E1717)]
-                : [const Color(0xFFF4FBF8), const Color(0xFFE4F5EF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+                ? const [
+                    Color(0xFF091616),
+                    Color(0xFF102222),
+                    Color(0xFF151B2C),
+                  ]
+                : const [
+                    Color(0xFFF5FFF9),
+                    Color(0xFFEAF7FF),
+                    Color(0xFFF7F0FF),
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: SafeArea(

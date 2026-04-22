@@ -171,21 +171,30 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(allowNoneLabel),
-              onTap: () => Navigator.of(context).pop('none'),
-            ),
-            if (_availableConfigs.isNotEmpty) const Divider(),
-            ..._availableConfigs.map(
-              (c) => ListTile(
-                title: Text(c.name),
-                onTap: () => Navigator.of(context).pop(c.id),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ActionSheetTile(
+                icon: Icons.link_off_rounded,
+                title: allowNoneLabel,
+                onTap: () => Navigator.of(context).pop('none'),
               ),
-            ),
-          ],
+              ..._availableConfigs.map(
+                (c) => _ActionSheetTile(
+                  icon: c.infiniteLoop
+                      ? Icons.all_inclusive_rounded
+                      : Icons.play_circle_outline_rounded,
+                  title: c.name,
+                  subtitle: c.infiniteLoop
+                      ? '无限循环 · 间隔 ${c.loopIntervalMillis} 毫秒'
+                      : '${c.loopCount} 次 · 间隔 ${c.loopIntervalMillis} 毫秒',
+                  onTap: () => Navigator.of(context).pop(c.id),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -403,7 +412,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                             controller: _autoCompleteDelayController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: '打开后自动完成'
+                              labelText: '打开后自动完成',
                             ),
                           ),
                         ),
@@ -411,9 +420,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                         Expanded(
                           child: _IntervalUnitSelector(
                             value: _autoCompleteDelayUnit,
-                            onChanged: (value) => setState(
-                              () => _autoCompleteDelayUnit = value,
-                            ),
+                            onChanged: (value) =>
+                                setState(() => _autoCompleteDelayUnit = value),
                           ),
                         ),
                       ],
@@ -538,7 +546,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     autoOpenDelaySeconds:
                         int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
                     autoCompleteDelayValue:
-                        int.tryParse(_autoCompleteDelayController.text.trim()) ??
+                        int.tryParse(
+                          _autoCompleteDelayController.text.trim(),
+                        ) ??
                         0,
                     autoCompleteDelayUnit: _autoCompleteDelayUnit,
                   ),
@@ -560,4 +570,3 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     };
   }
 }
-

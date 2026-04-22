@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -17,10 +18,10 @@ BoxDecoration _automationPageBackground(ThemeData theme) {
   return BoxDecoration(
     gradient: LinearGradient(
       colors: theme.brightness == Brightness.dark
-          ? const [Color(0xFF102021), Color(0xFF0E1717)]
-          : const [Color(0xFFF4FBF8), Color(0xFFE4F5EF)],
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
+          ? const [Color(0xFF091616), Color(0xFF102222), Color(0xFF151B2C)]
+          : const [Color(0xFFF5FFF9), Color(0xFFEAF7FF), Color(0xFFF7F0FF)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
     ),
   );
 }
@@ -30,22 +31,29 @@ BoxDecoration _automationCardDecoration(ThemeData theme) {
   return BoxDecoration(
     gradient: LinearGradient(
       colors: isDark
-          ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
-          : const [Color(0xFFF7FCFA), Color(0xFFEAF4F0)],
+          ? [
+              const Color(0xFF17312F).withValues(alpha: 0.92),
+              const Color(0xFF192538).withValues(alpha: 0.88),
+            ]
+          : [
+              Colors.white.withValues(alpha: 0.88),
+              const Color(0xFFE6FFF6).withValues(alpha: 0.78),
+              const Color(0xFFEAF1FF).withValues(alpha: 0.74),
+            ],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
     borderRadius: BorderRadius.circular(24),
     border: Border.all(
-      color: theme.colorScheme.outlineVariant.withValues(
-        alpha: isDark ? 0.35 : 0.5,
-      ),
+      color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.64),
     ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
-        blurRadius: 18,
-        offset: const Offset(0, 8),
+        color: theme.colorScheme.primary.withValues(
+          alpha: isDark ? 0.18 : 0.12,
+        ),
+        blurRadius: 24,
+        offset: const Offset(0, 12),
       ),
     ],
   );
@@ -172,40 +180,42 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.lock_open_rounded),
-              title: Text(_unlockConfig == null ? '录制锁屏解锁' : '重新录制锁屏解锁'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _recordUnlockConfig();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.verified_user_outlined),
-              title: const Text('验证锁屏解锁'),
-              enabled: _unlockConfig != null,
-              onTap: () {
-                Navigator.of(context).pop();
-                _verifyUnlockConfig();
-              },
-            ),
-            if (_unlockConfig != null)
-              ListTile(
-                leading: const Icon(Icons.delete_outline_rounded),
-                title: const Text('删除锁屏脚本'),
-                textColor: Colors.redAccent,
-                iconColor: Colors.redAccent,
-                onTap: () async {
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.lock_open_rounded,
+                title: _unlockConfig == null ? '录制锁屏解锁' : '重新录制锁屏解锁',
+                onTap: () {
                   Navigator.of(context).pop();
-                  await widget.repository.saveUnlockGestureConfig(null);
-                  if (!mounted) return;
-                  setState(() => _unlockConfig = null);
+                  _recordUnlockConfig();
                 },
               ),
-          ],
+              _GlassActionTile(
+                icon: Icons.verified_user_outlined,
+                title: '验证锁屏解锁',
+                enabled: _unlockConfig != null,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _verifyUnlockConfig();
+                },
+              ),
+              if (_unlockConfig != null)
+                _GlassActionTile(
+                  icon: Icons.delete_outline_rounded,
+                  title: '删除锁屏脚本',
+                  destructive: true,
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await widget.repository.saveUnlockGestureConfig(null);
+                    if (!mounted) return;
+                    setState(() => _unlockConfig = null);
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -277,24 +287,24 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('编辑'),
-              onTap: () => Navigator.of(context).pop('edit'),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.redAccent,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.edit_outlined,
+                title: '编辑',
+                onTap: () => Navigator.of(context).pop('edit'),
               ),
-              title: const Text('删除'),
-              textColor: Colors.redAccent,
-              onTap: () => Navigator.of(context).pop('delete'),
-            ),
-          ],
+              _GlassActionTile(
+                icon: Icons.delete_outline_rounded,
+                title: '删除',
+                destructive: true,
+                onTap: () => Navigator.of(context).pop('delete'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -517,4 +527,3 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
     );
   }
 }
-
