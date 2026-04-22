@@ -28,7 +28,7 @@ part 'app_parts/app_motto_pages.dart';
 
 enum ToastType { success, error, info, warning }
 
-const _appSeed = Color(0xFF4A9D8F);
+const _appSeed = Color(0xFF7A86FF);
 const _lightSurface = Color(0xFFF7FAF8);
 const _darkSurface = Color(0xFF0F1718);
 const _defaultDailyMottoSourceUrl = 'https://www.wenxue360.com/gushiwen/';

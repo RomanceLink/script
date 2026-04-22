@@ -65,9 +65,7 @@ Color _automationLiquidGlassBorder(ThemeData theme, Color tint) {
 }
 
 Color _automationHeaderColor(ThemeData theme) {
-  return theme.brightness == Brightness.dark
-      ? const Color(0xFF202552)
-      : const Color(0xFFE7ECFF);
+  return const Color(0xFF202552);
 }
 
 class GestureConfigPage extends StatefulWidget {
@@ -345,7 +343,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
               _unlockConfig == null
                   ? Icons.lock_open_rounded
                   : Icons.lock_rounded,
-              color: _unlockConfig == null ? null : const Color(0xFF4A9D8F),
+              color: _unlockConfig == null
+                  ? Colors.white.withValues(alpha: 0.72)
+                  : const Color(0xFF8EA0FF),
             ),
           ),
           const SizedBox(width: 8),
@@ -359,9 +359,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
           MediaQuery.paddingOf(context).bottom + 10,
         ),
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF202552)
-              : const Color(0xFFE7ECFF),
+          color: const Color(0xFF202552),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(
@@ -383,7 +381,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4A9D8F),
+                  backgroundColor: const Color(0xFF7F8CFF),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -398,6 +396,8 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 onPressed: widget.onClose,
                 icon: const Icon(Icons.close_rounded),
                 style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF2A2F63),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.all(14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -464,7 +464,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                   colors: [
                                     Colors.white.withValues(alpha: 0.22),
                                     const Color(
-                                      0xFF8A7BFF,
+                                      0xFF7F8CFF,
                                     ).withValues(alpha: 0.36),
                                   ],
                                 ),
@@ -510,7 +510,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                   tooltip: '执行',
                                   style: IconButton.styleFrom(
                                     backgroundColor: const Color(
-                                      0xFF8A7BFF,
+                                      0xFF7F8CFF,
                                     ).withValues(alpha: 0.18),
                                     foregroundColor: Colors.white,
                                   ),

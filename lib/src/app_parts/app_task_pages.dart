@@ -585,11 +585,11 @@ class _TemplateLibrarySettingsPageState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mintFill = theme.brightness == Brightness.dark
-        ? const Color(0xFF1F3D39)
-        : const Color(0xFFDDF5EC);
+        ? const Color(0xFF2F356D)
+        : const Color(0xFFDCE3FF);
     final mintText = theme.brightness == Brightness.dark
-        ? const Color(0xFF94DFC9)
-        : const Color(0xFF2F7D6B);
+        ? const Color(0xFFC7D0FF)
+        : const Color(0xFF3B4AA0);
     return Scaffold(
       appBar: AppBar(
         title: const Text('模板库'),

@@ -1593,7 +1593,7 @@ class _MottoGlassButton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final accent = destructive
         ? const Color(0xFFE15B5B)
-        : theme.colorScheme.primary;
+        : const Color(0xFF7F8CFF);
     final borderRadius = BorderRadius.circular(22);
     final button = DecoratedBox(
       decoration: BoxDecoration(

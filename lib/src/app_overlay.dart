@@ -613,7 +613,7 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                                             vertical: 16,
                                           ),
                                           backgroundColor: const Color(
-                                            0xFF4A9D8F,
+                                            0xFF7F8CFF,
                                           ),
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
@@ -622,7 +622,7 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                                           ),
                                           elevation: 2,
                                           shadowColor: const Color(
-                                            0xFF4A9D8F,
+                                            0xFF7F8CFF,
                                           ).withValues(alpha: 0.3),
                                         ),
                                         onPressed: _selected == null
