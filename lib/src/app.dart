@@ -426,6 +426,7 @@ class _DashboardPageState extends State<DashboardPage>
     await _repository.save(next);
     if (widget.enablePlatformServices) {
       await _notifications.scheduleForState(next, next.taskDefinitions);
+      await _alarmBridge.refreshHomeWidget();
     }
     if (!mounted) {
       return;

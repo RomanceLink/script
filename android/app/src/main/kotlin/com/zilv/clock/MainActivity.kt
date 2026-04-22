@@ -117,6 +117,10 @@ class MainActivity : FlutterActivity() {
                         val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
                         result.success(AutoSwipeService.showAutomationMenu(configs))
                     }
+                    "refreshHomeWidget" -> {
+                        TaskOverviewWidgetProvider.refreshAll(this)
+                        result.success(null)
+                    }
                     "syncAutomationConfigs" -> {
                         val configs = call.argument<List<Map<String, Any?>>>("configs") ?: emptyList()
                         result.success(AutoSwipeService.syncAutomationConfigs(configs))

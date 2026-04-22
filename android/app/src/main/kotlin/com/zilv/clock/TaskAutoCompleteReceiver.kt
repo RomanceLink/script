@@ -78,6 +78,7 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
 
         if (changed) {
             prefs.edit().putString("flutter.daily_task_state_v1", root.toString()).apply()
+            TaskOverviewWidgetProvider.refreshAll(context)
         }
     }
 

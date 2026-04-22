@@ -177,12 +177,12 @@ class _HeaderCardState extends State<_HeaderCard> {
   late final PageController _pageController;
   int _currentPage = 0;
   Timer? _autoSwitchTimer;
+  int _lastPageCount = 1;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncAutoSwitch());
   }
 
   @override
@@ -199,7 +199,9 @@ class _HeaderCardState extends State<_HeaderCard> {
         oldWidget.autoSwitch != widget.autoSwitch ||
         oldWidget.autoSwitchInterval != widget.autoSwitchInterval;
     if (shouldResync) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _syncAutoSwitch());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _syncAutoSwitch(_lastPageCount),
+      );
     }
   }
 
@@ -238,6 +240,7 @@ class _HeaderCardState extends State<_HeaderCard> {
   void _syncAutoSwitch([int? pageCount]) {
     _autoSwitchTimer?.cancel();
     final totalPages = pageCount ?? _poemPages(_poemLines(widget.title)).length;
+    _lastPageCount = totalPages;
     if (!widget.autoSwitch || totalPages <= 1 || !_pageController.hasClients) {
       return;
     }
@@ -270,6 +273,11 @@ class _HeaderCardState extends State<_HeaderCard> {
     final colors = theme.colorScheme;
     final poemLines = _poemLines(widget.title);
     final poemPages = _poemPages(poemLines);
+    if (_lastPageCount != poemPages.length) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _syncAutoSwitch(poemPages.length),
+      );
+    }
     final poemFontSize = _poemFontSize(poemLines);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
@@ -393,7 +401,7 @@ class _HeaderCardState extends State<_HeaderCard> {
           ],
           Text(
             widget.subtitle,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.onSurfaceVariant,

@@ -180,6 +180,10 @@ class AlarmBridge {
     return result ?? false;
   }
 
+  Future<void> refreshHomeWidget() async {
+    await _channel.invokeMethod('refreshHomeWidget');
+  }
+
   Future<bool> syncAutomationConfigs({
     required List<Map<String, Object?>> configs,
   }) async {
