@@ -26,6 +26,8 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   String? _imageUrl;
   String? _imagePath;
   bool _showMetaOnHome = true;
+  bool _selectingDelete = false;
+  final Set<String> _selectedDeleteIds = <String>{};
   bool _loading = true;
   bool _fetching = false;
   bool _fetchingImage = false;
@@ -133,6 +135,64 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       if (_pinnedMottoId == item.id) {
         _pinnedMottoId = null;
       }
+    });
+    await widget.repository.saveDailyMottoEntries(_mottos);
+    if (_pinnedMottoId == null) {
+      await widget.repository.savePinnedDailyMottoId(null);
+    }
+    if (!mounted) return;
+    VibrantHUD.show(context, '删除成功', type: ToastType.success);
+  }
+
+  Future<void> _deleteSelectedItems() async {
+    if (_selectedDeleteIds.isEmpty) {
+      return;
+    }
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '批量删除箴言',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              Text('确定删除 ${_selectedDeleteIds.length} 条吗？'),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('删除'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() {
+      _mottos = _mottos
+          .where((item) => !_selectedDeleteIds.contains(item.id))
+          .toList();
+      if (_pinnedMottoId != null &&
+          _selectedDeleteIds.contains(_pinnedMottoId)) {
+        _pinnedMottoId = null;
+      }
+      _selectedDeleteIds.clear();
+      _selectingDelete = false;
     });
     await widget.repository.saveDailyMottoEntries(_mottos);
     if (_pinnedMottoId == null) {
@@ -388,6 +448,16 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     return parts.join(' · ');
   }
 
+  void _toggleDeleteSelection(DailyMottoEntry entry) {
+    setState(() {
+      if (_selectedDeleteIds.contains(entry.id)) {
+        _selectedDeleteIds.remove(entry.id);
+      } else {
+        _selectedDeleteIds.add(entry.id);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -396,7 +466,36 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('每日箴言'),
-        actions: [TextButton(onPressed: _pickPreset, child: const Text('预设'))],
+        actions: [
+          if (_selectingDelete) ...[
+            TextButton(
+              onPressed: _selectedDeleteIds.isEmpty
+                  ? null
+                  : _deleteSelectedItems,
+              child: Text('删除${_selectedDeleteIds.length}'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectingDelete = false;
+                  _selectedDeleteIds.clear();
+                });
+              },
+              child: const Text('取消'),
+            ),
+          ] else ...[
+            TextButton(onPressed: _pickPreset, child: const Text('预设')),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectingDelete = true;
+                  _selectedDeleteIds.clear();
+                });
+              },
+              child: const Text('多选删除'),
+            ),
+          ],
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _editItem(),
@@ -511,6 +610,15 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
+                onTap: _selectingDelete
+                    ? () => _toggleDeleteSelection(item)
+                    : null,
+                leading: _selectingDelete
+                    ? Checkbox(
+                        value: _selectedDeleteIds.contains(item.id),
+                        onChanged: (_) => _toggleDeleteSelection(item),
+                      )
+                    : null,
                 title: Text(
                   _mottoPreview(item.content),
                   maxLines: 2,
@@ -519,28 +627,30 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                 subtitle: _mottoSubtitle(item).isEmpty
                     ? null
                     : Text(_mottoSubtitle(item)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: _pinnedMottoId == item.id
-                          ? null
-                          : () => _setHomeMotto(item),
-                      child: const Text('设为首页'),
-                    ),
-                    const SizedBox(width: 4),
-                    _MiniIconButton(
-                      onPressed: () =>
-                          _editItem(initialEntry: item, index: index),
-                      icon: Icons.edit_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _MiniIconButton(
-                      onPressed: () => _deleteItem(index),
-                      icon: Icons.delete_outline_rounded,
-                    ),
-                  ],
-                ),
+                trailing: _selectingDelete
+                    ? null
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: _pinnedMottoId == item.id
+                                ? null
+                                : () => _setHomeMotto(item),
+                            child: const Text('设为首页'),
+                          ),
+                          const SizedBox(width: 4),
+                          _MiniIconButton(
+                            onPressed: () =>
+                                _editItem(initialEntry: item, index: index),
+                            icon: Icons.edit_rounded,
+                          ),
+                          const SizedBox(width: 8),
+                          _MiniIconButton(
+                            onPressed: () => _deleteItem(index),
+                            icon: Icons.delete_outline_rounded,
+                          ),
+                        ],
+                      ),
               ),
             );
           }),
@@ -718,6 +828,16 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     );
   }
 
+  Future<DailyMottoEntry?> _editRecognizedEntry(DailyMottoEntry entry) async {
+    return showModalBottomSheet<DailyMottoEntry>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) =>
+          _MottoEntrySheet(title: '编辑识别内容', initialEntry: entry),
+    );
+  }
+
   Future<void> _confirmAndPop(List<DailyMottoEntry> lines) async {
     if (!mounted) {
       return;
@@ -824,18 +944,18 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                             IconButton(
                               tooltip: '编辑',
                               onPressed: () async {
-                                final result = await _editRecognizedLine(
-                                  line.content,
-                                );
-                                if (result == null || result.trim().isEmpty) {
+                                final result = await _editRecognizedEntry(line);
+                                if (result == null ||
+                                    result.content.trim().isEmpty) {
                                   return;
                                 }
                                 setSheetState(() {
-                                  editedLines[index] = editedLines[index]
-                                      .copyWith(
-                                        id: dailyMottoEntryId(result.trim()),
-                                        content: result.trim(),
-                                      );
+                                  editedLines[index] = result.copyWith(
+                                    id: dailyMottoEntryId(
+                                      result.content.trim(),
+                                    ),
+                                    content: result.content.trim(),
+                                  );
                                 });
                               },
                               icon: const Icon(Icons.edit_rounded),
