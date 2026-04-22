@@ -253,8 +253,8 @@ class _FloatingAutomationOverlayShellState
                       child: Container(
                         decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF202552)
-                              : const Color(0xFFE7ECFF),
+                              ? const Color(0xFF232756)
+                              : const Color(0xFFF1F4FF),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(
@@ -414,8 +414,8 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
 
     return Scaffold(
       backgroundColor: theme.brightness == Brightness.dark
-          ? const Color(0xFF202552)
-          : const Color(0xFFE7ECFF),
+          ? const Color(0xFF232756)
+          : const Color(0xFFF1F4FF),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty

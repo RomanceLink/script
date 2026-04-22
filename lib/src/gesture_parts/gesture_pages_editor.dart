@@ -135,9 +135,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
 
   void _showAddMenu() {
     final theme = Theme.of(context);
-    final gestureColor = theme.brightness == Brightness.dark
-        ? const Color(0xFF94DFC9)
-        : const Color(0xFF2F7D6B);
+    final gestureColor = const Color(0xFF7F8CFF);
     final logicColor = theme.brightness == Brightness.dark
         ? const Color(0xFFA7C5FF)
         : const Color(0xFF456DAA);
@@ -1457,7 +1455,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
           TextButton(
             onPressed: _save,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF4A9D8F),
+              foregroundColor: const Color(0xFF6170B8),
               textStyle: const TextStyle(fontWeight: FontWeight.w900),
             ),
             child: const Text('保存'),
@@ -1474,7 +1472,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   _ModernSectionCard(
-                    accent: const Color(0xFF4A9D8F),
+                    accent: const Color(0xFF7F8CFF),
                     title: '方案信息',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1512,9 +1510,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               ),
                               style: IconButton.styleFrom(
                                 backgroundColor: const Color(
-                                  0xFF4A9D8F,
+                                  0xFF7F8CFF,
                                 ).withValues(alpha: 0.1),
-                                foregroundColor: const Color(0xFF4A9D8F),
+                                foregroundColor: const Color(0xFF6170B8),
                               ),
                             ),
                           ],
@@ -1539,7 +1537,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               const Icon(
                                 Icons.timer_outlined,
                                 size: 14,
-                                color: Color(0xFF4A9D8F),
+                                color: Color(0xFF6170B8),
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -1656,14 +1654,10 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 MediaQuery.paddingOf(context).bottom + 12,
               ),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.74 : 0.88,
-                ),
+                color: const Color(0xFFF1F4FF),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: theme.brightness == Brightness.dark ? 0.18 : 0.05,
-                    ),
+                    color: const Color(0xFF7F8CFF).withValues(alpha: 0.08),
                     blurRadius: 18,
                     offset: const Offset(0, -6),
                   ),
@@ -1680,7 +1674,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF4A9D8F),
+                        backgroundColor: const Color(0xFF7F8CFF),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -1695,9 +1689,9 @@ class _GestureEditPageState extends State<GestureEditPage> {
                     icon: const Icon(Icons.check_rounded),
                     style: IconButton.styleFrom(
                       backgroundColor: const Color(
-                        0xFF4A9D8F,
+                        0xFF7F8CFF,
                       ).withValues(alpha: 0.1),
-                      foregroundColor: const Color(0xFF4A9D8F),
+                      foregroundColor: const Color(0xFF6170B8),
                       padding: const EdgeInsets.all(14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

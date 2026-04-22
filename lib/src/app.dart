@@ -136,21 +136,21 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     appBarTheme: AppBarTheme(
       centerTitle: false,
       backgroundColor: isDark
-          ? const Color(0xFF202552)
-          : const Color(0xFFE7ECFF),
+          ? const Color(0xFF1D214C)
+          : const Color(0xFFF4F6FF),
       surfaceTintColor: Colors.transparent,
-      foregroundColor: isDark ? Colors.white : const Color(0xFF1B2453),
+      foregroundColor: isDark ? Colors.white : const Color(0xFF26336F),
       elevation: 0,
       titleTextStyle: TextStyle(
-        color: isDark ? Colors.white : const Color(0xFF1B2453),
+        color: isDark ? Colors.white : const Color(0xFF26336F),
         fontSize: 20,
         fontWeight: FontWeight.w900,
       ),
       iconTheme: IconThemeData(
-        color: isDark ? Colors.white : const Color(0xFF1B2453),
+        color: isDark ? Colors.white : const Color(0xFF39478F),
       ),
       actionsIconTheme: IconThemeData(
-        color: isDark ? Colors.white : const Color(0xFF1B2453),
+        color: isDark ? Colors.white : const Color(0xFF39478F),
       ),
     ),
     dialogTheme: DialogThemeData(
@@ -182,8 +182,8 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: isDark
-          ? const Color(0xFF202552)
-          : const Color(0xFFE7ECFF),
+          ? const Color(0xFF232756)
+          : const Color(0xFFF1F4FF),
       indicatorColor: const Color(0xFF72DFFF).withValues(alpha: 0.22),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -1384,8 +1384,12 @@ class _DashboardPageState extends State<DashboardPage>
                           _HeaderIconAction(
                             icon: Icons.play_arrow_rounded,
                             onTap: _startAutomationMenu,
-                            foreground: const Color(0xFF8EF0FF),
-                            background: const Color(0xFF2A2F63),
+                            foreground: theme.brightness == Brightness.dark
+                                ? const Color(0xFF8EF0FF)
+                                : const Color(0xFF4B63D9),
+                            background: theme.brightness == Brightness.dark
+                                ? const Color(0xFF2A2F63)
+                                : const Color(0xFFDCE3FF),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1420,15 +1424,23 @@ class _DashboardPageState extends State<DashboardPage>
                                 await _resetForNewDay();
                               }
                             },
-                            foreground: const Color(0xFFFFC98A),
-                            background: const Color(0xFF2A2F63),
+                            foreground: theme.brightness == Brightness.dark
+                                ? const Color(0xFFFFC98A)
+                                : const Color(0xFFB97738),
+                            background: theme.brightness == Brightness.dark
+                                ? const Color(0xFF2A2F63)
+                                : const Color(0xFFDCE3FF),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
                             icon: Icons.settings,
                             onTap: _openSettings,
-                            foreground: const Color(0xFFE2A6FF),
-                            background: const Color(0xFF2A2F63),
+                            foreground: theme.brightness == Brightness.dark
+                                ? const Color(0xFFE2A6FF)
+                                : const Color(0xFF8A53D2),
+                            background: theme.brightness == Brightness.dark
+                                ? const Color(0xFF2A2F63)
+                                : const Color(0xFFDCE3FF),
                           ),
                         ],
                       ),

@@ -353,7 +353,7 @@ class _ModernActionTile extends StatelessWidget {
 
   (IconData, Color) _getActionVisuals(ThemeData theme) {
     if (action is ClickAction) {
-      return (Icons.touch_app_rounded, const Color(0xFF4A9D8F));
+      return (Icons.touch_app_rounded, const Color(0xFF7F8CFF));
     }
     if (action is SwipeAction) {
       return (Icons.swipe_rounded, const Color(0xFF82A7F7));
@@ -374,7 +374,7 @@ class _ModernActionTile extends StatelessWidget {
       return (Icons.center_focus_strong_rounded, const Color(0xFF82A7F7));
     }
     if (action is RecordedGestureAction) {
-      return (Icons.gesture_rounded, const Color(0xFF4A9D8F));
+      return (Icons.gesture_rounded, const Color(0xFF7F8CFF));
     }
     return (Icons.extension_rounded, Colors.grey);
   }

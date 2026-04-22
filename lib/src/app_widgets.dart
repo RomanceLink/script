@@ -55,7 +55,7 @@ List<BoxShadow> _liquidGlassShadow(
 }
 
 Color _neonGlassFill({double alpha = 0.22}) {
-  return const Color(0xFF2B2F5B);
+  return const Color(0xFFE9EEFF);
 }
 
 Color _neonGlassLine(Color accent, {double alpha = 0.7}) {
@@ -81,15 +81,13 @@ List<BoxShadow> _neonGlassGlow(Color accent, {double strength = 1}) {
   ];
 }
 
-BoxDecoration _neonPageDecoration() {
-  return const BoxDecoration(
+BoxDecoration _neonPageDecoration(ThemeData theme) {
+  final isDark = theme.brightness == Brightness.dark;
+  return BoxDecoration(
     gradient: LinearGradient(
-      colors: [
-        Color(0xFF171A5A),
-        Color(0xFF1A235F),
-        Color(0xFF28144D),
-        Color(0xFF3B103E),
-      ],
+      colors: isDark
+          ? const [Color(0xFF1D214C), Color(0xFF242A5A), Color(0xFF32254E)]
+          : const [Color(0xFFF4F6FF), Color(0xFFEAF0FF), Color(0xFFF5EEFF)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
@@ -103,9 +101,11 @@ class _NeonPageBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Stack(
       children: [
-        Container(decoration: _neonPageDecoration()),
+        Container(decoration: _neonPageDecoration(theme)),
         Positioned(
           top: -80,
           left: -40,
@@ -114,10 +114,14 @@ class _NeonPageBackground extends StatelessWidget {
             height: 220,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF55DFFF).withValues(alpha: 0.22),
+              color: const Color(
+                0xFF55DFFF,
+              ).withValues(alpha: isDark ? 0.14 : 0.18),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF55DFFF).withValues(alpha: 0.38),
+                  color: const Color(
+                    0xFF55DFFF,
+                  ).withValues(alpha: isDark ? 0.20 : 0.28),
                   blurRadius: 120,
                   spreadRadius: 24,
                 ),
@@ -133,10 +137,14 @@ class _NeonPageBackground extends StatelessWidget {
             height: 240,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFFFF5FD2).withValues(alpha: 0.18),
+              color: const Color(
+                0xFFFF5FD2,
+              ).withValues(alpha: isDark ? 0.12 : 0.14),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFF5FD2).withValues(alpha: 0.30),
+                  color: const Color(
+                    0xFFFF5FD2,
+                  ).withValues(alpha: isDark ? 0.18 : 0.22),
                   blurRadius: 130,
                   spreadRadius: 26,
                 ),
