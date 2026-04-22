@@ -54,8 +54,10 @@ List<BoxShadow> _liquidGlassShadow(
   ];
 }
 
-Color _neonGlassFill({double alpha = 0.22}) {
-  return const Color(0xFFE9EEFF);
+Color _neonGlassFill(ThemeData theme, {double alpha = 0.22}) {
+  return theme.brightness == Brightness.dark
+      ? const Color(0xFF2A2F63)
+      : const Color(0xFFE9EEFF);
 }
 
 Color _neonGlassLine(Color accent, {double alpha = 0.7}) {
@@ -1437,6 +1439,7 @@ class _SettingsNavCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DecoratedBox(
@@ -1449,7 +1452,7 @@ class _SettingsNavCell extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Material(
-              color: _neonGlassFill(alpha: 0.16),
+              color: isDark ? const Color(0xFF2A2F63) : const Color(0xFFDCE3FF),
               child: InkWell(
                 borderRadius: BorderRadius.circular(28),
                 onTap: onTap,
@@ -1463,8 +1466,10 @@ class _SettingsNavCell extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.white.withValues(alpha: 0.24),
-                              iconTint.withValues(alpha: 0.38),
+                              Colors.white.withValues(
+                                alpha: isDark ? 0.24 : 0.18,
+                              ),
+                              iconTint.withValues(alpha: isDark ? 0.38 : 0.30),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -1472,7 +1477,13 @@ class _SettingsNavCell extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: _neonGlassLine(iconTint)),
                         ),
-                        child: Icon(icon, color: Colors.white, size: 24),
+                        child: Icon(
+                          icon,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF26336F),
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1483,14 +1494,18 @@ class _SettingsNavCell extends StatelessWidget {
                               title,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                color: Colors.white,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF26336F),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               subtitle,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.72),
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.72)
+                                    : const Color(0xFF5C6AA8),
                                 height: 1.35,
                               ),
                             ),
@@ -1504,14 +1519,18 @@ class _SettingsNavCell extends StatelessWidget {
                           Text(
                             trailingText,
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.88),
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.88)
+                                  : const Color(0xFF3E4E9A),
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Icon(
                             Icons.chevron_right_rounded,
-                            color: Colors.white.withValues(alpha: 0.72),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.72)
+                                : const Color(0xFF6A78B6),
                           ),
                         ],
                       ),
