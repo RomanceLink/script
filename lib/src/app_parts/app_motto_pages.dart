@@ -1568,14 +1568,12 @@ class _MottoGlassButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: filled
                       ? accent.withValues(alpha: enabled ? 0.78 : 0.26)
-                      : isDark
-                      ? const Color(0xFF213231).withValues(alpha: 0.92)
-                      : Colors.white.withValues(alpha: 0.68),
+                      : _liquidGlassFill(theme, accent, strength: 0.9),
                   borderRadius: borderRadius,
                   border: Border.all(
                     color: filled
-                        ? Colors.white.withValues(alpha: isDark ? 0.10 : 0.34)
-                        : Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
+                        ? _liquidGlassBorder(theme, accent, strength: 0.75)
+                        : _liquidGlassBorder(theme, accent, strength: 0.8),
                   ),
                 ),
                 child: Row(
@@ -1767,12 +1765,18 @@ class _MottoGlassCell extends StatelessWidget {
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF213231).withValues(alpha: 0.92)
-                      : Colors.white.withValues(alpha: 0.68),
+                  color: _liquidGlassFill(
+                    theme,
+                    theme.colorScheme.primary,
+                    strength: 0.85,
+                  ),
                   borderRadius: borderRadius,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
+                    color: _liquidGlassBorder(
+                      theme,
+                      theme.colorScheme.primary,
+                      strength: 0.8,
+                    ),
                   ),
                 ),
                 child: child,

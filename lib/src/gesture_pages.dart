@@ -28,23 +28,34 @@ BoxDecoration _automationPageBackground(ThemeData theme) {
 
 BoxDecoration _automationCardDecoration(ThemeData theme) {
   final isDark = theme.brightness == Brightness.dark;
+  final tint = theme.colorScheme.primary;
   return BoxDecoration(
-    color: isDark
-        ? const Color(0xFF17312F).withValues(alpha: 0.92)
-        : Colors.white.withValues(alpha: 0.66),
+    color: _automationLiquidGlassFill(theme, tint),
     borderRadius: BorderRadius.circular(24),
-    border: Border.all(
-      color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.64),
-    ),
+    border: Border.all(color: _automationLiquidGlassBorder(theme, tint)),
     boxShadow: [
       BoxShadow(
-        color: theme.colorScheme.primary.withValues(
-          alpha: isDark ? 0.18 : 0.12,
-        ),
+        color: tint.withValues(alpha: isDark ? 0.22 : 0.14),
         blurRadius: 24,
         offset: const Offset(0, 12),
       ),
     ],
+  );
+}
+
+Color _automationLiquidGlassFill(ThemeData theme, Color tint) {
+  final isDark = theme.brightness == Brightness.dark;
+  final base = isDark
+      ? const Color(0xFF132321).withValues(alpha: 0.94)
+      : Colors.white.withValues(alpha: 0.78);
+  return Color.alphaBlend(tint.withValues(alpha: isDark ? 0.24 : 0.18), base);
+}
+
+Color _automationLiquidGlassBorder(ThemeData theme, Color tint) {
+  final isDark = theme.brightness == Brightness.dark;
+  return Color.alphaBlend(
+    Colors.white.withValues(alpha: isDark ? 0.10 : 0.42),
+    tint.withValues(alpha: isDark ? 0.28 : 0.34),
   );
 }
 

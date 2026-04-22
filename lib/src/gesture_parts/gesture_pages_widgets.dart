@@ -52,12 +52,10 @@ class _GlassActionTile extends StatelessWidget {
                   vertical: 13,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF223231).withValues(alpha: 0.92)
-                      : Colors.white.withValues(alpha: 0.68),
+                  color: _automationLiquidGlassFill(theme, tint),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
+                    color: _automationLiquidGlassBorder(theme, tint),
                   ),
                 ),
                 child: Row(

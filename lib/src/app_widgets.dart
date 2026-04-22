@@ -15,6 +15,45 @@ class _CenteredToast extends StatefulWidget {
   State<_CenteredToast> createState() => _CenteredToastState();
 }
 
+Color _liquidGlassFill(ThemeData theme, Color tint, {double strength = 1}) {
+  final isDark = theme.brightness == Brightness.dark;
+  final base = isDark
+      ? const Color(0xFF132321).withValues(alpha: 0.94)
+      : Colors.white.withValues(alpha: 0.78);
+  return Color.alphaBlend(
+    tint.withValues(alpha: isDark ? 0.26 * strength : 0.20 * strength),
+    base,
+  );
+}
+
+Color _liquidGlassBorder(ThemeData theme, Color tint, {double strength = 1}) {
+  final isDark = theme.brightness == Brightness.dark;
+  return Color.alphaBlend(
+    Colors.white.withValues(alpha: isDark ? 0.10 : 0.44),
+    tint.withValues(alpha: isDark ? 0.30 * strength : 0.36 * strength),
+  );
+}
+
+List<BoxShadow> _liquidGlassShadow(
+  ThemeData theme,
+  Color tint, {
+  double strength = 1,
+}) {
+  final isDark = theme.brightness == Brightness.dark;
+  return [
+    BoxShadow(
+      color: tint.withValues(alpha: isDark ? 0.24 * strength : 0.15 * strength),
+      blurRadius: 30,
+      offset: const Offset(0, 16),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.05),
+      blurRadius: 18,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
 class _CenteredToastState extends State<_CenteredToast>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
@@ -271,6 +310,11 @@ class _HeaderCardState extends State<_HeaderCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final glassTint = Color.lerp(
+      colors.primary,
+      colors.tertiary,
+      theme.brightness == Brightness.dark ? 0.32 : 0.48,
+    )!;
     final poemLines = _poemLines(widget.title);
     final poemPages = _poemPages(poemLines);
     if (_lastPageCount != poemPages.length) {
@@ -286,24 +330,10 @@ class _HeaderCardState extends State<_HeaderCard> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
           decoration: BoxDecoration(
-            color: theme.brightness == Brightness.dark
-                ? const Color(0xFF172725).withValues(alpha: 0.94)
-                : Colors.white.withValues(alpha: 0.82),
+            color: _liquidGlassFill(theme, glassTint, strength: 1.05),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: theme.brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.14)
-                  : colors.primary.withValues(alpha: 0.20),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: colors.primary.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14,
-                ),
-                blurRadius: 30,
-                offset: const Offset(0, 16),
-              ),
-            ],
+            border: Border.all(color: _liquidGlassBorder(theme, glassTint)),
+            boxShadow: _liquidGlassShadow(theme, glassTint),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -525,12 +555,7 @@ class _TaskDeckCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final glassFill = isDark
-        ? const Color(0xFF172725).withValues(alpha: 0.94)
-        : Color.alphaBlend(
-            accent.withValues(alpha: 0.08),
-            Colors.white.withValues(alpha: 0.84),
-          );
+    final glassFill = _liquidGlassFill(theme, accent, strength: 1.1);
     final primaryButtonFill = theme.brightness == Brightness.dark
         ? accent.withValues(alpha: 0.88)
         : Color.lerp(accent, Colors.white, 0.2)!;
@@ -553,19 +578,9 @@ class _TaskDeckCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: glassFill,
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.14)
-                  : accent.withValues(alpha: 0.24),
-            ),
+            border: Border.all(color: _liquidGlassBorder(theme, accent)),
             borderRadius: BorderRadius.circular(26),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-            ],
+            boxShadow: _liquidGlassShadow(theme, accent, strength: 0.9),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
@@ -1155,27 +1170,10 @@ class _SettingsSectionCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            color: theme.brightness == Brightness.dark
-                ? const Color(0xFF172725).withValues(alpha: 0.94)
-                : Color.alphaBlend(
-                    accent.withValues(alpha: 0.07),
-                    Colors.white.withValues(alpha: 0.84),
-                  ),
+            color: _liquidGlassFill(theme, accent),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: theme.brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.14)
-                  : accent.withValues(alpha: 0.24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.18 : 0.10,
-                ),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-            ],
+            border: Border.all(color: _liquidGlassBorder(theme, accent)),
+            boxShadow: _liquidGlassShadow(theme, accent, strength: 0.9),
           ),
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -1432,12 +1430,10 @@ class _ActionSheetTile extends StatelessWidget {
                   vertical: 13,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF223231).withValues(alpha: 0.92)
-                      : Colors.white.withValues(alpha: 0.68),
+                  color: _liquidGlassFill(theme, tint, strength: 0.9),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
+                    color: _liquidGlassBorder(theme, tint, strength: 0.8),
                   ),
                 ),
                 child: Row(
