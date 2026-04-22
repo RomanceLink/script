@@ -148,13 +148,15 @@ class _CenteredToastState extends State<_CenteredToast>
   }
 }
 
-class _HeaderCard extends StatelessWidget {
+class _HeaderCard extends StatefulWidget {
   const _HeaderCard({
     required this.title,
     required this.subtitle,
     required this.summary,
     this.attribution,
     this.imageProvider,
+    this.autoSwitch = false,
+    this.autoSwitchInterval = const Duration(seconds: 3),
     required this.actionRow,
   });
 
@@ -163,7 +165,50 @@ class _HeaderCard extends StatelessWidget {
   final String summary;
   final String? attribution;
   final ImageProvider<Object>? imageProvider;
+  final bool autoSwitch;
+  final Duration autoSwitchInterval;
   final Widget actionRow;
+
+  @override
+  State<_HeaderCard> createState() => _HeaderCardState();
+}
+
+class _HeaderCardState extends State<_HeaderCard> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+  Timer? _autoSwitchTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncAutoSwitch());
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeaderCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title) {
+      _currentPage = 0;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    }
+    final shouldResync =
+        oldWidget.title != widget.title ||
+        oldWidget.autoSwitch != widget.autoSwitch ||
+        oldWidget.autoSwitchInterval != widget.autoSwitchInterval;
+    if (shouldResync) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncAutoSwitch());
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoSwitchTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   List<String> _poemLines(String text) {
     final phrases = text
@@ -174,17 +219,39 @@ class _HeaderCard extends StatelessWidget {
     if (phrases.isEmpty) {
       return [text];
     }
-    final lines = <String>[];
-    var index = 0;
-    while (index < phrases.length) {
-      final current = phrases[index];
-      lines.add(current);
-      index += 1;
-      if (lines.length >= 4) {
-        break;
-      }
+    return phrases;
+  }
+
+  List<List<String>> _poemPages(List<String> lines) {
+    if (lines.isEmpty) {
+      return const [
+        [''],
+      ];
     }
-    return lines;
+    final pages = <List<String>>[];
+    for (var index = 0; index < lines.length; index += 4) {
+      pages.add(lines.skip(index).take(4).toList());
+    }
+    return pages;
+  }
+
+  void _syncAutoSwitch([int? pageCount]) {
+    _autoSwitchTimer?.cancel();
+    final totalPages = pageCount ?? _poemPages(_poemLines(widget.title)).length;
+    if (!widget.autoSwitch || totalPages <= 1 || !_pageController.hasClients) {
+      return;
+    }
+    _autoSwitchTimer = Timer.periodic(widget.autoSwitchInterval, (_) {
+      if (!mounted || !_pageController.hasClients) {
+        return;
+      }
+      final nextPage = (_currentPage + 1) % totalPages;
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   double _poemFontSize(List<String> lines) {
@@ -201,7 +268,8 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final poemLines = _poemLines(title);
+    final poemLines = _poemLines(widget.title);
+    final poemPages = _poemPages(poemLines);
     final poemFontSize = _poemFontSize(poemLines);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
@@ -232,7 +300,7 @@ class _HeaderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  summary,
+                  widget.summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(
@@ -242,7 +310,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              actionRow,
+              widget.actionRow,
             ],
           ),
           const SizedBox(height: 12),
@@ -250,34 +318,61 @@ class _HeaderCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  poemLines.join('\n'),
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontSize: poemFontSize,
-                    fontWeight: FontWeight.w900,
-                    height: 1.28,
-                    fontFamilyFallback: const [
-                      'KaiTi',
-                      'STKaiti',
-                      'Kaiti SC',
-                      'Noto Serif SC',
-                      'serif',
+                child: SizedBox(
+                  height: 124,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: PageView.builder(
+                          controller: _pageController,
+                          itemCount: poemPages.length,
+                          onPageChanged: (value) {
+                            if (_currentPage == value) {
+                              return;
+                            }
+                            setState(() => _currentPage = value);
+                          },
+                          itemBuilder: (context, index) {
+                            final pageLines = poemPages[index];
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Text(
+                                pageLines.join('\n'),
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontSize: poemFontSize,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.28,
+                                  fontFamilyFallback: const [
+                                    'KaiTi',
+                                    'STKaiti',
+                                    'Kaiti SC',
+                                    'Noto Serif SC',
+                                    'serif',
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              _HeaderPortrait(imageProvider: imageProvider),
+              _HeaderPortrait(imageProvider: widget.imageProvider),
             ],
           ),
           const SizedBox(height: 12),
-          if (attribution != null && attribution!.trim().isNotEmpty) ...[
+          if (widget.attribution != null &&
+              widget.attribution!.trim().isNotEmpty) ...[
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                attribution!,
+                widget.attribution!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
@@ -297,7 +392,7 @@ class _HeaderCard extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           Text(
-            subtitle,
+            widget.subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(

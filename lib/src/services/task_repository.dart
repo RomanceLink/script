@@ -18,6 +18,12 @@ class TaskRepository {
   static const String _pinnedDailyMottoIdKey = 'pinned_daily_motto_id_v1';
   static const String _showDailyMottoMetaOnHomeKey =
       'show_daily_motto_meta_on_home_v1';
+  static const String _autoScrollDailyMottoOnHomeKey =
+      'auto_scroll_daily_motto_on_home_v1';
+  static const String _autoScrollDailyMottoIntervalValueKey =
+      'auto_scroll_daily_motto_interval_value_v1';
+  static const String _autoScrollDailyMottoIntervalUnitKey =
+      'auto_scroll_daily_motto_interval_unit_v1';
   static const String _dailyMottoImageUrlKey = 'daily_motto_image_url_v1';
   static const String _dailyMottoImagePathKey = 'daily_motto_image_path_v1';
   static const String _dailyMottoImageFetchDateKey =
@@ -174,6 +180,49 @@ class TaskRepository {
   Future<void> saveShowDailyMottoMetaOnHome(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_showDailyMottoMetaOnHomeKey, value);
+  }
+
+  Future<bool> loadAutoScrollDailyMottoOnHome() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getBool(_autoScrollDailyMottoOnHomeKey) ?? false;
+  }
+
+  Future<void> saveAutoScrollDailyMottoOnHome(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoScrollDailyMottoOnHomeKey, value);
+  }
+
+  Future<int> loadAutoScrollDailyMottoIntervalValue() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return (prefs.getInt(_autoScrollDailyMottoIntervalValueKey) ?? 3).clamp(
+      1,
+      999,
+    );
+  }
+
+  Future<void> saveAutoScrollDailyMottoIntervalValue(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      _autoScrollDailyMottoIntervalValueKey,
+      value.clamp(1, 999),
+    );
+  }
+
+  Future<IntervalUnit> loadAutoScrollDailyMottoIntervalUnit() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final raw = prefs.getString(_autoScrollDailyMottoIntervalUnitKey);
+    if (raw == null || raw.isEmpty) {
+      return IntervalUnit.seconds;
+    }
+    return IntervalUnit.values.byName(raw);
+  }
+
+  Future<void> saveAutoScrollDailyMottoIntervalUnit(IntervalUnit unit) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_autoScrollDailyMottoIntervalUnitKey, unit.name);
   }
 
   Future<String?> loadDailyMottoSourceUrl() async {

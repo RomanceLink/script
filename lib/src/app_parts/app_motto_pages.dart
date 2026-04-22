@@ -26,6 +26,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   String? _imageUrl;
   String? _imagePath;
   bool _showMetaOnHome = true;
+  bool _autoSwitchOnHome = false;
+  int _autoSwitchValue = 3;
+  IntervalUnit _autoSwitchUnit = IntervalUnit.seconds;
   bool _selectingDelete = false;
   final Set<String> _selectedDeleteIds = <String>{};
   bool _loading = true;
@@ -48,6 +51,12 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     final imagePath = await widget.repository.loadDailyMottoImagePath();
     final showMetaOnHome = await widget.repository
         .loadShowDailyMottoMetaOnHome();
+    final autoSwitchOnHome = await widget.repository
+        .loadAutoScrollDailyMottoOnHome();
+    final autoSwitchValue = await widget.repository
+        .loadAutoScrollDailyMottoIntervalValue();
+    final autoSwitchUnit = await widget.repository
+        .loadAutoScrollDailyMottoIntervalUnit();
     final lastFetchDate = await widget.repository.loadDailyMottoLastFetchDate();
     final todayKey = _dateKey(DateTime.now());
     if (!mounted) return;
@@ -60,6 +69,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       _imageUrl = imageUrl;
       _imagePath = imagePath;
       _showMetaOnHome = showMetaOnHome;
+      _autoSwitchOnHome = autoSwitchOnHome;
+      _autoSwitchValue = autoSwitchValue;
+      _autoSwitchUnit = autoSwitchUnit;
       _loading = false;
     });
     final hasBrokenMottos = values.any(
@@ -79,6 +91,13 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       await widget.repository.savePinnedDailyMottoId(null);
     }
     await widget.repository.saveShowDailyMottoMetaOnHome(_showMetaOnHome);
+    await widget.repository.saveAutoScrollDailyMottoOnHome(_autoSwitchOnHome);
+    await widget.repository.saveAutoScrollDailyMottoIntervalValue(
+      _autoSwitchValue,
+    );
+    await widget.repository.saveAutoScrollDailyMottoIntervalUnit(
+      _autoSwitchUnit,
+    );
     if (!mounted) return;
     VibrantHUD.show(context, '每日箴言已保存', type: ToastType.success);
   }
@@ -458,6 +477,71 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     });
   }
 
+  String _autoSwitchLabel() {
+    final unitLabel = switch (_autoSwitchUnit) {
+      IntervalUnit.seconds => '秒',
+      IntervalUnit.minutes => '分钟',
+      IntervalUnit.hours => '小时',
+      IntervalUnit.days => '天',
+    };
+    return '$_autoSwitchValue $unitLabel';
+  }
+
+  Future<void> _pickAutoSwitchValue() async {
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final item in const [1, 2, 3, 4, 5, 10, 15, 30, 60])
+              ListTile(
+                title: Text('$item'),
+                trailing: item == _autoSwitchValue
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.of(context).pop(item),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    setState(() => _autoSwitchValue = result);
+    await widget.repository.saveAutoScrollDailyMottoIntervalValue(result);
+  }
+
+  Future<void> _pickAutoSwitchUnit() async {
+    final result = await showModalBottomSheet<IntervalUnit>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final unit in IntervalUnit.values)
+              ListTile(
+                title: Text(switch (unit) {
+                  IntervalUnit.seconds => '秒',
+                  IntervalUnit.minutes => '分钟',
+                  IntervalUnit.hours => '小时',
+                  IntervalUnit.days => '天',
+                }),
+                trailing: unit == _autoSwitchUnit
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.of(context).pop(unit),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    setState(() => _autoSwitchUnit = result);
+    await widget.repository.saveAutoScrollDailyMottoIntervalUnit(result);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -582,6 +666,37 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                         value,
                       );
                     },
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('首页箴言自动切换'),
+                    subtitle: Text('每 ${_autoSwitchLabel()} 切换'),
+                    value: _autoSwitchOnHome,
+                    onChanged: (value) async {
+                      setState(() => _autoSwitchOnHome = value);
+                      await widget.repository.saveAutoScrollDailyMottoOnHome(
+                        value,
+                      );
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('自动切换数值'),
+                    subtitle: Text('当前 $_autoSwitchValue'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _pickAutoSwitchValue,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('自动切换单位'),
+                    subtitle: Text(switch (_autoSwitchUnit) {
+                      IntervalUnit.seconds => '秒',
+                      IntervalUnit.minutes => '分钟',
+                      IntervalUnit.hours => '小时',
+                      IntervalUnit.days => '天',
+                    }),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _pickAutoSwitchUnit,
                   ),
                   const SizedBox(height: 6),
                   if (_imagePath != null || _imageUrl != null)

@@ -238,6 +238,9 @@ class _DashboardPageState extends State<DashboardPage>
   String? _dailyMottoImageUrl;
   String? _dailyMottoImagePath;
   bool _showDailyMottoMetaOnHome = true;
+  bool _autoScrollDailyMottoOnHome = false;
+  int _autoScrollDailyMottoIntervalValue = 3;
+  IntervalUnit _autoScrollDailyMottoIntervalUnit = IntervalUnit.seconds;
   bool _handlingOverlayCommand = false;
   final Map<String, Timer> _autoCompleteTimers = {};
   final Map<String, DateTime> _autoCompleteDueAt = {};
@@ -309,6 +312,12 @@ class _DashboardPageState extends State<DashboardPage>
       final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
       final showDailyMottoMetaOnHome = await _repository
           .loadShowDailyMottoMetaOnHome();
+      final autoScrollDailyMottoOnHome = await _repository
+          .loadAutoScrollDailyMottoOnHome();
+      final autoScrollDailyMottoIntervalValue = await _repository
+          .loadAutoScrollDailyMottoIntervalValue();
+      final autoScrollDailyMottoIntervalUnit = await _repository
+          .loadAutoScrollDailyMottoIntervalUnit();
       final dailyMottoImageFetchDate = await _repository
           .loadDailyMottoImageFetchDate();
       if (dailyMottoImageFetchDate != todayKey) {
@@ -332,6 +341,9 @@ class _DashboardPageState extends State<DashboardPage>
         _dailyMottoImageUrl = dailyMottoImageUrl;
         _dailyMottoImagePath = dailyMottoImagePath;
         _showDailyMottoMetaOnHome = showDailyMottoMetaOnHome;
+        _autoScrollDailyMottoOnHome = autoScrollDailyMottoOnHome;
+        _autoScrollDailyMottoIntervalValue = autoScrollDailyMottoIntervalValue;
+        _autoScrollDailyMottoIntervalUnit = autoScrollDailyMottoIntervalUnit;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1033,6 +1045,12 @@ class _DashboardPageState extends State<DashboardPage>
       final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
       final showDailyMottoMetaOnHome = await _repository
           .loadShowDailyMottoMetaOnHome();
+      final autoScrollDailyMottoOnHome = await _repository
+          .loadAutoScrollDailyMottoOnHome();
+      final autoScrollDailyMottoIntervalValue = await _repository
+          .loadAutoScrollDailyMottoIntervalValue();
+      final autoScrollDailyMottoIntervalUnit = await _repository
+          .loadAutoScrollDailyMottoIntervalUnit();
       if (mounted) {
         setState(() {
           _gestureConfigs = configs;
@@ -1041,6 +1059,10 @@ class _DashboardPageState extends State<DashboardPage>
           _dailyMottoImageUrl = dailyMottoImageUrl;
           _dailyMottoImagePath = dailyMottoImagePath;
           _showDailyMottoMetaOnHome = showDailyMottoMetaOnHome;
+          _autoScrollDailyMottoOnHome = autoScrollDailyMottoOnHome;
+          _autoScrollDailyMottoIntervalValue =
+              autoScrollDailyMottoIntervalValue;
+          _autoScrollDailyMottoIntervalUnit = autoScrollDailyMottoIntervalUnit;
         });
       }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
@@ -1085,6 +1107,16 @@ class _DashboardPageState extends State<DashboardPage>
       return '';
     }
     return entry.attribution;
+  }
+
+  Duration _dailyMottoAutoSwitchDuration() {
+    final value = _autoScrollDailyMottoIntervalValue.clamp(1, 999);
+    return switch (_autoScrollDailyMottoIntervalUnit) {
+      IntervalUnit.seconds => Duration(seconds: value),
+      IntervalUnit.minutes => Duration(minutes: value),
+      IntervalUnit.hours => Duration(hours: value),
+      IntervalUnit.days => Duration(days: value),
+    };
   }
 
   List<Color> _indicatorPalette(Brightness brightness) {
@@ -1231,6 +1263,8 @@ class _DashboardPageState extends State<DashboardPage>
                       : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
                   summary: '总共 ${tasks.length} 项，完成 $doneCount 项',
                   attribution: _dailyMottoAttribution(headerMotto),
+                  autoSwitch: _autoScrollDailyMottoOnHome,
+                  autoSwitchInterval: _dailyMottoAutoSwitchDuration(),
                   imageProvider: _dailyMottoImagePath != null
                       ? FileImage(File(_dailyMottoImagePath!))
                       : (_dailyMottoImageUrl != null
