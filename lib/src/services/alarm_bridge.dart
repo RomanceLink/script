@@ -87,6 +87,25 @@ class AlarmBridge {
     return value;
   }
 
+  Future<String?> consumePendingOpenTaskId() async {
+    final value = await _channel.invokeMethod<String>('consumePendingOpenTaskId');
+    return value;
+  }
+
+  Future<({String taskId, int dueAtMillis})?> consumePendingAutoComplete()
+  async {
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'consumePendingAutoComplete',
+    );
+    if (result == null) return null;
+    final taskId = (result['taskId'] as String?)?.trim();
+    final dueAtMillis = (result['dueAtMillis'] as num?)?.toInt() ?? 0;
+    if (taskId == null || taskId.isEmpty || dueAtMillis <= 0) {
+      return null;
+    }
+    return (taskId: taskId, dueAtMillis: dueAtMillis);
+  }
+
   Future<({String uri, String label})?> pickSystemRingtone() async {
     final result = await _channel.invokeMapMethod<String, String>(
       'pickSystemRingtone',

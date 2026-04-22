@@ -41,6 +41,12 @@ class MainActivity : FlutterActivity() {
                     "consumeLaunchTaskId" -> {
                         result.success(consumeLaunchTaskId())
                     }
+                    "consumePendingOpenTaskId" -> {
+                        result.success(consumePendingOpenTaskId())
+                    }
+                    "consumePendingAutoComplete" -> {
+                        result.success(consumePendingAutoComplete())
+                    }
                     "consumeOverlayCommand" -> {
                         result.success(consumeOverlayCommand())
                     }
@@ -221,6 +227,26 @@ class MainActivity : FlutterActivity() {
         val value = intent?.getStringExtra("taskId") ?: AlarmLaunchStore.consumePendingTaskId(this)
         intent?.removeExtra("taskId")
         return value
+    }
+
+    private fun consumePendingOpenTaskId(): String? {
+        val value = intent?.getStringExtra("openTaskId") ?: AlarmLaunchStore.consumePendingOpenTaskId(this)
+        intent?.removeExtra("openTaskId")
+        return value
+    }
+
+    private fun consumePendingAutoComplete(): Map<String, Any?>? {
+        val intentTaskId = intent?.getStringExtra("autoCompleteTaskId")
+        val intentDueAtMillis = intent?.getLongExtra("autoCompleteDueAtMillis", 0L) ?: 0L
+        if (!intentTaskId.isNullOrBlank() && intentDueAtMillis > 0L) {
+            intent?.removeExtra("autoCompleteTaskId")
+            intent?.removeExtra("autoCompleteDueAtMillis")
+            return mapOf(
+                "taskId" to intentTaskId,
+                "dueAtMillis" to intentDueAtMillis,
+            )
+        }
+        return AlarmLaunchStore.consumePendingAutoComplete(this)
     }
 
     private fun consumeOverlayCommand(): String? {
@@ -424,6 +450,9 @@ class MainActivity : FlutterActivity() {
 object AlarmLaunchStore {
     private const val prefsName = "alarm_bridge"
     private const val taskKey = "pending_task_id"
+    private const val openTaskKey = "pending_open_task_id"
+    private const val autoCompleteTaskKey = "pending_auto_complete_task_id"
+    private const val autoCompleteDueAtKey = "pending_auto_complete_due_at"
     private const val overlayCommandKey = "pending_overlay_command"
 
     fun setPendingTaskId(context: Context, taskId: String) {
@@ -438,6 +467,45 @@ object AlarmLaunchStore {
         val value = prefs.getString(taskKey, null)
         prefs.edit().remove(taskKey).apply()
         return value
+    }
+
+    fun setPendingOpenTaskId(context: Context, taskId: String) {
+        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            .edit()
+            .putString(openTaskKey, taskId)
+            .apply()
+    }
+
+    fun consumePendingOpenTaskId(context: Context): String? {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val value = prefs.getString(openTaskKey, null)
+        prefs.edit().remove(openTaskKey).apply()
+        return value
+    }
+
+    fun setPendingAutoComplete(context: Context, taskId: String, dueAtMillis: Long) {
+        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            .edit()
+            .putString(autoCompleteTaskKey, taskId)
+            .putLong(autoCompleteDueAtKey, dueAtMillis)
+            .apply()
+    }
+
+    fun consumePendingAutoComplete(context: Context): Map<String, Any?>? {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val taskId = prefs.getString(autoCompleteTaskKey, null)
+        val dueAtMillis = prefs.getLong(autoCompleteDueAtKey, 0L)
+        prefs.edit()
+            .remove(autoCompleteTaskKey)
+            .remove(autoCompleteDueAtKey)
+            .apply()
+        if (taskId.isNullOrBlank() || dueAtMillis <= 0L) {
+            return null
+        }
+        return mapOf(
+            "taskId" to taskId,
+            "dueAtMillis" to dueAtMillis,
+        )
     }
 
     fun setPendingOverlayCommand(context: Context, command: String) {

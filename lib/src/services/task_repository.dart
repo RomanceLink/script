@@ -186,6 +186,7 @@ class TaskRepository {
     List<AssistantTaskDefinition> definitions,
   ) async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final raw = prefs.getString(_storageKey);
     final fresh = DailyTaskState.freshFor(DateTime.now(), definitions);
 

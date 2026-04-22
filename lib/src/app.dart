@@ -234,6 +234,8 @@ class _DashboardPageState extends State<DashboardPage>
   String? _dailyMottoImageUrl;
   String? _dailyMottoImagePath;
   bool _handlingOverlayCommand = false;
+  final Map<String, Timer> _autoCompleteTimers = {};
+  final Map<String, DateTime> _autoCompleteDueAt = {};
 
   @override
   void initState() {
@@ -266,6 +268,12 @@ class _DashboardPageState extends State<DashboardPage>
         await _notifications.scheduleForState(state, state.taskDefinitions);
         _focusTaskId = await _alarmBridge.consumeLaunchTaskId();
       }
+      final pendingOpenTaskId = widget.enablePlatformServices
+          ? await _alarmBridge.consumePendingOpenTaskId()
+          : null;
+      final pendingAutoComplete = widget.enablePlatformServices
+          ? await _alarmBridge.consumePendingAutoComplete()
+          : null;
       final sourceUrl =
           await _repository.loadDailyMottoSourceUrl() ??
           _defaultDailyMottoSourceUrl;
@@ -315,6 +323,17 @@ class _DashboardPageState extends State<DashboardPage>
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handlePendingAlarmTaskOpen(
+          pendingOpenTaskId,
+          pendingAutoComplete == null
+              ? null
+              : (
+                  taskId: pendingAutoComplete.taskId,
+                  dueAt: DateTime.fromMillisecondsSinceEpoch(
+                    pendingAutoComplete.dueAtMillis,
+                  ),
+                ),
+        );
         _handlePendingOverlayCommand();
       });
     } catch (error) {
@@ -332,6 +351,11 @@ class _DashboardPageState extends State<DashboardPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ticker.cancel();
+    for (final timer in _autoCompleteTimers.values) {
+      timer.cancel();
+    }
+    _autoCompleteTimers.clear();
+    _autoCompleteDueAt.clear();
     _pageController.dispose();
     super.dispose();
   }
@@ -339,8 +363,35 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _reloadStateFromRepository();
+      _consumePendingAlarmActions();
       _handlePendingOverlayCommand();
     }
+  }
+
+  Future<void> _reloadStateFromRepository() async {
+    final current = _state;
+    if (current == null) return;
+    final latest = await _repository.loadOrCreateToday(current.taskDefinitions);
+    if (!mounted) return;
+    setState(() {
+      _state = latest;
+    });
+  }
+
+  Future<void> _consumePendingAlarmActions() async {
+    if (!widget.enablePlatformServices) return;
+    final pendingOpenTaskId = await _alarmBridge.consumePendingOpenTaskId();
+    final pending = await _alarmBridge.consumePendingAutoComplete();
+    await _handlePendingAlarmTaskOpen(
+      pendingOpenTaskId,
+      pending == null
+          ? null
+          : (
+              taskId: pending.taskId,
+              dueAt: DateTime.fromMillisecondsSinceEpoch(pending.dueAtMillis),
+            ),
+    );
   }
 
   Future<void> _persistState(
@@ -434,6 +485,59 @@ class _DashboardPageState extends State<DashboardPage>
       message: '记录成功，计时开始！',
       type: ToastType.success,
     );
+  }
+
+  Future<void> _triggerAutoCompleteTask(String taskId) async {
+    _autoCompleteTimers.remove(taskId)?.cancel();
+    _autoCompleteDueAt.remove(taskId);
+    final state = _state;
+    if (state == null) return;
+    final task = state.taskDefinitions.where((item) => item.id == taskId).firstOrNull;
+    if (task == null) return;
+    if (task.kind == AssistantTaskKind.adCooldown) {
+      await _markCounterTaskDone(task);
+      return;
+    }
+    await _markSingleTaskDone(taskId);
+  }
+
+  void _scheduleAutoCompleteTask(String taskId, DateTime dueAt) {
+    _autoCompleteTimers.remove(taskId)?.cancel();
+    _autoCompleteDueAt[taskId] = dueAt;
+    final delay = dueAt.difference(DateTime.now());
+    if (delay <= Duration.zero) {
+      unawaited(_triggerAutoCompleteTask(taskId));
+      return;
+    }
+    _autoCompleteTimers[taskId] = Timer(delay, () {
+      unawaited(_triggerAutoCompleteTask(taskId));
+    });
+  }
+
+  Future<void> _handlePendingAlarmTaskOpen(
+    String? taskId,
+    ({String taskId, DateTime dueAt})? pendingAutoComplete,
+  ) async {
+    if (!mounted) return;
+    if (pendingAutoComplete != null) {
+      _scheduleAutoCompleteTask(
+        pendingAutoComplete.taskId,
+        pendingAutoComplete.dueAt,
+      );
+    }
+    if (taskId == null || taskId.isEmpty) return;
+    final state = _state;
+    if (state == null) return;
+    final task = state.taskDefinitions.where((item) => item.id == taskId).firstOrNull;
+    if (task == null) return;
+    final autoCompleteDueAt =
+        pendingAutoComplete != null && pendingAutoComplete.taskId == taskId
+        ? pendingAutoComplete.dueAt
+        : _autoCompleteDueAt[taskId];
+    final delay = autoCompleteDueAt == null
+        ? null
+        : autoCompleteDueAt.difference(DateTime.now());
+    await _openSelectedApp(task, autoCompleteAfter: delay);
   }
 
   Future<void> _updateTaskDefinition(
@@ -730,7 +834,10 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Future<void> _openSelectedApp(AssistantTaskDefinition task) async {
+  Future<void> _openSelectedApp(
+    AssistantTaskDefinition task, {
+    Duration? autoCompleteAfter,
+  }) async {
     final state = _state;
     if (state == null) {
       return;
@@ -773,6 +880,20 @@ class _DashboardPageState extends State<DashboardPage>
     if (!ok) {
       _showMessage('应用打开失败，请检查设置', type: ToastType.error);
       return;
+    }
+
+    if (autoCompleteAfter != null) {
+      _scheduleAutoCompleteTask(
+        task.id,
+        DateTime.now().add(autoCompleteAfter <= Duration.zero
+            ? Duration.zero
+            : autoCompleteAfter),
+      );
+    } else if (task.autoCompleteDelayDuration > Duration.zero) {
+      _scheduleAutoCompleteTask(
+        task.id,
+        DateTime.now().add(task.autoCompleteDelayDuration),
+      );
     }
 
     _showMessage(

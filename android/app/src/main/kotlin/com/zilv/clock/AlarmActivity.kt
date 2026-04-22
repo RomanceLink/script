@@ -17,9 +17,6 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import com.zilv.clock.R
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class AlarmActivity : ComponentActivity() {
     private var ringtone: Ringtone? = null
@@ -134,30 +131,21 @@ class AlarmActivity : ComponentActivity() {
         if (finishedAlarm) return
         stopSound()
         if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
-            TaskAutoCompleteReceiver.schedule(
-                this,
+            AlarmLaunchStore.setPendingAutoComplete(
+                this@AlarmActivity,
                 taskId,
-                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
-                autoCompleteDelaySeconds,
+                System.currentTimeMillis() + autoCompleteDelaySeconds * 1000L,
             )
         }
         if (!targetAppPackage.isNullOrBlank()) {
-            AutoSwipeService.openAppAndRunConfig(
-                this@AlarmActivity,
-                targetAppPackage,
-                targetAppLabel,
-                preConfigName,
-                AutoSwipeService.parseActionsJson(preActionsJson),
-                preLoopCount,
-                preLoopIntervalMillis,
-                configName,
-                emptyList(),
-                AutoSwipeService.parseActionsJson(actionsJson),
-                loopCount,
-                loopIntervalMillis,
-                false,
-                5
-            )
+            AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
+            AlarmLaunchStore.setPendingOpenTaskId(this@AlarmActivity, taskId)
+            val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("taskId", taskId)
+                putExtra("openTaskId", taskId)
+            }
+            startActivity(launchIntent)
         } else {
             AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
             val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
