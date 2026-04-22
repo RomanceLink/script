@@ -3433,13 +3433,23 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     if (!mounted || result == null || result.isEmpty) {
       return;
     }
+    final merged = <String>[
+      ..._mottos,
+      ...result,
+    ].map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
+    final deduped = <String>[];
+    for (final item in merged) {
+      if (!deduped.contains(item)) {
+        deduped.add(item);
+      }
+    }
     setState(() {
-      _mottos = result;
-      if (_pinnedMotto != null && !result.contains(_pinnedMotto)) {
+      _mottos = deduped;
+      if (_pinnedMotto != null && !deduped.contains(_pinnedMotto)) {
         _pinnedMotto = null;
       }
     });
-    await widget.repository.saveDailyMottos(result);
+    await widget.repository.saveDailyMottos(deduped);
     if (_pinnedMotto == null) {
       await widget.repository.savePinnedDailyMotto(null);
     }
@@ -3510,6 +3520,21 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       _imageUrl = null;
     });
     VibrantHUD.show(context, '已清除箴言图片', type: ToastType.success);
+  }
+
+  String _mottoPreview(String value) {
+    final sentences = value
+        .split(RegExp(r'(?<=[。！？；：])'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (sentences.isEmpty) {
+      return value.trim();
+    }
+    if (sentences.length <= 2) {
+      return sentences.join('\n');
+    }
+    return '${sentences.take(2).join('\n')}...';
   }
 
   @override
@@ -3623,7 +3648,11 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
-                title: Text(item),
+                title: Text(
+                  _mottoPreview(item),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 subtitle: _pinnedMotto == item ? const Text('当前首页显示') : null,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -3695,10 +3724,10 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
 
   List<String> _extractReadableLines(String text) {
     final normalized = text
-        .replaceAll(RegExp(r'[，。！？；：]'), '\n')
-        .replaceAll(RegExp(r'[|｜]'), '\n');
+        .replaceAll(RegExp(r'[|｜]'), '\n')
+        .replaceAll(RegExp(r'\s+'), ' ');
     final lines = normalized
-        .split(RegExp(r'[\n\r]+'))
+        .split(RegExp(r'(?<=[。！？；：])|[\n\r]+'))
         .map((item) => item.trim().replaceAll(RegExp(r'\s+'), ' '))
         .expand<String>((item) sync* {
           if (item.length <= 80) {
