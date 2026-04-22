@@ -568,21 +568,30 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final screenHeight = MediaQuery.sizeOf(context).height;
     final safeVertical = MediaQuery.paddingOf(context).vertical;
-    final maxDialogHeight =
-        (screenHeight - safeVertical - viewInsets.bottom - 24).clamp(
-          220.0,
-          420.0,
-        );
-    return Dialog(
-      alignment: Alignment.bottomCenter,
-      insetPadding: EdgeInsets.fromLTRB(18, 12, 18, viewInsets.bottom + 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxDialogHeight),
-        child: SingleChildScrollView(
-          reverse: true,
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-          child: Column(
+    final keyboardVisible = viewInsets.bottom > 0;
+    final maxDialogHeight = keyboardVisible
+        ? (screenHeight * 0.52).clamp(220.0, 420.0)
+        : (screenHeight - safeVertical - 24).clamp(220.0, 420.0);
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.fromLTRB(18, 12, 18, viewInsets.bottom + 8),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxDialogHeight),
+            child: Material(
+              color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
+              elevation: 16,
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -596,7 +605,7 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
               _compactField(
                 controller: _nameController,
                 label: '名称',
-                hint: '例如：刷抖音专用',
+                hint: '请填写方案名称',
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 8),
@@ -674,6 +683,9 @@ class _SchemeSettingsDialogState extends State<_SchemeSettingsDialog> {
                 ],
               ),
             ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
