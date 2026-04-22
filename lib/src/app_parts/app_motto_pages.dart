@@ -760,7 +760,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      _neonGlassFill(alpha: 0.16),
+                      _neonGlassFill(Theme.of(context), alpha: 0.16),
                       const Color(0xFFD69AF1).withValues(alpha: 0.14),
                     ],
                     begin: Alignment.topLeft,

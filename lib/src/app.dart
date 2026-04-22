@@ -1716,7 +1716,10 @@ class _EditorHeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_neonGlassFill(alpha: 0.16), accent.withValues(alpha: 0.14)],
+          colors: [
+            _neonGlassFill(theme, alpha: 0.16),
+            accent.withValues(alpha: 0.14),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1789,7 +1792,7 @@ class _EditorSectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              _neonGlassFill(alpha: 0.15),
+              _neonGlassFill(theme, alpha: 0.15),
               accent.withValues(alpha: 0.12),
             ],
             begin: Alignment.topLeft,

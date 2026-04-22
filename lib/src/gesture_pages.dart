@@ -15,9 +15,12 @@ part 'gesture_parts/gesture_pages_editor.dart';
 part 'gesture_parts/gesture_pages_widgets.dart';
 
 BoxDecoration _automationPageBackground(ThemeData theme) {
-  return const BoxDecoration(
+  final isDark = theme.brightness == Brightness.dark;
+  return BoxDecoration(
     gradient: LinearGradient(
-      colors: [Color(0xFFF1F4FF), Color(0xFFE8ECFF), Color(0xFFF3EEFF)],
+      colors: isDark
+          ? const [Color(0xFF1D214C), Color(0xFF242A5A), Color(0xFF32254E)]
+          : const [Color(0xFFF1F4FF), Color(0xFFE8ECFF), Color(0xFFF3EEFF)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
@@ -48,16 +51,20 @@ BoxDecoration _automationCardDecoration(ThemeData theme) {
 }
 
 Color _automationLiquidGlassFill(ThemeData theme, Color tint) {
-  return const Color(0xFFE9EEFF);
+  return theme.brightness == Brightness.dark
+      ? const Color(0xFF2A2F63)
+      : const Color(0xFFE9EEFF);
 }
 
 Color _automationLiquidGlassBorder(ThemeData theme, Color tint) {
-  return const Color(0xFFC9D2FF);
+  return theme.brightness == Brightness.dark
+      ? const Color(0xFF5964B8)
+      : const Color(0xFFC9D2FF);
 }
 
 Color _automationHeaderColor(ThemeData theme) {
   return theme.brightness == Brightness.dark
-      ? const Color(0xFF232756)
+      ? const Color(0xFF1D214C)
       : const Color(0xFFF1F4FF);
 }
 
@@ -315,6 +322,7 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -337,7 +345,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                   ? Icons.lock_open_rounded
                   : Icons.lock_rounded,
               color: _unlockConfig == null
-                  ? const Color(0xFF6170B8)
+                  ? (isDark
+                        ? Colors.white.withValues(alpha: 0.72)
+                        : const Color(0xFF6170B8))
                   : const Color(0xFF7F8CFF),
             ),
           ),
@@ -352,10 +362,11 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
           MediaQuery.paddingOf(context).bottom + 10,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F4FF),
+          color: _automationHeaderColor(theme),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7F8CFF).withValues(alpha: 0.08),
+              color: (isDark ? Colors.black : const Color(0xFF7F8CFF))
+                  .withValues(alpha: isDark ? 0.18 : 0.08),
               blurRadius: 18,
               offset: const Offset(0, -6),
             ),
@@ -387,8 +398,12 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                 onPressed: widget.onClose,
                 icon: const Icon(Icons.close_rounded),
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFFDDE4FF),
-                  foregroundColor: const Color(0xFF39478F),
+                  backgroundColor: isDark
+                      ? const Color(0xFF2A2F63)
+                      : const Color(0xFFDDE4FF),
+                  foregroundColor: isDark
+                      ? Colors.white
+                      : const Color(0xFF39478F),
                   padding: const EdgeInsets.all(14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -418,12 +433,18 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                       Icon(
                         Icons.auto_awesome_motion_rounded,
                         size: 64,
-                        color: const Color(0xFF7F8CFF),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.82)
+                            : const Color(0xFF7F8CFF),
                       ),
                       const SizedBox(height: 16),
                       Text(
                         '尚未创建任何配置',
-                        style: const TextStyle(color: Color(0xFF39478F)),
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.84)
+                              : const Color(0xFF39478F),
+                        ),
                       ),
                     ],
                   ),
@@ -459,9 +480,11 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                 ),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.gesture_rounded,
-                                color: Color(0xFF39478F),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF39478F),
                                 size: 24,
                               ),
                             ),
@@ -475,7 +498,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.w900,
-                                          color: const Color(0xFF26336F),
+                                          color: isDark
+                                              ? Colors.white
+                                              : const Color(0xFF26336F),
                                         ),
                                   ),
                                   const SizedBox(height: 4),
@@ -485,7 +510,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                     '${config.followUpConfigId == null ? '' : ' · 含追加配置'}'
                                     ' · ${config.infiniteLoop ? '持续执行' : '约${estimateGestureConfigDuration(config).label}'}',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: const Color(0xFF6170B8),
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.72)
+                                          : const Color(0xFF6170B8),
                                     ),
                                   ),
                                 ],
@@ -499,7 +526,9 @@ class _GestureConfigPageState extends State<GestureConfigPage> {
                                     backgroundColor: const Color(
                                       0xFF7F8CFF,
                                     ).withValues(alpha: 0.18),
-                                    foregroundColor: const Color(0xFF39478F),
+                                    foregroundColor: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF39478F),
                                   ),
                                   icon: const Icon(
                                     Icons.play_arrow_rounded,

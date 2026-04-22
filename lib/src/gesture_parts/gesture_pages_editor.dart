@@ -1654,10 +1654,18 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 MediaQuery.paddingOf(context).bottom + 12,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F4FF),
+                color: _automationHeaderColor(theme),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF7F8CFF).withValues(alpha: 0.08),
+                    color:
+                        (theme.brightness == Brightness.dark
+                                ? Colors.black
+                                : const Color(0xFF7F8CFF))
+                            .withValues(
+                              alpha: theme.brightness == Brightness.dark
+                                  ? 0.18
+                                  : 0.08,
+                            ),
                     blurRadius: 18,
                     offset: const Offset(0, -6),
                   ),

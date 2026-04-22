@@ -674,7 +674,7 @@ class _TaskDeckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final glassFill = _neonGlassFill(alpha: 0.16);
+    final glassFill = _neonGlassFill(theme, alpha: 0.16);
     final primaryButtonFill = theme.brightness == Brightness.dark
         ? accent.withValues(alpha: 0.88)
         : Color.lerp(accent, Colors.white, 0.2)!;
@@ -1303,7 +1303,7 @@ class _SettingsSectionCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                _neonGlassFill(alpha: 0.16),
+                _neonGlassFill(theme, alpha: 0.16),
                 accent.withValues(alpha: 0.14),
               ],
               begin: Alignment.topLeft,
