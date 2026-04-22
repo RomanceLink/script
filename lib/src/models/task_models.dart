@@ -4,6 +4,79 @@ enum RingtoneSource { systemDefault, systemAlarm, filePath }
 
 enum IntervalUnit { seconds, minutes, hours, days }
 
+class DailyMottoEntry {
+  const DailyMottoEntry({
+    required this.id,
+    required this.content,
+    this.author,
+    this.poemTitle,
+  });
+
+  final String id;
+  final String content;
+  final String? author;
+  final String? poemTitle;
+
+  String get attribution {
+    final authorText = author?.trim() ?? '';
+    final titleText = poemTitle?.trim() ?? '';
+    if (authorText.isEmpty && titleText.isEmpty) {
+      return '';
+    }
+    if (authorText.isEmpty) {
+      return '《$titleText》';
+    }
+    if (titleText.isEmpty) {
+      return '-- $authorText';
+    }
+    return '-- $authorText《$titleText》';
+  }
+
+  DailyMottoEntry copyWith({
+    String? id,
+    String? content,
+    String? author,
+    String? poemTitle,
+    bool clearAuthor = false,
+    bool clearPoemTitle = false,
+  }) {
+    return DailyMottoEntry(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      author: clearAuthor ? null : (author ?? this.author),
+      poemTitle: clearPoemTitle ? null : (poemTitle ?? this.poemTitle),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'content': content,
+    'author': author,
+    'poemTitle': poemTitle,
+  };
+
+  factory DailyMottoEntry.fromJson(Map<String, Object?> json) {
+    return DailyMottoEntry(
+      id: (json['id'] as String?)?.trim().isNotEmpty == true
+          ? json['id'] as String
+          : dailyMottoEntryId((json['content'] as String?) ?? ''),
+      content: (json['content'] as String?)?.trim() ?? '',
+      author: (json['author'] as String?)?.trim(),
+      poemTitle: (json['poemTitle'] as String?)?.trim(),
+    );
+  }
+
+  factory DailyMottoEntry.fromLegacy(String content) {
+    final value = content.trim();
+    return DailyMottoEntry(id: dailyMottoEntryId(value), content: value);
+  }
+}
+
+String dailyMottoEntryId(String content) {
+  final normalized = content.trim();
+  return 'motto_${normalized.hashCode}_${normalized.length}';
+}
+
 class AssistantTaskDefinition {
   const AssistantTaskDefinition({
     required this.id,
@@ -135,7 +208,8 @@ class AssistantTaskDefinition {
       autoOpenDelaySeconds: autoOpenDelaySeconds ?? this.autoOpenDelaySeconds,
       autoCompleteDelayValue:
           autoCompleteDelayValue ?? this.autoCompleteDelayValue,
-      autoCompleteDelayUnit: autoCompleteDelayUnit ?? this.autoCompleteDelayUnit,
+      autoCompleteDelayUnit:
+          autoCompleteDelayUnit ?? this.autoCompleteDelayUnit,
     );
   }
 

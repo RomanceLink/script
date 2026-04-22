@@ -233,10 +233,11 @@ class _DashboardPageState extends State<DashboardPage>
   String? _focusTaskId;
   int _currentTaskPage = 0;
   List<GestureConfig> _gestureConfigs = [];
-  List<String> _dailyMottos = const [];
-  String? _pinnedDailyMotto;
+  List<DailyMottoEntry> _dailyMottoEntries = const [];
+  String? _pinnedDailyMottoId;
   String? _dailyMottoImageUrl;
   String? _dailyMottoImagePath;
+  bool _showDailyMottoMetaOnHome = true;
   bool _handlingOverlayCommand = false;
   final Map<String, Timer> _autoCompleteTimers = {};
   final Map<String, DateTime> _autoCompleteDueAt = {};
@@ -283,25 +284,31 @@ class _DashboardPageState extends State<DashboardPage>
           _defaultDailyMottoSourceUrl;
       final lastFetchDate = await _repository.loadDailyMottoLastFetchDate();
       final todayKey = _dateKey(DateTime.now());
-      final hasBrokenMottos = (await _repository.loadDailyMottos()).any(
-        _looksLikeMojibake,
-      );
+      final hasBrokenMottos =
+          (await _repository.loadDailyMottoEntries()).any(
+            (item) => _looksLikeMojibake(item.content),
+          ) ||
+          (await _repository.loadDailyMottos()).any(_looksLikeMojibake);
       if (sourceUrl.isNotEmpty &&
           (lastFetchDate != todayKey || hasBrokenMottos)) {
         try {
           final fetched = await fetchDailyMottosFromUrl(sourceUrl);
           if (fetched.isNotEmpty) {
-            await _repository.saveDailyMottos(fetched);
+            await _repository.saveDailyMottoEntries(
+              fetched.map(DailyMottoEntry.fromLegacy).toList(),
+            );
             await _repository.saveDailyMottoSourceUrl(sourceUrl);
             await _repository.saveDailyMottoLastFetchDate(todayKey);
           }
         } catch (_) {}
       }
       final gestureConfigs = await _repository.loadGestureConfigs();
-      final dailyMottos = await _repository.loadDailyMottos();
-      final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
+      final dailyMottoEntries = await _repository.loadDailyMottoEntries();
+      final pinnedDailyMottoId = await _repository.loadPinnedDailyMottoId();
       var dailyMottoImageUrl = await _repository.loadDailyMottoImageUrl();
       final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
+      final showDailyMottoMetaOnHome = await _repository
+          .loadShowDailyMottoMetaOnHome();
       final dailyMottoImageFetchDate = await _repository
           .loadDailyMottoImageFetchDate();
       if (dailyMottoImageFetchDate != todayKey) {
@@ -320,10 +327,11 @@ class _DashboardPageState extends State<DashboardPage>
       setState(() {
         _state = state;
         _gestureConfigs = gestureConfigs;
-        _dailyMottos = dailyMottos;
-        _pinnedDailyMotto = pinnedDailyMotto;
+        _dailyMottoEntries = dailyMottoEntries;
+        _pinnedDailyMottoId = pinnedDailyMottoId;
         _dailyMottoImageUrl = dailyMottoImageUrl;
         _dailyMottoImagePath = dailyMottoImagePath;
+        _showDailyMottoMetaOnHome = showDailyMottoMetaOnHome;
         _loading = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -496,7 +504,9 @@ class _DashboardPageState extends State<DashboardPage>
     _autoCompleteDueAt.remove(taskId);
     final state = _state;
     if (state == null) return;
-    final task = state.taskDefinitions.where((item) => item.id == taskId).firstOrNull;
+    final task = state.taskDefinitions
+        .where((item) => item.id == taskId)
+        .firstOrNull;
     if (task == null) return;
     if (task.kind == AssistantTaskKind.adCooldown) {
       await _markCounterTaskDone(task);
@@ -532,7 +542,9 @@ class _DashboardPageState extends State<DashboardPage>
     if (taskId == null || taskId.isEmpty) return;
     final state = _state;
     if (state == null) return;
-    final task = state.taskDefinitions.where((item) => item.id == taskId).firstOrNull;
+    final task = state.taskDefinitions
+        .where((item) => item.id == taskId)
+        .firstOrNull;
     if (task == null) return;
     final autoCompleteDueAt =
         pendingAutoComplete != null && pendingAutoComplete.taskId == taskId
@@ -889,9 +901,11 @@ class _DashboardPageState extends State<DashboardPage>
     if (autoCompleteAfter != null) {
       _scheduleAutoCompleteTask(
         task.id,
-        DateTime.now().add(autoCompleteAfter <= Duration.zero
-            ? Duration.zero
-            : autoCompleteAfter),
+        DateTime.now().add(
+          autoCompleteAfter <= Duration.zero
+              ? Duration.zero
+              : autoCompleteAfter,
+        ),
       );
     } else if (task.autoCompleteDelayDuration > Duration.zero) {
       _scheduleAutoCompleteTask(
@@ -1013,17 +1027,20 @@ class _DashboardPageState extends State<DashboardPage>
 
     if (next != null) {
       final configs = await _repository.loadGestureConfigs();
-      final dailyMottos = await _repository.loadDailyMottos();
-      final pinnedDailyMotto = await _repository.loadPinnedDailyMotto();
+      final dailyMottoEntries = await _repository.loadDailyMottoEntries();
+      final pinnedDailyMottoId = await _repository.loadPinnedDailyMottoId();
       final dailyMottoImageUrl = await _repository.loadDailyMottoImageUrl();
       final dailyMottoImagePath = await _repository.loadDailyMottoImagePath();
+      final showDailyMottoMetaOnHome = await _repository
+          .loadShowDailyMottoMetaOnHome();
       if (mounted) {
         setState(() {
           _gestureConfigs = configs;
-          _dailyMottos = dailyMottos;
-          _pinnedDailyMotto = pinnedDailyMotto;
+          _dailyMottoEntries = dailyMottoEntries;
+          _pinnedDailyMottoId = pinnedDailyMottoId;
           _dailyMottoImageUrl = dailyMottoImageUrl;
           _dailyMottoImagePath = dailyMottoImagePath;
+          _showDailyMottoMetaOnHome = showDailyMottoMetaOnHome;
         });
       }
       await _persistState(next, message: '设置已保存', type: ToastType.success);
@@ -1038,10 +1055,15 @@ class _DashboardPageState extends State<DashboardPage>
     return _dateKey(now);
   }
 
-  String _dailyMotto(DateTime now) {
-    final pinned = _pinnedDailyMotto;
-    if (pinned != null && pinned.trim().isNotEmpty) {
-      return pinned;
+  DailyMottoEntry _dailyMottoEntry(DateTime now) {
+    final pinnedId = _pinnedDailyMottoId;
+    if (pinnedId != null && pinnedId.isNotEmpty) {
+      final pinned = _dailyMottoEntries
+          .where((item) => item.id == pinnedId)
+          .firstOrNull;
+      if (pinned != null) {
+        return pinned;
+      }
     }
     const fallbackMottos = [
       '天生我才必有用，千金散尽还复来',
@@ -1051,9 +1073,18 @@ class _DashboardPageState extends State<DashboardPage>
       '山高路远，亦要见自己',
       '日日自新，步步生光',
     ];
-    final mottos = _dailyMottos.isEmpty ? fallbackMottos : _dailyMottos;
+    final entries = _dailyMottoEntries.isEmpty
+        ? fallbackMottos.map(DailyMottoEntry.fromLegacy).toList()
+        : _dailyMottoEntries;
     final seed = now.year * 10000 + now.month * 100 + now.day;
-    return mottos[seed % mottos.length];
+    return entries[seed % entries.length];
+  }
+
+  String _dailyMottoAttribution(DailyMottoEntry entry) {
+    if (!_showDailyMottoMetaOnHome) {
+      return '';
+    }
+    return entry.attribution;
   }
 
   List<Color> _indicatorPalette(Brightness brightness) {
@@ -1176,6 +1207,7 @@ class _DashboardPageState extends State<DashboardPage>
           : state.isCompleted(task.id);
     }).length;
 
+    final headerMotto = _dailyMottoEntry(now);
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -1193,11 +1225,12 @@ class _DashboardPageState extends State<DashboardPage>
             child: Column(
               children: [
                 _HeaderCard(
-                  title: _dailyMotto(now),
+                  title: headerMotto.content,
                   subtitle: nextReminder == null
                       ? '今天无后续提醒'
                       : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
                   summary: '总共 ${tasks.length} 项，完成 $doneCount 项',
+                  attribution: _dailyMottoAttribution(headerMotto),
                   imageProvider: _dailyMottoImagePath != null
                       ? FileImage(File(_dailyMottoImagePath!))
                       : (_dailyMottoImageUrl != null
@@ -2128,4 +2161,3 @@ class _RingtoneSourceSelector extends StatelessWidget {
     );
   }
 }
-

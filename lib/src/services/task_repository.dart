@@ -10,10 +10,14 @@ class TaskRepository {
   static const String _unlockGestureConfigKey = 'unlock_gesture_config_v1';
   static const String _lastGestureConfigIdKey = 'last_gesture_config_id_v1';
   static const String _dailyMottosKey = 'daily_mottos_v1';
+  static const String _dailyMottoEntriesKey = 'daily_motto_entries_v1';
   static const String _dailyMottoSourceUrlKey = 'daily_motto_source_url_v1';
   static const String _dailyMottoLastFetchDateKey =
       'daily_motto_last_fetch_date_v1';
   static const String _pinnedDailyMottoKey = 'pinned_daily_motto_v1';
+  static const String _pinnedDailyMottoIdKey = 'pinned_daily_motto_id_v1';
+  static const String _showDailyMottoMetaOnHomeKey =
+      'show_daily_motto_meta_on_home_v1';
   static const String _dailyMottoImageUrlKey = 'daily_motto_image_url_v1';
   static const String _dailyMottoImagePathKey = 'daily_motto_image_path_v1';
   static const String _dailyMottoImageFetchDateKey =
@@ -72,6 +76,50 @@ class TaskRepository {
     );
   }
 
+  Future<List<DailyMottoEntry>> loadDailyMottoEntries() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final raw = prefs.getString(_dailyMottoEntriesKey);
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw) as List<Object?>;
+        return decoded
+            .whereType<Map<String, Object?>>()
+            .map(DailyMottoEntry.fromJson)
+            .where((item) => item.content.trim().isNotEmpty)
+            .toList();
+      } catch (_) {}
+    }
+    final legacy = prefs.getStringList(_dailyMottosKey) ?? const [];
+    return legacy
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .map(DailyMottoEntry.fromLegacy)
+        .toList();
+  }
+
+  Future<void> saveDailyMottoEntries(List<DailyMottoEntry> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cleaned = entries
+        .map(
+          (item) => item.copyWith(
+            content: item.content.trim(),
+            author: item.author?.trim(),
+            poemTitle: item.poemTitle?.trim(),
+          ),
+        )
+        .where((item) => item.content.isNotEmpty)
+        .toList();
+    await prefs.setString(
+      _dailyMottoEntriesKey,
+      jsonEncode(cleaned.map((item) => item.toJson()).toList()),
+    );
+    await prefs.setStringList(
+      _dailyMottosKey,
+      cleaned.map((item) => item.content).toList(),
+    );
+  }
+
   Future<String?> loadPinnedDailyMotto() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
@@ -87,6 +135,45 @@ class TaskRepository {
       return;
     }
     await prefs.setString(_pinnedDailyMottoKey, value);
+  }
+
+  Future<String?> loadPinnedDailyMottoId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final value = prefs.getString(_pinnedDailyMottoIdKey)?.trim();
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+    final legacy = prefs.getString(_pinnedDailyMottoKey)?.trim();
+    if (legacy == null || legacy.isEmpty) {
+      return null;
+    }
+    final entries = await loadDailyMottoEntries();
+    return entries
+        .where((item) => item.content.trim() == legacy)
+        .firstOrNull
+        ?.id;
+  }
+
+  Future<void> savePinnedDailyMottoId(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = id?.trim() ?? '';
+    if (value.isEmpty) {
+      await prefs.remove(_pinnedDailyMottoIdKey);
+      return;
+    }
+    await prefs.setString(_pinnedDailyMottoIdKey, value);
+  }
+
+  Future<bool> loadShowDailyMottoMetaOnHome() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs.getBool(_showDailyMottoMetaOnHomeKey) ?? true;
+  }
+
+  Future<void> saveShowDailyMottoMetaOnHome(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showDailyMottoMetaOnHomeKey, value);
   }
 
   Future<String?> loadDailyMottoSourceUrl() async {

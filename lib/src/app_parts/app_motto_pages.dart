@@ -20,11 +20,12 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     '日日自新，步步生光',
   ];
 
-  List<String> _mottos = const [];
-  String? _pinnedMotto;
+  List<DailyMottoEntry> _mottos = const [];
+  String? _pinnedMottoId;
   String _sourceUrl = _defaultDailyMottoSourceUrl;
   String? _imageUrl;
   String? _imagePath;
+  bool _showMetaOnHome = true;
   bool _loading = true;
   bool _fetching = false;
   bool _fetchingImage = false;
@@ -36,25 +37,32 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   }
 
   Future<void> _load() async {
-    final values = await widget.repository.loadDailyMottos();
+    final values = await widget.repository.loadDailyMottoEntries();
     final sourceUrl =
         await widget.repository.loadDailyMottoSourceUrl() ??
         _defaultDailyMottoSourceUrl;
-    final pinnedMotto = await widget.repository.loadPinnedDailyMotto();
+    final pinnedMottoId = await widget.repository.loadPinnedDailyMottoId();
     final imageUrl = await widget.repository.loadDailyMottoImageUrl();
     final imagePath = await widget.repository.loadDailyMottoImagePath();
+    final showMetaOnHome = await widget.repository
+        .loadShowDailyMottoMetaOnHome();
     final lastFetchDate = await widget.repository.loadDailyMottoLastFetchDate();
     final todayKey = _dateKey(DateTime.now());
     if (!mounted) return;
     setState(() {
-      _mottos = values.isEmpty ? [..._presetMottos] : values;
-      _pinnedMotto = pinnedMotto;
+      _mottos = values.isEmpty
+          ? _presetMottos.map(DailyMottoEntry.fromLegacy).toList()
+          : values;
+      _pinnedMottoId = pinnedMottoId;
       _sourceUrl = sourceUrl;
       _imageUrl = imageUrl;
       _imagePath = imagePath;
+      _showMetaOnHome = showMetaOnHome;
       _loading = false;
     });
-    final hasBrokenMottos = values.any(_looksLikeMojibake);
+    final hasBrokenMottos = values.any(
+      (item) => _looksLikeMojibake(item.content),
+    );
     if (sourceUrl.isNotEmpty &&
         (lastFetchDate != todayKey || hasBrokenMottos)) {
       await _fetchFromSource(silentOnFailure: true);
@@ -62,18 +70,20 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   }
 
   Future<void> _save() async {
-    await widget.repository.saveDailyMottos(_mottos);
-    if (_pinnedMotto != null && !_mottos.contains(_pinnedMotto)) {
-      _pinnedMotto = null;
-      await widget.repository.savePinnedDailyMotto(null);
+    await widget.repository.saveDailyMottoEntries(_mottos);
+    if (_pinnedMottoId != null &&
+        !_mottos.any((item) => item.id == _pinnedMottoId)) {
+      _pinnedMottoId = null;
+      await widget.repository.savePinnedDailyMottoId(null);
     }
+    await widget.repository.saveShowDailyMottoMetaOnHome(_showMetaOnHome);
     if (!mounted) return;
     VibrantHUD.show(context, '每日箴言已保存', type: ToastType.success);
   }
 
-  Future<void> _setHomeMotto(String motto) async {
-    setState(() => _pinnedMotto = motto);
-    await widget.repository.savePinnedDailyMotto(motto);
+  Future<void> _setHomeMotto(DailyMottoEntry motto) async {
+    setState(() => _pinnedMottoId = motto.id);
+    await widget.repository.savePinnedDailyMottoId(motto.id);
     if (!mounted) return;
     VibrantHUD.show(context, '已设为首页显示', type: ToastType.success);
   }
@@ -97,7 +107,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 10),
-              Text(item),
+              Text(item.content),
               const SizedBox(height: 16),
               FilledButton.tonal(
                 onPressed: () => Navigator.of(context).pop(true),
@@ -120,33 +130,30 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         for (var i = 0; i < _mottos.length; i++)
           if (i != index) _mottos[i],
       ];
-      if (_pinnedMotto == item) {
-        _pinnedMotto = null;
+      if (_pinnedMottoId == item.id) {
+        _pinnedMottoId = null;
       }
     });
-    await widget.repository.saveDailyMottos(_mottos);
-    if (_pinnedMotto == null) {
-      await widget.repository.savePinnedDailyMotto(null);
+    await widget.repository.saveDailyMottoEntries(_mottos);
+    if (_pinnedMottoId == null) {
+      await widget.repository.savePinnedDailyMottoId(null);
     }
     if (!mounted) return;
     VibrantHUD.show(context, '删除成功', type: ToastType.success);
   }
 
-  Future<void> _editItem({String initialValue = '', int? index}) async {
-    final previousValue = index == null ? null : _mottos[index];
-    final result = await showModalBottomSheet<String>(
+  Future<void> _editItem({DailyMottoEntry? initialEntry, int? index}) async {
+    final previousId = initialEntry?.id;
+    final result = await showModalBottomSheet<DailyMottoEntry>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => _TemplateNameSheet(
+      builder: (context) => _MottoEntrySheet(
         title: index == null ? '新增箴言' : '编辑箴言',
-        fieldLabel: '箴言内容',
-        actionLabel: '保存',
-        initialValue: initialValue,
-        multiline: true,
+        initialEntry: initialEntry,
       ),
     );
-    if (!mounted || result == null || result.isEmpty) return;
+    if (!mounted || result == null || result.content.isEmpty) return;
     setState(() {
       if (index == null) {
         _mottos = [..._mottos, result];
@@ -155,13 +162,13 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
           for (var i = 0; i < _mottos.length; i++)
             if (i == index) result else _mottos[i],
         ];
-        if (_pinnedMotto == previousValue) {
-          _pinnedMotto = result;
+        if (_pinnedMottoId == previousId) {
+          _pinnedMottoId = result.id;
         }
       }
     });
-    if (_pinnedMotto == result) {
-      await widget.repository.savePinnedDailyMotto(result);
+    if (_pinnedMottoId == result.id) {
+      await widget.repository.savePinnedDailyMottoId(result.id);
     }
     await _save();
   }
@@ -185,7 +192,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       ),
     );
     if (result == null) return;
-    setState(() => _mottos = [..._mottos, result]);
+    setState(() => _mottos = [..._mottos, DailyMottoEntry.fromLegacy(result)]);
     await _save();
   }
 
@@ -219,11 +226,13 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       if (mottos.isEmpty) {
         throw Exception('没有抓到可用内容');
       }
-      setState(() => _mottos = mottos);
-      await widget.repository.saveDailyMottos(mottos);
-      if (_pinnedMotto != null && !mottos.contains(_pinnedMotto)) {
-        _pinnedMotto = null;
-        await widget.repository.savePinnedDailyMotto(null);
+      final entries = mottos.map(DailyMottoEntry.fromLegacy).toList();
+      setState(() => _mottos = entries);
+      await widget.repository.saveDailyMottoEntries(entries);
+      if (_pinnedMottoId != null &&
+          !entries.any((item) => item.id == _pinnedMottoId)) {
+        _pinnedMottoId = null;
+        await widget.repository.savePinnedDailyMottoId(null);
       }
       await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
       await widget.repository.saveDailyMottoLastFetchDate(
@@ -244,7 +253,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   }
 
   Future<void> _openWebRecognizer() async {
-    final result = await Navigator.of(context).push<List<String>>(
+    final result = await Navigator.of(context).push<List<DailyMottoEntry>>(
       MaterialPageRoute(
         builder: (_) => _MottoWebRecognizePage(initialUrl: _sourceUrl),
       ),
@@ -252,25 +261,36 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     if (!mounted || result == null || result.isEmpty) {
       return;
     }
-    final merged = <String>[
-      ..._mottos,
-      ...result,
-    ].map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
-    final deduped = <String>[];
+    final merged = <DailyMottoEntry>[..._mottos, ...result];
+    final deduped = <DailyMottoEntry>[];
     for (final item in merged) {
-      if (!deduped.contains(item)) {
+      final existingIndex = deduped.indexWhere(
+        (entry) => entry.content.trim() == item.content.trim(),
+      );
+      if (existingIndex == -1) {
         deduped.add(item);
+      } else {
+        final existing = deduped[existingIndex];
+        deduped[existingIndex] = existing.copyWith(
+          author: existing.author?.trim().isNotEmpty == true
+              ? existing.author
+              : item.author,
+          poemTitle: existing.poemTitle?.trim().isNotEmpty == true
+              ? existing.poemTitle
+              : item.poemTitle,
+        );
       }
     }
     setState(() {
       _mottos = deduped;
-      if (_pinnedMotto != null && !deduped.contains(_pinnedMotto)) {
-        _pinnedMotto = null;
+      if (_pinnedMottoId != null &&
+          !deduped.any((item) => item.id == _pinnedMottoId)) {
+        _pinnedMottoId = null;
       }
     });
-    await widget.repository.saveDailyMottos(deduped);
-    if (_pinnedMotto == null) {
-      await widget.repository.savePinnedDailyMotto(null);
+    await widget.repository.saveDailyMottoEntries(deduped);
+    if (_pinnedMottoId == null) {
+      await widget.repository.savePinnedDailyMottoId(null);
     }
     await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
     if (!mounted) {
@@ -354,6 +374,18 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
       return sentences.join('\n');
     }
     return '${sentences.take(2).join('\n')}...';
+  }
+
+  String _mottoSubtitle(DailyMottoEntry value) {
+    final parts = <String>[];
+    if (_pinnedMottoId == value.id) {
+      parts.add('当前首页显示');
+    }
+    if (value.author?.trim().isNotEmpty == true ||
+        value.poemTitle?.trim().isNotEmpty == true) {
+      parts.add(value.attribution);
+    }
+    return parts.join(' · ');
   }
 
   @override
@@ -441,6 +473,18 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('首页显示作者和古诗名'),
+                    value: _showMetaOnHome,
+                    onChanged: (value) async {
+                      setState(() => _showMetaOnHome = value);
+                      await widget.repository.saveShowDailyMottoMetaOnHome(
+                        value,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 6),
                   if (_imagePath != null || _imageUrl != null)
                     SizedBox(
                       width: double.infinity,
@@ -468,16 +512,18 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
                 title: Text(
-                  _mottoPreview(item),
+                  _mottoPreview(item.content),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: _pinnedMotto == item ? const Text('当前首页显示') : null,
+                subtitle: _mottoSubtitle(item).isEmpty
+                    ? null
+                    : Text(_mottoSubtitle(item)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextButton(
-                      onPressed: _pinnedMotto == item
+                      onPressed: _pinnedMottoId == item.id
                           ? null
                           : () => _setHomeMotto(item),
                       child: const Text('设为首页'),
@@ -485,7 +531,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     const SizedBox(width: 4),
                     _MiniIconButton(
                       onPressed: () =>
-                          _editItem(initialValue: item, index: index),
+                          _editItem(initialEntry: item, index: index),
                       icon: Icons.edit_rounded,
                     ),
                     const SizedBox(width: 8),
@@ -521,6 +567,30 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
   bool _selectingRegion = false;
   Offset? _dragStart;
   Rect? _selectedRegion;
+  _MottoLineGroupMode _groupMode = _MottoLineGroupMode.quatrain;
+
+  List<String> _groupPoemClauses(List<String> clauses, {int groupSize = 4}) {
+    if (clauses.isEmpty) return const [];
+    final results = <String>[];
+    for (var index = 0; index < clauses.length; index += groupSize) {
+      final chunk = clauses.skip(index).take(groupSize).toList();
+      if (chunk.isEmpty) continue;
+      results.add(chunk.join());
+    }
+    return results;
+  }
+
+  List<String> _applyGroupingMode(List<String> clauses) {
+    if (clauses.isEmpty) return const [];
+    switch (_groupMode) {
+      case _MottoLineGroupMode.couplet:
+        return _groupPoemClauses(clauses, groupSize: 2);
+      case _MottoLineGroupMode.quatrain:
+        return _groupPoemClauses(clauses, groupSize: 4);
+      case _MottoLineGroupMode.fullPoem:
+        return [clauses.join()];
+    }
+  }
 
   @override
   void initState() {
@@ -545,19 +615,10 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     final normalized = text
         .replaceAll(RegExp(r'[|｜]'), '\n')
         .replaceAll(RegExp(r'\s+'), ' ');
-    final lines = normalized
+    final clauses = normalized
         .split(RegExp(r'(?<=[。！？；：])|[\n\r]+'))
         .map((item) => item.trim().replaceAll(RegExp(r'\s+'), ' '))
-        .expand<String>((item) sync* {
-          if (item.length <= 80) {
-            yield item;
-            return;
-          }
-          for (var start = 0; start < item.length; start += 40) {
-            yield item.substring(start, (start + 40).clamp(0, item.length));
-          }
-        })
-        .where((item) => item.length >= 2 && item.length <= 120)
+        .where((item) => item.length >= 2 && item.length <= 40)
         .where(
           (item) =>
               !item.contains('文学360') &&
@@ -568,6 +629,15 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
               !item.contains('ICP备'),
         )
         .toList();
+    final lines = _applyGroupingMode(clauses).expand<String>((item) sync* {
+      if (item.length <= 120) {
+        yield item;
+        return;
+      }
+      for (var start = 0; start < item.length; start += 60) {
+        yield item.substring(start, (start + 60).clamp(0, item.length));
+      }
+    }).toList();
     final results = <String>[];
     for (final line in lines) {
       if (results.contains(line)) {
@@ -596,6 +666,43 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     return results;
   }
 
+  ({String? author, String? poemTitle}) _extractMottoMetadata(String text) {
+    final normalized = text.replaceAll('\n', ' ');
+    final titleMatch = RegExp(r'《([^》]{1,24})》').firstMatch(normalized);
+    final authorBeforeTitle = RegExp(
+      r'([一-龥]{2,4})\s*《[^》]{1,24}》',
+    ).firstMatch(normalized);
+    final authorAfterDash = RegExp(r'--\s*([一-龥]{2,4})').firstMatch(normalized);
+    final authorAfterLabel = RegExp(
+      r'作者[:：]?\s*([一-龥]{2,4})',
+    ).firstMatch(normalized);
+    final author =
+        authorBeforeTitle?.group(1) ??
+        authorAfterDash?.group(1) ??
+        authorAfterLabel?.group(1);
+    return (
+      author: author?.trim().isEmpty == true ? null : author?.trim(),
+      poemTitle: titleMatch?.group(1)?.trim().isEmpty == true
+          ? null
+          : titleMatch?.group(1)?.trim(),
+    );
+  }
+
+  List<DailyMottoEntry> _buildEntries(List<String> lines, String rawText) {
+    final meta = _extractMottoMetadata(rawText);
+    return lines
+        .map(
+          (line) => DailyMottoEntry(
+            id: dailyMottoEntryId(line),
+            content: line.trim(),
+            author: meta.author,
+            poemTitle: meta.poemTitle,
+          ),
+        )
+        .where((item) => item.content.isNotEmpty)
+        .toList();
+  }
+
   Future<String?> _editRecognizedLine(String value) async {
     return showModalBottomSheet<String>(
       context: context,
@@ -611,7 +718,7 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     );
   }
 
-  Future<void> _confirmAndPop(List<String> lines) async {
+  Future<void> _confirmAndPop(List<DailyMottoEntry> lines) async {
     if (!mounted) {
       return;
     }
@@ -620,7 +727,7 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
       return;
     }
     final editedLines = [...lines];
-    final confirmed = await showModalBottomSheet<List<String>>(
+    final confirmed = await showModalBottomSheet<List<DailyMottoEntry>>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -653,6 +760,47 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                               ).colorScheme.onSurfaceVariant,
                             ),
                       ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: editedLines.length < 2
+                            ? null
+                            : () {
+                                final mergedContent = editedLines
+                                    .map((item) => item.content.trim())
+                                    .where((item) => item.isNotEmpty)
+                                    .join('\n');
+                                final mergedAuthor = editedLines
+                                    .map((item) => item.author?.trim() ?? '')
+                                    .firstWhere(
+                                      (item) => item.isNotEmpty,
+                                      orElse: () => '',
+                                    );
+                                final mergedPoemTitle = editedLines
+                                    .map((item) => item.poemTitle?.trim() ?? '')
+                                    .firstWhere(
+                                      (item) => item.isNotEmpty,
+                                      orElse: () => '',
+                                    );
+                                setSheetState(() {
+                                  editedLines
+                                    ..clear()
+                                    ..add(
+                                      DailyMottoEntry(
+                                        id: dailyMottoEntryId(mergedContent),
+                                        content: mergedContent,
+                                        author: mergedAuthor.isEmpty
+                                            ? null
+                                            : mergedAuthor,
+                                        poemTitle: mergedPoemTitle.isEmpty
+                                            ? null
+                                            : mergedPoemTitle,
+                                      ),
+                                    );
+                                });
+                              },
+                        icon: const Icon(Icons.merge_type_rounded),
+                        label: const Text('合并'),
+                      ),
                     ],
                   ),
                 ),
@@ -666,19 +814,28 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                       final line = editedLines[index];
                       return ListTile(
                         dense: true,
-                        title: Text(line),
+                        title: Text(line.content),
+                        subtitle: line.attribution.isEmpty
+                            ? null
+                            : Text(line.attribution),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               tooltip: '编辑',
                               onPressed: () async {
-                                final result = await _editRecognizedLine(line);
+                                final result = await _editRecognizedLine(
+                                  line.content,
+                                );
                                 if (result == null || result.trim().isEmpty) {
                                   return;
                                 }
                                 setSheetState(() {
-                                  editedLines[index] = result.trim();
+                                  editedLines[index] = editedLines[index]
+                                      .copyWith(
+                                        id: dailyMottoEntryId(result.trim()),
+                                        content: result.trim(),
+                                      );
                                 });
                               },
                               icon: const Icon(Icons.edit_rounded),
@@ -715,8 +872,10 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
                               ? null
                               : () => Navigator.of(sheetContext).pop(
                                   editedLines
-                                      .map((item) => item.trim())
-                                      .where((item) => item.isNotEmpty)
+                                      .where(
+                                        (item) =>
+                                            item.content.trim().isNotEmpty,
+                                      )
                                       .toList(),
                                 ),
                           child: const Text('保存这些内容'),
@@ -787,7 +946,7 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     try {
       final normalized = await _readDomText();
       final lines = _extractReadableLines(normalized);
-      await _confirmAndPop(lines);
+      await _confirmAndPop(_buildEntries(lines, normalized));
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
@@ -808,7 +967,9 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       final text = data?.text?.trim() ?? '';
       final lines = _extractReadableLines(text);
-      await _confirmAndPop(lines.isEmpty ? _rawOcrFallbackLines(text) : lines);
+      await _confirmAndPop(
+        _buildEntries(lines.isEmpty ? _rawOcrFallbackLines(text) : lines, text),
+      );
     } finally {
       if (mounted) {
         setState(() => _recognizing = false);
@@ -837,10 +998,12 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
       final fallbackLines = lines.isEmpty ? _rawOcrFallbackLines(text) : lines;
       if (fallbackLines.isEmpty) {
         final domRaw = await _readDomText();
-        await _confirmAndPop(_extractReadableLines(domRaw));
+        await _confirmAndPop(
+          _buildEntries(_extractReadableLines(domRaw), domRaw),
+        );
         return;
       }
-      await _confirmAndPop(fallbackLines);
+      await _confirmAndPop(_buildEntries(fallbackLines, text));
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
@@ -924,54 +1087,96 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              FilledButton.tonalIcon(
-                onPressed: _recognizing ? null : _recognizeDomAndSave,
-                icon: const Icon(Icons.code_rounded),
-                label: const Text('网页文字'),
-              ),
-              FilledButton.icon(
-                onPressed: _recognizing ? null : _recognizeClipboardAndSave,
-                icon: const Icon(Icons.content_paste_go_rounded),
-                label: const Text('剪切板'),
-              ),
-              FilledButton.icon(
-                onPressed: _recognizing
-                    ? null
-                    : () => _recognizeScreenshotAndSave(),
-                icon: const Icon(Icons.document_scanner_rounded),
-                label: Text(_recognizing ? '识别中' : '截图OCR'),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: _recognizing
-                    ? null
-                    : () {
-                        if (_selectingRegion && _selectedRegion != null) {
-                          _recognizeScreenshotAndSave(selectedOnly: true);
-                        } else {
-                          setState(() {
-                            _selectingRegion = true;
-                            _selectedRegion = null;
-                          });
-                        }
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('2句一组'),
+                      selected: _groupMode == _MottoLineGroupMode.couplet,
+                      onSelected: (_) {
+                        setState(() {
+                          _groupMode = _MottoLineGroupMode.couplet;
+                        });
                       },
-                icon: const Icon(Icons.crop_free_rounded),
-                label: Text(_selectingRegion ? '识别框选' : '框选OCR'),
-              ),
-              if (_selectingRegion)
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectingRegion = false;
-                      _selectedRegion = null;
-                    });
-                  },
-                  child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('4句一组'),
+                      selected: _groupMode == _MottoLineGroupMode.quatrain,
+                      onSelected: (_) {
+                        setState(() {
+                          _groupMode = _MottoLineGroupMode.quatrain;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('整首'),
+                      selected: _groupMode == _MottoLineGroupMode.fullPoem,
+                      onSelected: (_) {
+                        setState(() {
+                          _groupMode = _MottoLineGroupMode.fullPoem;
+                        });
+                      },
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: _recognizing ? null : _recognizeDomAndSave,
+                    icon: const Icon(Icons.code_rounded),
+                    label: const Text('网页文字'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _recognizing ? null : _recognizeClipboardAndSave,
+                    icon: const Icon(Icons.content_paste_go_rounded),
+                    label: const Text('剪切板'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _recognizing
+                        ? null
+                        : () => _recognizeScreenshotAndSave(),
+                    icon: const Icon(Icons.document_scanner_rounded),
+                    label: Text(_recognizing ? '识别中' : '截图OCR'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: _recognizing
+                        ? null
+                        : () {
+                            if (_selectingRegion && _selectedRegion != null) {
+                              _recognizeScreenshotAndSave(selectedOnly: true);
+                            } else {
+                              setState(() {
+                                _selectingRegion = true;
+                                _selectedRegion = null;
+                              });
+                            }
+                          },
+                    icon: const Icon(Icons.crop_free_rounded),
+                    label: Text(_selectingRegion ? '识别框选' : '框选OCR'),
+                  ),
+                  if (_selectingRegion)
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectingRegion = false;
+                          _selectedRegion = null;
+                        });
+                      },
+                      child: const Text('取消'),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -979,6 +1184,8 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     );
   }
 }
+
+enum _MottoLineGroupMode { couplet, quatrain, fullPoem }
 
 class _MottoRegionPainter extends CustomPainter {
   const _MottoRegionPainter(this.region);
@@ -1012,6 +1219,126 @@ class _MottoRegionPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MottoRegionPainter oldDelegate) {
     return oldDelegate.region != region;
+  }
+}
+
+class _MottoEntrySheet extends StatefulWidget {
+  const _MottoEntrySheet({required this.title, this.initialEntry});
+
+  final String title;
+  final DailyMottoEntry? initialEntry;
+
+  @override
+  State<_MottoEntrySheet> createState() => _MottoEntrySheetState();
+}
+
+class _MottoEntrySheetState extends State<_MottoEntrySheet> {
+  late final TextEditingController _contentController;
+  late final TextEditingController _authorController;
+  late final TextEditingController _poemTitleController;
+
+  @override
+  void initState() {
+    super.initState();
+    _contentController = TextEditingController(
+      text: widget.initialEntry?.content ?? '',
+    );
+    _authorController = TextEditingController(
+      text: widget.initialEntry?.author ?? '',
+    );
+    _poemTitleController = TextEditingController(
+      text: widget.initialEntry?.poemTitle ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    _authorController.dispose();
+    _poemTitleController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final content = _contentController.text.trim();
+    if (content.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(
+      DailyMottoEntry(
+        id: widget.initialEntry?.id ?? dailyMottoEntryId(content),
+        content: content,
+        author: _authorController.text.trim().isEmpty
+            ? null
+            : _authorController.text.trim(),
+        poemTitle: _poemTitleController.text.trim().isEmpty
+            ? null
+            : _poemTitleController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.fromLTRB(16, 4, 16, viewInsets.bottom + 12),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              reverse: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _contentController,
+                    autofocus: true,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    minLines: 4,
+                    maxLines: 8,
+                    decoration: InputDecoration(labelText: '${widget.title}内容'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _authorController,
+                    decoration: const InputDecoration(labelText: '作者名'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _poemTitleController,
+                    decoration: const InputDecoration(labelText: '古诗名'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('取消'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: _submit,
+                          child: const Text('保存'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1154,4 +1481,3 @@ class _TemplateNameSheetState extends State<_TemplateNameSheet> {
     );
   }
 }
-

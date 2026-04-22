@@ -153,6 +153,7 @@ class _HeaderCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.summary,
+    this.attribution,
     this.imageProvider,
     required this.actionRow,
   });
@@ -160,6 +161,7 @@ class _HeaderCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String summary;
+  final String? attribution;
   final ImageProvider<Object>? imageProvider;
   final Widget actionRow;
 
@@ -271,6 +273,29 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          if (attribution != null && attribution!.trim().isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                attribution!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                  fontFamilyFallback: const [
+                    'KaiTi',
+                    'STKaiti',
+                    'Kaiti SC',
+                    'Noto Serif SC',
+                    'serif',
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Text(
             subtitle,
             maxLines: 1,
