@@ -310,11 +310,7 @@ class _HeaderCardState extends State<_HeaderCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final glassTint = Color.lerp(
-      colors.primary,
-      colors.tertiary,
-      theme.brightness == Brightness.dark ? 0.32 : 0.48,
-    )!;
+    final isDark = theme.brightness == Brightness.dark;
     final poemLines = _poemLines(widget.title);
     final poemPages = _poemPages(poemLines);
     if (_lastPageCount != poemPages.length) {
@@ -330,10 +326,42 @@ class _HeaderCardState extends State<_HeaderCard> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
           decoration: BoxDecoration(
-            color: _liquidGlassFill(theme, glassTint, strength: 1.05),
+            gradient: LinearGradient(
+              colors: isDark
+                  ? const [
+                      Color(0xFF16332E),
+                      Color(0xFF1B3D37),
+                      Color(0xFF224740),
+                    ]
+                  : const [
+                      Color(0xFFF4FBF8),
+                      Color(0xFFEAF7F3),
+                      Color(0xFFDDF4EC),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: _liquidGlassBorder(theme, glassTint)),
-            boxShadow: _liquidGlassShadow(theme, glassTint),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF4E847A)
+                  : const Color(0xFFCDE5DE),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark
+                        ? const Color(0xFF0D1917)
+                        : const Color(0xFF98C8B9))
+                    .withValues(alpha: isDark ? 0.32 : 0.22),
+                blurRadius: 30,
+                offset: const Offset(0, 16),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
