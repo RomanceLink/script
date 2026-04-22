@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.app.NotificationManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -26,6 +27,7 @@ import android.util.DisplayMetrics
 import android.content.res.Configuration
 import android.view.Gravity
 import android.view.Display
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -70,6 +72,7 @@ class AutoSwipeService : AccessibilityService() {
     private var flutterOverlayView: FlutterView? = null
     private var flutterOverlayChannel: MethodChannel? = null
     private var pickerOverlay: View? = null
+    private var reminderOverlay: View? = null
     private var startMenuButton: ImageView? = null
     private var pauseMenuButton: ImageView? = null
     private var endMenuButton: ImageView? = null
@@ -158,7 +161,7 @@ class AutoSwipeService : AccessibilityService() {
                 this.loopCount = loopCount.coerceIn(1, 9999)
                 this.infiniteLoop = infiniteLoop
                 this.loopIntervalMillis = loopIntervalMillis.coerceIn(0, 10_000_000).toLong()
-                remainingLoops = this.loopCount
+                remainingLoops = if (this.infiniteLoop) Int.MAX_VALUE else this.loopCount
                 scriptName = name
                 this.setupActions.clear()
                 this.setupActions.addAll(setupActions.map(::normalizeMap))
@@ -315,6 +318,14 @@ class AutoSwipeService : AccessibilityService() {
                     )
                 }
             }, delaySeconds.coerceAtLeast(0) * 1000L)
+            return true
+        }
+
+        fun showAlarmReminderOverlay(intent: Intent): Boolean {
+            val service = instance ?: return false
+            service.handler.post {
+                service.showAlarmReminderOverlayInternal(intent)
+            }
             return true
         }
 
@@ -2453,7 +2464,7 @@ class AutoSwipeService : AccessibilityService() {
         loopCount = plan.loopCount.coerceIn(1, 9999)
         infiniteLoop = plan.infiniteLoop
         loopIntervalMillis = plan.loopIntervalMillis.toLong().coerceIn(0L, 10_000_000L)
-        remainingLoops = loopCount
+        remainingLoops = if (infiniteLoop) Int.MAX_VALUE else loopCount
         scriptName = plan.name
         setupActions.clear()
         setupActions.addAll(plan.setupActions)
@@ -4973,6 +4984,16 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun removeReminderOverlay() {
+        reminderOverlay?.let {
+            try {
+                windowManager?.removeView(it)
+            } catch (_: Exception) {
+            }
+            reminderOverlay = null
+        }
+    }
+
     private fun removeFloatingWindow() {
         floatingView?.let {
             try {
@@ -4997,8 +5018,86 @@ class AutoSwipeService : AccessibilityService() {
         stopScriptRun()
         destroyFlutterAutomationOverlay()
         removeChooserOverlay()
+        removeReminderOverlay()
         removeFloatingWindow()
         collapsed = false
+    }
+
+    private fun showAlarmReminderOverlayInternal(intent: Intent) {
+        removeReminderOverlay()
+        val root = LayoutInflater.from(this).inflate(R.layout.activity_alarm, null)
+        val title = intent.getStringExtra("title") ?: "任务提醒"
+        val body = intent.getStringExtra("body") ?: "你的任务现在需要完成。"
+        val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
+        val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
+        val preConfigName = intent.getStringExtra("preGestureConfigName")
+        val configName = intent.getStringExtra("gestureConfigName")
+        root.findViewById<TextView>(R.id.alarmTitle)?.text = title
+        root.findViewById<TextView>(R.id.alarmBody)?.text = body
+        root.findViewById<TextView>(R.id.alarmHint)?.text = if (autoOpenDelaySeconds > 0) {
+            "提醒已触发，${autoOpenDelaySeconds} 秒后自动打开 $targetAppLabel。"
+        } else if (!preConfigName.isNullOrBlank()) {
+            "亮屏未锁时先执行前置脚本：$preConfigName，然后再打开 $targetAppLabel。"
+        } else if (configName.isNullOrBlank()) {
+            "提醒已触发，点击下方按钮打开 $targetAppLabel。"
+        } else {
+            "绑定配置：$configName，点击下方按钮打开 $targetAppLabel。"
+        }
+        root.findViewById<TextView>(R.id.openTaskButton)?.apply {
+            text = "打开$targetAppLabel"
+            setOnClickListener {
+                launchReminderTask(intent)
+            }
+        }
+        root.findViewById<TextView>(R.id.dismissButton)?.setOnClickListener {
+            dismissReminder(intent.getIntExtra("notificationId", 0))
+        }
+        val params = fullScreenOverlayParams(focusable = true)
+        try {
+            windowManager?.addView(root, params)
+            reminderOverlay = root
+        } catch (_: Exception) {
+            reminderOverlay = null
+        }
+    }
+
+    private fun dismissReminder(notificationId: Int) {
+        removeReminderOverlay()
+        if (notificationId != 0) {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.cancel(notificationId)
+        }
+    }
+
+    private fun launchReminderTask(intent: Intent) {
+        val taskId = intent.getStringExtra("taskId").orEmpty()
+        val targetAppPackage = intent.getStringExtra("targetAppPackage")
+        val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
+        val notificationId = intent.getIntExtra("notificationId", 0)
+        if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
+            AlarmLaunchStore.setPendingAutoComplete(
+                this,
+                taskId,
+                System.currentTimeMillis() + autoCompleteDelaySeconds * 1000L,
+            )
+        }
+        if (taskId.isNotBlank()) {
+            AlarmLaunchStore.setPendingTaskId(this, taskId)
+            if (!targetAppPackage.isNullOrBlank()) {
+                AlarmLaunchStore.setPendingOpenTaskId(this, taskId)
+            }
+        }
+        val launchIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (taskId.isNotBlank()) {
+                putExtra("taskId", taskId)
+                if (!targetAppPackage.isNullOrBlank()) {
+                    putExtra("openTaskId", taskId)
+                }
+            }
+        }
+        startActivity(launchIntent)
+        dismissReminder(notificationId)
     }
 
     private fun updateStatusText() {
@@ -5255,6 +5354,7 @@ class AutoSwipeService : AccessibilityService() {
         removeFloatingWindow()
         destroyFlutterAutomationOverlay()
         removeChooserOverlay()
+        removeReminderOverlay()
         removePickerOverlay()
         instance = null
         return super.onUnbind(intent)

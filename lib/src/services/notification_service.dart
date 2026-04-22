@@ -115,7 +115,8 @@ class NotificationService {
           }
           break;
         case AssistantTaskKind.adCooldown:
-          if (state.intervalCompleted(definition.id) < definition.targetCount) {
+          if (definition.infiniteLoop ||
+              state.intervalCompleted(definition.id) < definition.targetCount) {
             final next =
                 state.intervalNextAt(definition.id) ??
                 _timeForToday(

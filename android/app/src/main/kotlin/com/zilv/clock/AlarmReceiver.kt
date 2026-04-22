@@ -1,6 +1,7 @@
 package com.zilv.clock
 
 import android.app.NotificationChannel
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -30,7 +31,13 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra("notificationId", notificationId)
             putExtras(intent)
         }
-        context.startActivity(fullScreenIntent)
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val isLocked = keyguardManager.isDeviceLocked
+        if (isLocked) {
+            context.startActivity(fullScreenIntent)
+        } else if (!AutoSwipeService.showAlarmReminderOverlay(fullScreenIntent)) {
+            context.startActivity(fullScreenIntent)
+        }
 
         val channelId = buildChannelId(intent)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
