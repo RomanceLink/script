@@ -112,6 +112,7 @@ class AutoSwipeService : AccessibilityService() {
     private var currentWaitUntilMillis = 0L
     private var pausedWaitRemainingMillis = 0L
     private var loopStartIndex = 0
+    private var runSessionId = 0L
     private var playbackTicker: Runnable? = null
     private var activeRecordingSurface: RecordingSurface? = null
     private var activeRecordingAutoStopOnHome = false
@@ -2465,6 +2466,7 @@ class AutoSwipeService : AccessibilityService() {
         if (gestureActions.isEmpty() && setupActions.isEmpty()) {
             return
         }
+        runSessionId += 1L
         runtimeActions.clear()
         runtimeActions.addAll(setupActions.map(::planRuntimeAction))
         loopStartIndex = runtimeActions.size
@@ -2496,6 +2498,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun stopScriptRun() {
+        runSessionId += 1L
         isRunning = false
         isPaused = false
         handler.removeCallbacksAndMessages(null)
@@ -2514,6 +2517,10 @@ class AutoSwipeService : AccessibilityService() {
         if (floatingView != null) {
             showFloatingWindow(expanded = true)
         }
+    }
+
+    private fun isRunSessionActive(token: Long): Boolean {
+        return isRunning && token == runSessionId
     }
 
     private fun clearGesturePreviewOverlay() {
@@ -2571,6 +2578,7 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun executeActionIndex(index: Int) {
         if (!isRunning) return
+        val runToken = runSessionId
         if (isPaused) {
             resumeActionIndex = index
             return
@@ -2585,7 +2593,9 @@ class AutoSwipeService : AccessibilityService() {
                 }
                 val delay = loopIntervalMillis.coerceAtLeast(0L)
                 updateStatusText()
-                handler.postDelayed({ executeActionIndex(loopStartIndex) }, delay)
+                handler.postDelayed({
+                    if (isRunSessionActive(runToken)) executeActionIndex(loopStartIndex)
+                }, delay)
             } else if (minSeconds > 0 || maxSeconds > 0) {
                 val delay = if (maxSeconds > minSeconds) {
                     (random.nextInt(maxSeconds - minSeconds + 1) + minSeconds) * 1000L
@@ -2593,7 +2603,9 @@ class AutoSwipeService : AccessibilityService() {
                     minSeconds * 1000L
                 }
                 updateStatusText()
-                handler.postDelayed({ executeActionIndex(0) }, delay)
+                handler.postDelayed({
+                    if (isRunSessionActive(runToken)) executeActionIndex(0)
+                }, delay)
             } else {
                 isRunning = false
                 isPaused = false
@@ -2623,7 +2635,8 @@ class AutoSwipeService : AccessibilityService() {
         when (action["type"] as? String ?: "swipe") {
             "swipe", "click", "recorded" -> {
                 showGestureActionPreview(action) {
-                    performGestureAction(action) {
+                    if (!isRunSessionActive(runToken)) return@showGestureActionPreview
+                    performGestureAction(action, runToken) {
                         resumeActionIndex = index + 1
                         executeActionIndex(index + 1)
                     }
@@ -2631,7 +2644,7 @@ class AutoSwipeService : AccessibilityService() {
             }
             "nav" -> {
                 val navType = action["navType"] as? String ?: "back"
-                performNavigationAction(navType) {
+                performNavigationAction(navType, runToken) {
                     resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
@@ -2641,7 +2654,9 @@ class AutoSwipeService : AccessibilityService() {
                 currentWaitUntilMillis = SystemClock.uptimeMillis() + waitMillis
                 resumeActionIndex = index + 1
                 updateStatusText()
-                handler.postDelayed({ executeActionIndex(index + 1) }, waitMillis)
+                handler.postDelayed({
+                    if (isRunSessionActive(runToken)) executeActionIndex(index + 1)
+                }, waitMillis)
             }
             "launchApp" -> {
                 val packageName = action["packageName"] as? String
@@ -2652,16 +2667,18 @@ class AutoSwipeService : AccessibilityService() {
                     }
                 }
                 resumeActionIndex = index + 1
-                handler.postDelayed({ executeActionIndex(index + 1) }, 1000)
+                handler.postDelayed({
+                    if (isRunSessionActive(runToken)) executeActionIndex(index + 1)
+                }, 1000)
             }
             "buttonRecognize" -> {
-                performButtonRecognizeAction(action) {
+                performButtonRecognizeAction(action, runToken) {
                     resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
             }
             "lockScreen" -> {
-                performLockScreenAction {
+                performLockScreenAction(runToken) {
                     resumeActionIndex = index + 1
                     executeActionIndex(index + 1)
                 }
@@ -2732,24 +2749,29 @@ class AutoSwipeService : AccessibilityService() {
             ?: waitMinMillis(action)).coerceIn(1L, 10_000_000L)
     }
 
-    private fun performButtonRecognizeAction(action: Map<String, Any?>, onDone: () -> Unit) {
+    private fun performButtonRecognizeAction(action: Map<String, Any?>, runToken: Long, onDone: () -> Unit) {
         val retryCount = ((action["retryCount"] as? Number)?.toInt() ?: 3).coerceIn(0, 20)
         val retryWait = ((action["retryWaitMillis"] as? Number)?.toLong() ?: 800L).coerceIn(0L, 10_000_000L)
         val retryActions = asMapList(action["retryActions"])
 
         fun attempt(remaining: Int, afterRetry: Boolean) {
+            if (!isRunSessionActive(runToken)) return
             findMatchingButtonTarget(action) { match ->
+            if (!isRunSessionActive(runToken)) return@findMatchingButtonTarget
             if (match != null) {
                 val modeKey = if (afterRetry) "retrySuccessMode" else "successMode"
                 val actionsKey = if (afterRetry) "retrySuccessActions" else "successActions"
                 val mode = action[modeKey] as? String ?: "defaultClick"
                 val customActions = asMapList(action[actionsKey])
                 if (mode == "custom" && customActions.isNotEmpty()) {
-                    executeInlineActions(customActions, onDone)
+                    executeInlineActions(customActions, runToken, onDone)
                 } else {
                     showMatchedButtonPreview(match.bounds) {
+                        if (!isRunSessionActive(runToken)) return@showMatchedButtonPreview
                         performButtonTargetClick(match) {
-                            handler.postDelayed(onDone, 250)
+                            handler.postDelayed({
+                                if (isRunSessionActive(runToken)) onDone()
+                            }, 250)
                         }
                     }
                 }
@@ -2757,19 +2779,23 @@ class AutoSwipeService : AccessibilityService() {
             }
 
             if (remaining > 0) {
-                executeInlineActions(retryActions) {
-                    handler.postDelayed({ attempt(remaining - 1, afterRetry = true) }, retryWait)
+                executeInlineActions(retryActions, runToken) {
+                    handler.postDelayed({
+                        if (isRunSessionActive(runToken)) {
+                            attempt(remaining - 1, afterRetry = true)
+                        }
+                    }, retryWait)
                 }
                 return@findMatchingButtonTarget
             }
 
             when (action["failAction"] as? String ?: "notify") {
-                "lockScreen" -> performLockScreenAction(onDone)
+                "lockScreen" -> performLockScreenAction(runToken, onDone)
                 "notify" -> {
                     showScriptFailureNotice(action)
-                    onDone()
+                    if (isRunSessionActive(runToken)) onDone()
                 }
-                else -> onDone()
+                else -> if (isRunSessionActive(runToken)) onDone()
             }
             }
         }
@@ -2777,8 +2803,9 @@ class AutoSwipeService : AccessibilityService() {
         attempt(retryCount, afterRetry = false)
     }
 
-    private fun executeInlineActions(actions: List<Map<String, Any?>>, onDone: () -> Unit) {
+    private fun executeInlineActions(actions: List<Map<String, Any?>>, runToken: Long, onDone: () -> Unit) {
         fun runAt(index: Int) {
+            if (!isRunSessionActive(runToken)) return
             if (index >= actions.size) {
                 onDone()
                 return
@@ -2787,11 +2814,14 @@ class AutoSwipeService : AccessibilityService() {
             when (action["type"] as? String ?: "swipe") {
                 "swipe", "click", "recorded" -> {
                     showGestureActionPreview(action) {
-                        performGestureAction(action) { runAt(index + 1) }
+                        if (!isRunSessionActive(runToken)) return@showGestureActionPreview
+                        performGestureAction(action, runToken) { runAt(index + 1) }
                     }
                 }
-                "nav" -> performNavigationAction(action["navType"] as? String ?: "back") { runAt(index + 1) }
-                "wait" -> handler.postDelayed({ runAt(index + 1) }, resolveWaitMillis(action))
+                "nav" -> performNavigationAction(action["navType"] as? String ?: "back", runToken) { runAt(index + 1) }
+                "wait" -> handler.postDelayed({
+                    if (isRunSessionActive(runToken)) runAt(index + 1)
+                }, resolveWaitMillis(action))
                 "launchApp" -> {
                     val packageName = action["packageName"] as? String
                     if (packageName != null) {
@@ -2800,9 +2830,11 @@ class AutoSwipeService : AccessibilityService() {
                             startActivity(intent)
                         }
                     }
-                    handler.postDelayed({ runAt(index + 1) }, 1000)
+                    handler.postDelayed({
+                        if (isRunSessionActive(runToken)) runAt(index + 1)
+                    }, 1000)
                 }
-                "lockScreen" -> performLockScreenAction { runAt(index + 1) }
+                "lockScreen" -> performLockScreenAction(runToken) { runAt(index + 1) }
                 else -> runAt(index + 1)
             }
         }
@@ -2842,7 +2874,12 @@ class AutoSwipeService : AccessibilityService() {
             onSuccess = { screen ->
                 Thread {
                     val match = try {
-                        findBestTemplateMatch(screen, template, actionRegionRect(action))
+                        findBestTemplateMatch(
+                            screen,
+                            template,
+                            actionRegionRect(action),
+                            actionSavedBoundsRect(action),
+                        )
                     } catch (_: Exception) {
                         null
                     }
@@ -3212,11 +3249,13 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun performLockScreenAction(onDone: () -> Unit) {
+    private fun performLockScreenAction(runToken: Long = runSessionId, onDone: () -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
         }
-        handler.postDelayed(onDone, 500)
+        handler.postDelayed({
+            if (isRunSessionActive(runToken)) onDone()
+        }, 500)
     }
 
     private fun showScriptFailureNotice(action: Map<String, Any?>) {
@@ -3233,13 +3272,14 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun performNavigationAction(navType: String, onDone: () -> Unit) {
+    private fun performNavigationAction(navType: String, runToken: Long = runSessionId, onDone: () -> Unit) {
         val globalAction = when (navType) {
             "home" -> GLOBAL_ACTION_HOME
             "recents" -> GLOBAL_ACTION_RECENTS
             else -> GLOBAL_ACTION_BACK
         }
         handler.post {
+            if (!isRunSessionActive(runToken)) return@post
             val success = performGlobalAction(globalAction)
             if (!success) {
                 if (navType == "home") {
@@ -3247,7 +3287,9 @@ class AutoSwipeService : AccessibilityService() {
                 }
                 handler.postDelayed({ performGlobalAction(globalAction) }, 250)
             }
-            handler.postDelayed({ onDone() }, if (navType == "recents") 900L else 650L)
+            handler.postDelayed({
+                if (isRunSessionActive(runToken)) onDone()
+            }, if (navType == "recents") 900L else 650L)
         }
     }
 
@@ -3262,7 +3304,7 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private fun performGestureAction(action: Map<String, Any?>, onDone: () -> Unit) {
+    private fun performGestureAction(action: Map<String, Any?>, runToken: Long = runSessionId, onDone: () -> Unit) {
         val dm = resources.displayMetrics
         val width = dm.widthPixels.toFloat()
         val height = dm.heightPixels.toFloat()
@@ -3291,24 +3333,28 @@ class AutoSwipeService : AccessibilityService() {
         }
 
         if (!hasStroke) {
-            onDone()
+            if (isRunSessionActive(runToken)) onDone()
             return
         }
 
         try {
             dispatchGestureWithRetry(
                 gestureBuilder.build(),
+                runToken = runToken,
                 onDone = {
-                    handler.postDelayed({ onDone() }, 100)
+                    handler.postDelayed({
+                        if (isRunSessionActive(runToken)) onDone()
+                    }, 100)
                 },
             )
         } catch (_: Exception) {
-            onDone()
+            if (isRunSessionActive(runToken)) onDone()
         }
     }
 
     private fun dispatchGestureWithRetry(
         gesture: GestureDescription,
+        runToken: Long = runSessionId,
         retriesRemaining: Int = 3,
         retryDelayMillis: Long = 120L,
         onDone: () -> Unit,
@@ -3318,14 +3364,16 @@ class AutoSwipeService : AccessibilityService() {
                 gesture,
                 object : GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
-                        onDone()
+                        if (isRunSessionActive(runToken)) onDone()
                     }
 
                     override fun onCancelled(gestureDescription: GestureDescription?) {
+                        if (!isRunSessionActive(runToken)) return
                         if (retriesRemaining > 0) {
                             handler.postDelayed({
                                 dispatchGestureWithRetry(
                                     gesture = gesture,
+                                    runToken = runToken,
                                     retriesRemaining = retriesRemaining - 1,
                                     retryDelayMillis = retryDelayMillis,
                                     onDone = onDone,
@@ -3342,17 +3390,19 @@ class AutoSwipeService : AccessibilityService() {
             false
         }
         if (!started) {
+            if (!isRunSessionActive(runToken)) return
             if (retriesRemaining > 0) {
                 handler.postDelayed({
                     dispatchGestureWithRetry(
                         gesture = gesture,
+                        runToken = runToken,
                         retriesRemaining = retriesRemaining - 1,
                         retryDelayMillis = retryDelayMillis,
                         onDone = onDone,
                     )
                 }, retryDelayMillis)
             } else {
-                onDone()
+                if (isRunSessionActive(runToken)) onDone()
             }
         }
     }
@@ -4530,7 +4580,12 @@ class AutoSwipeService : AccessibilityService() {
         )
     }
 
-    private fun findBestTemplateMatch(screen: Bitmap, template: Bitmap, region: Rect?): ButtonMatchTarget? {
+    private fun findBestTemplateMatch(
+        screen: Bitmap,
+        template: Bitmap,
+        region: Rect?,
+        savedBounds: Rect?,
+    ): ButtonMatchTarget? {
         val search = region ?: Rect(0, 0, screen.width, screen.height)
         val tplW = template.width
         val tplH = template.height
@@ -4596,9 +4651,23 @@ class AutoSwipeService : AccessibilityService() {
                 var fx = minX
                 while (fx <= maxX) {
                     val score = templateDifferenceScore(screen, template, fx, fy)
-                    if (score < bestScore) {
-                        bestScore = score
-                        bestRect = Rect(fx, fy, fx + tplW, fy + tplH)
+                    val candidateRect = Rect(fx, fy, fx + tplW, fy + tplH)
+                    val distancePenalty = if (savedBounds == null) {
+                        0.0
+                    } else {
+                        centerDistanceSquared(savedBounds, candidateRect).toDouble() /
+                            ((screen.width * screen.width + screen.height * screen.height).coerceAtLeast(1).toDouble()) * 0.35
+                    }
+                    val overlapBonus = if (savedBounds == null) {
+                        0.0
+                    } else {
+                        overlapArea(savedBounds, candidateRect).toDouble() /
+                            (savedBounds.width().coerceAtLeast(1) * savedBounds.height().coerceAtLeast(1)).toDouble()
+                    }
+                    val finalScore = score + distancePenalty - (overlapBonus * 0.18)
+                    if (finalScore < bestScore) {
+                        bestScore = finalScore
+                        bestRect = candidateRect
                         if (bestScore == 0.0) {
                             return ButtonMatchTarget(bestRect!!)
                         }
@@ -4608,11 +4677,11 @@ class AutoSwipeService : AccessibilityService() {
                 fy += 2
             }
         }
-        return if (bestScore <= 0.045) bestRect?.let { ButtonMatchTarget(it) } else null
+        return if (bestScore <= 0.06) bestRect?.let { ButtonMatchTarget(it) } else null
     }
 
     private fun templateDifferenceScore(screen: Bitmap, template: Bitmap, left: Int, top: Int): Double {
-        val targetSamples = 4096.0
+        val targetSamples = 6400.0
         val area = (template.width * template.height).coerceAtLeast(1).toDouble()
         val stride = kotlin.math.max(1, kotlin.math.ceil(kotlin.math.sqrt(area / targetSamples)).toInt())
         var diff = 0.0
@@ -4623,15 +4692,19 @@ class AutoSwipeService : AccessibilityService() {
             while (x < template.width) {
                 val a = template.getPixel(x, y)
                 val b = screen.getPixel(left + x, top + y)
-                diff += abs(Color.red(a) - Color.red(b))
-                diff += abs(Color.green(a) - Color.green(b))
-                diff += abs(Color.blue(a) - Color.blue(b))
+                val dr = abs(Color.red(a) - Color.red(b))
+                val dg = abs(Color.green(a) - Color.green(b))
+                val db = abs(Color.blue(a) - Color.blue(b))
+                val luminanceA = (Color.red(a) * 0.299 + Color.green(a) * 0.587 + Color.blue(a) * 0.114)
+                val luminanceB = (Color.red(b) * 0.299 + Color.green(b) * 0.587 + Color.blue(b) * 0.114)
+                val dl = abs(luminanceA - luminanceB)
+                diff += dr + dg + db + dl
                 count += 1
                 x += stride
             }
             y += stride
         }
-        return diff / (count.coerceAtLeast(1) * 3.0 * 255.0)
+        return diff / (count.coerceAtLeast(1) * 4.0 * 255.0)
     }
 
     private fun recognizeScreenTextFromBitmap(
