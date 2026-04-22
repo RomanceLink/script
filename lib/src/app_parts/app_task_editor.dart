@@ -221,10 +221,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          16,
-          8,
-          16,
-          MediaQuery.of(context).viewInsets.bottom + 24,
+          22,
+          12,
+          22,
+          MediaQuery.of(context).viewInsets.bottom + 28,
         ),
         child: ListView(
           shrinkWrap: true,
@@ -246,7 +246,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ],
             ),
             _EditorHeroCard(kindLabel: _kindLabel(_kind)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             _EditorSectionCard(
               accent: const Color(0xFF76C7AE),
               title: '基础信息',
@@ -267,7 +267,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             _EditorSectionCard(
               accent: const Color(0xFF82A7F7),
               title: '时间安排',
@@ -339,7 +339,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             _EditorSectionCard(
               accent: const Color(0xFFFFB17E),
               title: '快捷行为',
@@ -436,7 +436,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             _EditorSectionCard(
               accent: const Color(0xFF8EB8FF),
               title: '脚本配置',
@@ -471,7 +471,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             _EditorSectionCard(
               accent: const Color(0xFFD69AF1),
               title: '提醒铃声',

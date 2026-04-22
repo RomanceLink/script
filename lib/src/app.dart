@@ -237,19 +237,21 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: isDark ? const Color(0xFF2A2F63) : Colors.white,
+      fillColor: isDark ? const Color(0xFF2A2F63) : const Color(0xFFE5E9FF),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: glassBorder),
+        borderSide: BorderSide(
+          color: isDark ? const Color(0xFF616AC0) : const Color(0xFFC9D2FF),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide(
-          color: isDark ? const Color(0xFF92E6D2) : const Color(0xFF3DBAA0),
+          color: isDark ? const Color(0xFF8BA6FF) : const Color(0xFF728BFF),
           width: 1.4,
         ),
       ),
@@ -1382,8 +1384,8 @@ class _DashboardPageState extends State<DashboardPage>
                           _HeaderIconAction(
                             icon: Icons.play_arrow_rounded,
                             onTap: _startAutomationMenu,
-                            foreground: Colors.white,
-                            background: Colors.white.withValues(alpha: 0.14),
+                            foreground: const Color(0xFF8EF0FF),
+                            background: const Color(0xFF2A2F63),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1418,15 +1420,15 @@ class _DashboardPageState extends State<DashboardPage>
                                 await _resetForNewDay();
                               }
                             },
-                            foreground: Colors.white,
-                            background: Colors.white.withValues(alpha: 0.14),
+                            foreground: const Color(0xFFFFC98A),
+                            background: const Color(0xFF2A2F63),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
                             icon: Icons.settings,
                             onTap: _openSettings,
-                            foreground: Colors.white,
-                            background: Colors.white.withValues(alpha: 0.14),
+                            foreground: const Color(0xFFE2A6FF),
+                            background: const Color(0xFF2A2F63),
                           ),
                         ],
                       ),
@@ -1769,7 +1771,8 @@ class _EditorSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

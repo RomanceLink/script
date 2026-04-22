@@ -145,8 +145,23 @@ class _TaskManagementSettingsPageState
     };
   }
 
+  Color _kindGroupAccent(AssistantTaskKind kind) {
+    return switch (kind) {
+      AssistantTaskKind.feedWindow => const Color(0xFF76C7AE),
+      AssistantTaskKind.adCooldown => const Color(0xFFFFB17E),
+      AssistantTaskKind.fixedPoint => const Color(0xFF82A7F7),
+    };
+  }
+
+  String _kindGroupHelper(AssistantTaskKind kind) {
+    return switch (kind) {
+      AssistantTaskKind.feedWindow => '在规定时间段内完成，适合刷视频、学习、训练等连续任务。',
+      AssistantTaskKind.adCooldown => '按次数与间隔循环执行，适合重复性动作与计次任务。',
+      AssistantTaskKind.fixedPoint => '到点提醒并处理，适合固定时刻必须完成的任务。',
+    };
+  }
+
   List<Widget> _buildGroupedTaskSections(BuildContext context) {
-    final theme = Theme.of(context);
     final groups = <AssistantTaskKind, List<AssistantTaskDefinition>>{};
     for (final task in _draft.taskDefinitions) {
       groups.putIfAbsent(task.kind, () => []).add(task);
@@ -160,130 +175,159 @@ class _TaskManagementSettingsPageState
     for (final kind in order) {
       final items = groups[kind];
       if (items == null || items.isEmpty) continue;
+      final accent = _kindGroupAccent(kind);
       out.add(
-        Text(
-          _kindGroupLabel(kind),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      );
-      out.add(const SizedBox(height: 8));
-      for (final task in items) {
-        final enabled = _draft.isEnabled(task.id);
-        final homeVisible = _draft.isHomeVisible(task.id);
-        out.add(
-          Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _SettingsSectionCard(
+            accent: accent,
+            title: _kindGroupLabel(kind),
+            subtitle: '${items.length} 个任务',
+            helper: _kindGroupHelper(kind),
+            child: Column(
+              children: [
+                for (final task in items) ...[
+                  Builder(
+                    builder: (context) {
+                      final enabled = _draft.isEnabled(task.id);
+                      final homeVisible = _draft.isHomeVisible(task.id);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.28),
+                          ),
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              task.title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        task.title,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _taskSummary(task),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.72,
+                                              ),
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _MiniIconButton(
+                                  onPressed: () => _moveTask(task.id, -1),
+                                  icon: Icons.keyboard_arrow_up_rounded,
+                                ),
+                                const SizedBox(width: 10),
+                                _MiniIconButton(
+                                  onPressed: () => _moveTask(task.id, 1),
+                                  icon: Icons.keyboard_arrow_down_rounded,
+                                ),
+                                const SizedBox(width: 10),
+                                _MiniIconButton(
+                                  onPressed: () async {
+                                    final action =
+                                        await showModalBottomSheet<String>(
+                                          context: context,
+                                          showDragHandle: true,
+                                          builder: (context) => SafeArea(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    16,
+                                                    8,
+                                                    16,
+                                                    18,
+                                                  ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  _ActionSheetTile(
+                                                    icon: Icons.edit_rounded,
+                                                    title: '编辑任务',
+                                                    onTap: () => Navigator.of(
+                                                      context,
+                                                    ).pop('edit'),
+                                                  ),
+                                                  _ActionSheetTile(
+                                                    icon: Icons
+                                                        .delete_outline_rounded,
+                                                    title: '删除任务',
+                                                    destructive: true,
+                                                    onTap: () => Navigator.of(
+                                                      context,
+                                                    ).pop('delete'),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                    if (action == 'edit') {
+                                      _editTask(task: task);
+                                    } else if (action == 'delete') {
+                                      _deleteTask(task.id);
+                                    }
+                                  },
+                                  icon: Icons.more_vert_rounded,
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _taskSummary(task),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ToggleChip(
+                                    label: '今日启用',
+                                    value: enabled,
+                                    onChanged: (value) =>
+                                        _toggleTaskEnabled(task.id, value),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _ToggleChip(
+                                    label: '首页显示',
+                                    value: homeVisible,
+                                    onChanged: (value) =>
+                                        _toggleHomeVisible(task.id, value),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ),
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, -1),
-                        icon: Icons.keyboard_arrow_up_rounded,
-                      ),
-                      const SizedBox(width: 10),
-                      _MiniIconButton(
-                        onPressed: () => _moveTask(task.id, 1),
-                        icon: Icons.keyboard_arrow_down_rounded,
-                      ),
-                      const SizedBox(width: 10),
-                      _MiniIconButton(
-                        onPressed: () async {
-                          final action = await showModalBottomSheet<String>(
-                            context: context,
-                            showDragHandle: true,
-                            builder: (context) => SafeArea(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  18,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _ActionSheetTile(
-                                      icon: Icons.edit_rounded,
-                                      title: '编辑任务',
-                                      onTap: () =>
-                                          Navigator.of(context).pop('edit'),
-                                    ),
-                                    _ActionSheetTile(
-                                      icon: Icons.delete_outline_rounded,
-                                      title: '删除任务',
-                                      destructive: true,
-                                      onTap: () =>
-                                          Navigator.of(context).pop('delete'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                          if (action == 'edit') {
-                            _editTask(task: task);
-                          } else if (action == 'delete') {
-                            _deleteTask(task.id);
-                          }
-                        },
-                        icon: Icons.more_vert_rounded,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ToggleChip(
-                          label: '今日启用',
-                          value: enabled,
-                          onChanged: (value) =>
-                              _toggleTaskEnabled(task.id, value),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ToggleChip(
-                          label: '首页显示',
-                          value: homeVisible,
-                          onChanged: (value) =>
-                              _toggleHomeVisible(task.id, value),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ],
-              ),
+              ],
             ),
           ),
-        );
-      }
+        ),
+      );
     }
     return out;
   }

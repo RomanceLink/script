@@ -250,10 +250,26 @@ class _FloatingAutomationOverlayShellState
                     height: height,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(26),
-                      child: Navigator(
-                        key: ValueKey('$_mode-$_overlayRevision'),
-                        onGenerateRoute: (_) =>
-                            MaterialPageRoute<void>(builder: (_) => content),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF202552)
+                              : const Color(0xFFE7ECFF),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF72DFFF,
+                              ).withValues(alpha: 0.14),
+                              blurRadius: 26,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Navigator(
+                          key: ValueKey('$_mode-$_overlayRevision'),
+                          onGenerateRoute: (_) =>
+                              MaterialPageRoute<void>(builder: (_) => content),
+                        ),
                       ),
                     ),
                   ),
@@ -397,7 +413,9 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
     }
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: theme.brightness == Brightness.dark
+          ? const Color(0xFF202552)
+          : const Color(0xFFE7ECFF),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _configs.isEmpty

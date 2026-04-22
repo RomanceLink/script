@@ -618,13 +618,15 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         onPressed: () => _editItem(),
         label: const Text('新增箴言'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        children: [
-          Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+      body: _NeonPageBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+          children: [
+            _SettingsSectionCard(
+              accent: const Color(0xFFD69AF1),
+              title: '每日箴言',
+              subtitle: '抓取、图片、首页展示',
+              helper: '这里管理箴言来源、首页展示方式，以及网页识别导入。',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -632,13 +634,14 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     '在线抓取',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _sourceUrl,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: Colors.white.withValues(alpha: 0.72),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -743,70 +746,112 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                   Text(
                     '每天首次打开时，会自动从该网页抓取 10 条并保存。',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: Colors.white.withValues(alpha: 0.72),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          ..._mottos.indexed.map((entry) {
-            final index = entry.$1;
-            final item = entry.$2;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                onTap: _selectingDelete
-                    ? () => _toggleDeleteSelection(item)
-                    : null,
-                leading: _selectingDelete
-                    ? Checkbox(
-                        value: _selectedDeleteIds.contains(item.id),
-                        onChanged: (_) => _toggleDeleteSelection(item),
-                      )
-                    : null,
-                title: Text(
-                  _mottoPreview(item.content),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+            ..._mottos.indexed.map((entry) {
+              final index = entry.$1;
+              final item = entry.$2;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _neonGlassFill(alpha: 0.16),
+                      const Color(0xFFD69AF1).withValues(alpha: 0.14),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: _neonGlassGlow(
+                    const Color(0xFFD69AF1),
+                    strength: 0.62,
+                  ),
                 ),
-                subtitle: _mottoSubtitle(item).isEmpty
-                    ? null
-                    : Text(_mottoSubtitle(item)),
-                trailing: _selectingDelete
-                    ? null
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 96,
-                            child: _MottoGlassButton(
-                              height: 38,
-                              icon: Icons.home_rounded,
-                              label: '设为首页',
-                              filled: _pinnedMottoId == item.id,
-                              onPressed: _pinnedMottoId == item.id
-                                  ? null
-                                  : () => _setHomeMotto(item),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                  onTap: _selectingDelete
+                      ? () => _toggleDeleteSelection(item)
+                      : null,
+                  leading: _selectingDelete
+                      ? Checkbox(
+                          value: _selectedDeleteIds.contains(item.id),
+                          onChanged: (_) => _toggleDeleteSelection(item),
+                        )
+                      : Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.24),
+                                const Color(0xFFD69AF1).withValues(alpha: 0.34),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          const SizedBox(width: 4),
-                          _MiniIconButton(
-                            onPressed: () =>
-                                _editItem(initialEntry: item, index: index),
-                            icon: Icons.edit_rounded,
+                          child: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.white,
+                            size: 20,
                           ),
-                          const SizedBox(width: 8),
-                          _MiniIconButton(
-                            onPressed: () => _deleteItem(index),
-                            icon: Icons.delete_outline_rounded,
+                        ),
+                  title: Text(
+                    _mottoPreview(item.content),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  subtitle: _mottoSubtitle(item).isEmpty
+                      ? null
+                      : Text(
+                          _mottoSubtitle(item),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
                           ),
-                        ],
-                      ),
-              ),
-            );
-          }),
-        ],
+                        ),
+                  trailing: _selectingDelete
+                      ? null
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 96,
+                              child: _MottoGlassButton(
+                                height: 38,
+                                icon: Icons.home_rounded,
+                                label: '设为首页',
+                                filled: _pinnedMottoId == item.id,
+                                onPressed: _pinnedMottoId == item.id
+                                    ? null
+                                    : () => _setHomeMotto(item),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            _MiniIconButton(
+                              onPressed: () =>
+                                  _editItem(initialEntry: item, index: index),
+                              icon: Icons.edit_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _MiniIconButton(
+                              onPressed: () => _deleteItem(index),
+                              icon: Icons.delete_outline_rounded,
+                            ),
+                          ],
+                        ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
