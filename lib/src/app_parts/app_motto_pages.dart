@@ -1366,107 +1366,117 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
         ],
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: const Text('2句一组'),
-                      selected: _groupMode == _MottoLineGroupMode.couplet,
-                      onSelected: (_) {
-                        setState(() {
-                          _groupMode = _MottoLineGroupMode.couplet;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('4句一组'),
-                      selected: _groupMode == _MottoLineGroupMode.quatrain,
-                      onSelected: (_) {
-                        setState(() {
-                          _groupMode = _MottoLineGroupMode.quatrain;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('整首'),
-                      selected: _groupMode == _MottoLineGroupMode.fullPoem,
-                      onSelected: (_) {
-                        setState(() {
-                          _groupMode = _MottoLineGroupMode.fullPoem;
-                        });
-                      },
-                    ),
-                  ],
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF202552),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text('2句一组'),
+                        selected: _groupMode == _MottoLineGroupMode.couplet,
+                        onSelected: (_) {
+                          setState(() {
+                            _groupMode = _MottoLineGroupMode.couplet;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('4句一组'),
+                        selected: _groupMode == _MottoLineGroupMode.quatrain,
+                        onSelected: (_) {
+                          setState(() {
+                            _groupMode = _MottoLineGroupMode.quatrain;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('整首'),
+                        selected: _groupMode == _MottoLineGroupMode.fullPoem,
+                        onSelected: (_) {
+                          setState(() {
+                            _groupMode = _MottoLineGroupMode.fullPoem;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  _MottoGlassButton(
-                    height: 44,
-                    icon: Icons.code_rounded,
-                    label: '网页文字',
-                    onPressed: _recognizing ? null : _recognizeDomAndSave,
-                  ),
-                  _MottoGlassButton(
-                    height: 44,
-                    icon: Icons.content_paste_go_rounded,
-                    label: '剪切板',
-                    filled: true,
-                    onPressed: _recognizing ? null : _recognizeClipboardAndSave,
-                  ),
-                  _MottoGlassButton(
-                    height: 44,
-                    icon: Icons.document_scanner_rounded,
-                    label: _recognizing ? '识别中' : '截图OCR',
-                    filled: true,
-                    onPressed: _recognizing
-                        ? null
-                        : () => _recognizeScreenshotAndSave(),
-                  ),
-                  _MottoGlassButton(
-                    height: 44,
-                    icon: Icons.crop_free_rounded,
-                    label: _selectingRegion ? '识别框选' : '框选OCR',
-                    onPressed: _recognizing
-                        ? null
-                        : () {
-                            if (_selectingRegion && _selectedRegion != null) {
-                              _recognizeScreenshotAndSave(selectedOnly: true);
-                            } else {
-                              setState(() {
-                                _selectingRegion = true;
-                                _selectedRegion = null;
-                              });
-                            }
-                          },
-                  ),
-                  if (_selectingRegion)
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
                     _MottoGlassButton(
                       height: 44,
-                      icon: Icons.close_rounded,
-                      label: '取消',
-                      onPressed: () {
-                        setState(() {
-                          _selectingRegion = false;
-                          _selectedRegion = null;
-                        });
-                      },
+                      icon: Icons.code_rounded,
+                      label: '网页文字',
+                      onPressed: _recognizing ? null : _recognizeDomAndSave,
                     ),
-                ],
-              ),
-            ],
+                    _MottoGlassButton(
+                      height: 44,
+                      icon: Icons.content_paste_go_rounded,
+                      label: '剪切板',
+                      filled: true,
+                      onPressed: _recognizing
+                          ? null
+                          : _recognizeClipboardAndSave,
+                    ),
+                    _MottoGlassButton(
+                      height: 44,
+                      icon: Icons.document_scanner_rounded,
+                      label: _recognizing ? '识别中' : '截图OCR',
+                      filled: true,
+                      onPressed: _recognizing
+                          ? null
+                          : () => _recognizeScreenshotAndSave(),
+                    ),
+                    _MottoGlassButton(
+                      height: 44,
+                      icon: Icons.crop_free_rounded,
+                      label: _selectingRegion ? '识别框选' : '框选OCR',
+                      onPressed: _recognizing
+                          ? null
+                          : () {
+                              if (_selectingRegion && _selectedRegion != null) {
+                                _recognizeScreenshotAndSave(selectedOnly: true);
+                              } else {
+                                setState(() {
+                                  _selectingRegion = true;
+                                  _selectedRegion = null;
+                                });
+                              }
+                            },
+                    ),
+                    if (_selectingRegion)
+                      _MottoGlassButton(
+                        height: 44,
+                        icon: Icons.close_rounded,
+                        label: '取消',
+                        onPressed: () {
+                          setState(() {
+                            _selectingRegion = false;
+                            _selectedRegion = null;
+                          });
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

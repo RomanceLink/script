@@ -111,50 +111,51 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     brightness: brightness,
   );
   final glassSurface = isDark
-      ? const Color(0xFF172625).withValues(alpha: 0.92)
-      : Color.alphaBlend(
-          scheme.primary.withValues(alpha: 0.10),
-          Colors.white.withValues(alpha: 0.84),
-        );
+      ? const Color(0xFF23274E)
+      : const Color(0xFFF0F3FF);
   final glassBorder = isDark
-      ? Colors.white.withValues(alpha: 0.14)
-      : Color.alphaBlend(
-          Colors.white.withValues(alpha: 0.42),
-          scheme.primary.withValues(alpha: 0.32),
-        );
+      ? const Color(0xFF515A9B)
+      : const Color(0xFFC5D0FF);
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: isDark
-        ? const Color(0xFF0E1717)
-        : const Color(0xFFF4FBF8),
+        ? const Color(0xFF171A5A)
+        : const Color(0xFFF0F3FF),
     cardTheme: CardThemeData(
       color: glassSurface,
-      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.38),
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(28),
         side: BorderSide(color: glassBorder),
       ),
-      shadowColor: scheme.primary.withValues(alpha: 0.20),
+      shadowColor: const Color(0xFF72DFFF).withValues(alpha: 0.18),
     ),
     appBarTheme: AppBarTheme(
       centerTitle: false,
-      backgroundColor: (isDark ? const Color(0xFF11201F) : Colors.white)
-          .withValues(alpha: 0.88),
+      backgroundColor: isDark
+          ? const Color(0xFF202552)
+          : const Color(0xFFE7ECFF),
       surfaceTintColor: Colors.transparent,
-      foregroundColor: scheme.onSurface,
+      foregroundColor: isDark ? Colors.white : const Color(0xFF1B2453),
       elevation: 0,
       titleTextStyle: TextStyle(
-        color: scheme.onSurface,
+        color: isDark ? Colors.white : const Color(0xFF1B2453),
         fontSize: 20,
         fontWeight: FontWeight.w900,
+      ),
+      iconTheme: IconThemeData(
+        color: isDark ? Colors.white : const Color(0xFF1B2453),
+      ),
+      actionsIconTheme: IconThemeData(
+        color: isDark ? Colors.white : const Color(0xFF1B2453),
       ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: glassSurface,
-      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.32),
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(30),
         side: BorderSide(color: glassBorder),
@@ -162,12 +163,12 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: isDark
-          ? const Color(0xFF172625)
-          : Colors.white.withValues(alpha: 0.86),
+          ? const Color(0xFF202552)
+          : const Color(0xFFE7ECFF),
       modalBackgroundColor: isDark
-          ? const Color(0xFF172625)
-          : Colors.white.withValues(alpha: 0.86),
-      surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.35),
+          ? const Color(0xFF202552)
+          : const Color(0xFFE7ECFF),
+      surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
@@ -179,23 +180,55 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
       selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.42),
       iconColor: scheme.primary,
     ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: isDark
+          ? const Color(0xFF202552)
+          : const Color(0xFFE7ECFF),
+      indicatorColor: const Color(0xFF72DFFF).withValues(alpha: 0.22),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected
+              ? (isDark ? Colors.white : const Color(0xFF1B2453))
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.68)
+                    : const Color(0xFF53609A)),
+        );
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          color: selected
+              ? (isDark ? Colors.white : const Color(0xFF1B2453))
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.70)
+                    : const Color(0xFF53609A)),
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        );
+      }),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: isDark
-            ? const Color(0xFF2B6158).withValues(alpha: 0.82)
-            : const Color(0xFFDCF7EF).withValues(alpha: 0.92),
-        foregroundColor: isDark
-            ? const Color(0xFFD8FFF4)
-            : const Color(0xFF116756),
+            ? const Color(0xFF4858B8)
+            : const Color(0xFFDCE4FF),
+        foregroundColor: isDark ? Colors.white : const Color(0xFF243177),
         minimumSize: const Size(0, 44),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: isDark ? Colors.white : const Color(0xFF243177),
+      ),
+    ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: isDark ? 0.06 : 0.64),
-        foregroundColor: scheme.primary,
+        backgroundColor: isDark
+            ? const Color(0xFF2A2F63)
+            : const Color(0xFFF3F5FF),
+        foregroundColor: isDark ? Colors.white : const Color(0xFF243177),
         side: BorderSide(color: glassBorder),
         minimumSize: const Size(0, 42),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -204,7 +237,7 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white.withValues(alpha: isDark ? 0.08 : 0.72),
+      fillColor: isDark ? const Color(0xFF2A2F63) : Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
         borderSide: BorderSide.none,
@@ -1320,340 +1353,334 @@ class _DashboardPageState extends State<DashboardPage>
 
     final headerMotto = _dailyMottoEntry(now);
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: theme.brightness == Brightness.dark
-                ? const [
-                    Color(0xFF091616),
-                    Color(0xFF102222),
-                    Color(0xFF151B2C),
-                  ]
-                : const [
-                    Color(0xFFF5FFF9),
-                    Color(0xFFEAF7FF),
-                    Color(0xFFF7F0FF),
-                  ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      body: _NeonPageBackground(
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Column(
-              children: [
-                _HeaderCard(
-                  title: headerMotto.content,
-                  subtitle: nextReminder == null
-                      ? '今天无后续提醒'
-                      : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
-                  summary: '总共 ${tasks.length} 项，完成 $doneCount 项',
-                  attribution: _dailyMottoAttribution(headerMotto),
-                  autoSwitch: _autoScrollDailyMottoOnHome,
-                  autoSwitchInterval: _dailyMottoAutoSwitchDuration(),
-                  imageProvider: _dailyMottoImagePath != null
-                      ? FileImage(File(_dailyMottoImagePath!))
-                      : (_dailyMottoImageUrl != null
-                            ? NetworkImage(_dailyMottoImageUrl!)
-                            : null),
-                  actionRow: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _HeaderIconAction(
-                        icon: Icons.play_arrow_rounded,
-                        onTap: _startAutomationMenu,
-                        foreground: theme.colorScheme.primary,
-                        background: theme.colorScheme.surface.withValues(
-                          alpha: 0.58,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _HeaderIconAction(
-                        icon: Icons.refresh_rounded,
-                        onTap: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('重置今日记录'),
-                              content: const Text(
-                                '确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(false),
-                                  child: const Text('取消'),
-                                ),
-                                FilledButton.tonal(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(true),
-                                  style: FilledButton.styleFrom(
-                                    foregroundColor: theme.colorScheme.error,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  children: [
+                    _HeaderCard(
+                      title: headerMotto.content,
+                      subtitle: nextReminder == null
+                          ? '今天无后续提醒'
+                          : '下一提醒 ${nextReminder.timeLabel} · ${nextReminder.label}',
+                      summary: '总共 ${tasks.length} 项，完成 $doneCount 项',
+                      attribution: _dailyMottoAttribution(headerMotto),
+                      autoSwitch: _autoScrollDailyMottoOnHome,
+                      autoSwitchInterval: _dailyMottoAutoSwitchDuration(),
+                      imageProvider: _dailyMottoImagePath != null
+                          ? FileImage(File(_dailyMottoImagePath!))
+                          : (_dailyMottoImageUrl != null
+                                ? NetworkImage(_dailyMottoImageUrl!)
+                                : null),
+                      actionRow: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _HeaderIconAction(
+                            icon: Icons.play_arrow_rounded,
+                            onTap: _startAutomationMenu,
+                            foreground: Colors.white,
+                            background: Colors.white.withValues(alpha: 0.14),
+                          ),
+                          const SizedBox(width: 6),
+                          _HeaderIconAction(
+                            icon: Icons.refresh_rounded,
+                            onTap: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('重置今日记录'),
+                                  content: const Text(
+                                    '确定要重置今天所有的任务完成状态和倒计时吗？此操作不可撤销。',
                                   ),
-                                  child: const Text('确定重置'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('取消'),
+                                    ),
+                                    FilledButton.tonal(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      style: FilledButton.styleFrom(
+                                        foregroundColor:
+                                            theme.colorScheme.error,
+                                      ),
+                                      child: const Text('确定重置'),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                          if (confirm == true) {
-                            await _resetForNewDay();
-                          }
-                        },
-                        foreground: theme.colorScheme.primary,
-                        background: theme.colorScheme.surface.withValues(
-                          alpha: 0.58,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _HeaderIconAction(
-                        icon: Icons.settings,
-                        onTap: _openSettings,
-                        foreground: theme.colorScheme.primary,
-                        background: theme.colorScheme.surface.withValues(
-                          alpha: 0.58,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (tasks.isEmpty)
-                  Expanded(
-                    child: Card(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 28,
+                              );
+                              if (confirm == true) {
+                                await _resetForNewDay();
+                              }
+                            },
+                            foreground: Colors.white,
+                            background: Colors.white.withValues(alpha: 0.14),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primaryContainer
-                                      .withValues(alpha: 0.55),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Icon(
-                                  Icons.inbox_rounded,
-                                  size: 32,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                '暂无首页任务',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '去设置页开启“首页显示”，常用任务就会出现在这里。',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 6),
+                          _HeaderIconAction(
+                            icon: Icons.settings,
+                            onTap: _openSettings,
+                            foreground: Colors.white,
+                            background: Colors.white.withValues(alpha: 0.14),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                  )
-                else ...[
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: tasks.length,
-                      onPageChanged: (value) {
-                        setState(() {
-                          _currentTaskPage = value;
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
+                    const SizedBox(height: 10),
+                    if (tasks.isEmpty)
+                      Expanded(
+                        child: Card(
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 28,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.14,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Icon(
+                                      Icons.inbox_rounded,
+                                      size: 32,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    '暂无首页任务',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '去设置页开启“首页显示”，常用任务就会出现在这里。',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else ...[
+                      Expanded(
+                        child: PageView.builder(
+                          controller: _pageController,
+                          itemCount: tasks.length,
+                          onPageChanged: (value) {
+                            setState(() {
+                              _currentTaskPage = value;
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final task = tasks[index];
 
-                        switch (task.kind) {
-                          case AssistantTaskKind.feedWindow:
-                            final isExpired = TaskEngine.isTaskExpired(
-                              now,
-                              task,
-                            );
-                            final isActive = TaskEngine.isFeedWindowActive(
-                              now,
-                              task,
-                            );
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFF5EA98D),
-                              icon: Icons.play_circle_outline_rounded,
-                              status: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isActive
-                                        ? '进行中'
-                                        : (isExpired ? '任务已过期' : '未开始')),
-                              headline: task.timeLabel,
-                              detail: state.isEnabled(task.id)
-                                  ? (state.isCompleted(task.id)
-                                        ? '本时段已完成，今日无需再记录。'
-                                        : (isExpired
-                                              ? '任务时间已过，没关系，补上吧！'
-                                              : (isActive
-                                                    ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                    : '还没到开始时间，请耐心等待。')))
-                                  : '今日未启用，不会提醒。',
-                              progressLabel: state.isCompleted(task.id)
-                                  ? '完成状态'
-                                  : '当前状态',
-                              progressValue: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isActive
-                                        ? '可执行'
-                                        : (isExpired ? '已逾期' : '未开始')),
-                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                              onPrimary: () => _markSingleTaskDone(task.id),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  !state.isCompleted(task.id) &&
-                                  (isActive || isExpired),
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configDetails: _configDetailsFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
-                              taskActions: _buildTaskQuickActions(
-                                task,
-                                const Color(0xFF5EA98D),
-                              ),
-                            );
-                          case AssistantTaskKind.fixedPoint:
-                            final isExpired = TaskEngine.isTaskExpired(
-                              now,
-                              task,
-                            );
-                            final isDue = TaskEngine.isFixedTaskDue(now, task);
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFF6B8FD6),
-                              icon: Icons.alarm_rounded,
-                              status: state.isCompleted(task.id)
-                                  ? '已完成'
-                                  : (isDue
-                                        ? (isExpired ? '任务已过期' : '到点')
-                                        : '未开始'),
-                              headline: task.timeLabel,
-                              detail: state.isEnabled(task.id)
-                                  ? (state.isCompleted(task.id)
-                                        ? '该提醒已完成。'
-                                        : (isExpired
-                                              ? '任务已过，现在标记补卡吧。'
-                                              : (isDue
-                                                    ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
-                                                    : '还没到提醒时间。')))
-                                  : '今日未启用，不会提醒。',
-                              progressLabel: '提醒时间',
-                              progressValue: task.timeLabel,
-                              primaryLabel: isExpired ? '再接再厉' : '标记完成',
-                              onPrimary: () => _markSingleTaskDone(task.id),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  !state.isCompleted(task.id) &&
-                                  isDue,
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configDetails: _configDetailsFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
-                              taskActions: _buildTaskQuickActions(
-                                task,
-                                const Color(0xFF6B8FD6),
-                              ),
-                            );
-                          case AssistantTaskKind.adCooldown:
-                            final count = state.intervalCompleted(task.id);
-                            final progressText = task.infiniteLoop
-                                ? '$count / ∞'
-                                : '$count / ${task.targetCount}';
-                            return _TaskDeckCard(
-                              task: task,
-                              accent: const Color(0xFFDA8C63),
-                              icon: Icons.hourglass_bottom_rounded,
-                              status: progressText,
-                              headline: '间隔 ${task.intervalLabel}',
-                              detail: TaskEngine.counterTaskLabel(
-                                now,
-                                state,
-                                task,
-                              ),
-                              progressLabel: '今日进度',
-                              progressValue: progressText,
-                              primaryLabel:
-                                  (!task.infiniteLoop &&
-                                      count >= task.targetCount)
-                                  ? '今日已完成'
-                                  : (TaskEngine.canCompleteCounterTask(
-                                          now,
-                                          state,
-                                          task,
-                                        )
-                                        ? '本次已完成'
-                                        : '倒计时中'),
-                              onPrimary: () => _markCounterTaskDone(task),
-                              primaryEnabled:
-                                  state.isEnabled(task.id) &&
-                                  (task.infiniteLoop ||
-                                      count < task.targetCount) &&
-                                  TaskEngine.canCompleteCounterTask(
+                            switch (task.kind) {
+                              case AssistantTaskKind.feedWindow:
+                                final isExpired = TaskEngine.isTaskExpired(
+                                  now,
+                                  task,
+                                );
+                                final isActive = TaskEngine.isFeedWindowActive(
+                                  now,
+                                  task,
+                                );
+                                return _TaskDeckCard(
+                                  task: task,
+                                  accent: const Color(0xFF5EA98D),
+                                  icon: Icons.play_circle_outline_rounded,
+                                  status: state.isCompleted(task.id)
+                                      ? '已完成'
+                                      : (isActive
+                                            ? '进行中'
+                                            : (isExpired ? '任务已过期' : '未开始')),
+                                  headline: task.timeLabel,
+                                  detail: state.isEnabled(task.id)
+                                      ? (state.isCompleted(task.id)
+                                            ? '本时段已完成，今日无需再记录。'
+                                            : (isExpired
+                                                  ? '任务时间已过，没关系，补上吧！'
+                                                  : (isActive
+                                                        ? '现在正是执行时间，预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                        : '还没到开始时间，请耐心等待。')))
+                                      : '今日未启用，不会提醒。',
+                                  progressLabel: state.isCompleted(task.id)
+                                      ? '完成状态'
+                                      : '当前状态',
+                                  progressValue: state.isCompleted(task.id)
+                                      ? '已完成'
+                                      : (isActive
+                                            ? '可执行'
+                                            : (isExpired ? '已逾期' : '未开始')),
+                                  primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                                  onPrimary: () => _markSingleTaskDone(task.id),
+                                  primaryEnabled:
+                                      state.isEnabled(task.id) &&
+                                      !state.isCompleted(task.id) &&
+                                      (isActive || isExpired),
+                                  showQuickLaunch:
+                                      task.showQuickLaunch ||
+                                      (task.gestureConfigId?.isNotEmpty ??
+                                          false),
+                                  appLabel: state.selectedAppLabel,
+                                  configDetails: _configDetailsFor(task),
+                                  onOpenApp: () => _openSelectedApp(task),
+                                  taskActions: _buildTaskQuickActions(
+                                    task,
+                                    const Color(0xFF5EA98D),
+                                  ),
+                                );
+                              case AssistantTaskKind.fixedPoint:
+                                final isExpired = TaskEngine.isTaskExpired(
+                                  now,
+                                  task,
+                                );
+                                final isDue = TaskEngine.isFixedTaskDue(
+                                  now,
+                                  task,
+                                );
+                                return _TaskDeckCard(
+                                  task: task,
+                                  accent: const Color(0xFF6B8FD6),
+                                  icon: Icons.alarm_rounded,
+                                  status: state.isCompleted(task.id)
+                                      ? '已完成'
+                                      : (isDue
+                                            ? (isExpired ? '任务已过期' : '到点')
+                                            : '未开始'),
+                                  headline: task.timeLabel,
+                                  detail: state.isEnabled(task.id)
+                                      ? (state.isCompleted(task.id)
+                                            ? '该提醒已完成。'
+                                            : (isExpired
+                                                  ? '任务已过，现在标记补卡吧。'
+                                                  : (isDue
+                                                        ? '到点了，赶紧去执行吧！预留 5 分钟缓冲打卡，超时将过期哦！'
+                                                        : '还没到提醒时间。')))
+                                      : '今日未启用，不会提醒。',
+                                  progressLabel: '提醒时间',
+                                  progressValue: task.timeLabel,
+                                  primaryLabel: isExpired ? '再接再厉' : '标记完成',
+                                  onPrimary: () => _markSingleTaskDone(task.id),
+                                  primaryEnabled:
+                                      state.isEnabled(task.id) &&
+                                      !state.isCompleted(task.id) &&
+                                      isDue,
+                                  showQuickLaunch:
+                                      task.showQuickLaunch ||
+                                      (task.gestureConfigId?.isNotEmpty ??
+                                          false),
+                                  appLabel: state.selectedAppLabel,
+                                  configDetails: _configDetailsFor(task),
+                                  onOpenApp: () => _openSelectedApp(task),
+                                  taskActions: _buildTaskQuickActions(
+                                    task,
+                                    const Color(0xFF6B8FD6),
+                                  ),
+                                );
+                              case AssistantTaskKind.adCooldown:
+                                final count = state.intervalCompleted(task.id);
+                                final progressText = task.infiniteLoop
+                                    ? '$count / ∞'
+                                    : '$count / ${task.targetCount}';
+                                return _TaskDeckCard(
+                                  task: task,
+                                  accent: const Color(0xFFDA8C63),
+                                  icon: Icons.hourglass_bottom_rounded,
+                                  status: progressText,
+                                  headline: '间隔 ${task.intervalLabel}',
+                                  detail: TaskEngine.counterTaskLabel(
                                     now,
                                     state,
                                     task,
                                   ),
-                              showQuickLaunch:
-                                  task.showQuickLaunch ||
-                                  (task.gestureConfigId?.isNotEmpty ?? false),
-                              appLabel: state.selectedAppLabel,
-                              configDetails: _configDetailsFor(task),
-                              onOpenApp: () => _openSelectedApp(task),
-                              taskActions: _buildTaskQuickActions(
-                                task,
-                                const Color(0xFFDA8C63),
+                                  progressLabel: '今日进度',
+                                  progressValue: progressText,
+                                  primaryLabel:
+                                      (!task.infiniteLoop &&
+                                          count >= task.targetCount)
+                                      ? '今日已完成'
+                                      : (TaskEngine.canCompleteCounterTask(
+                                              now,
+                                              state,
+                                              task,
+                                            )
+                                            ? '本次已完成'
+                                            : '倒计时中'),
+                                  onPrimary: () => _markCounterTaskDone(task),
+                                  primaryEnabled:
+                                      state.isEnabled(task.id) &&
+                                      (task.infiniteLoop ||
+                                          count < task.targetCount) &&
+                                      TaskEngine.canCompleteCounterTask(
+                                        now,
+                                        state,
+                                        task,
+                                      ),
+                                  showQuickLaunch:
+                                      task.showQuickLaunch ||
+                                      (task.gestureConfigId?.isNotEmpty ??
+                                          false),
+                                  appLabel: state.selectedAppLabel,
+                                  configDetails: _configDetailsFor(task),
+                                  onOpenApp: () => _openSelectedApp(task),
+                                  taskActions: _buildTaskQuickActions(
+                                    task,
+                                    const Color(0xFFDA8C63),
+                                  ),
+                                );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Wrap(
+                          spacing: 8,
+                          children: List.generate(tasks.length, (index) {
+                            final palette = _indicatorPalette(theme.brightness);
+                            final dotColor = palette[index % palette.length];
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: _currentTaskPage == index ? 24 : 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _currentTaskPage == index
+                                    ? dotColor
+                                    : dotColor.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                             );
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Center(
-                    child: Wrap(
-                      spacing: 8,
-                      children: List.generate(tasks.length, (index) {
-                        final palette = _indicatorPalette(theme.brightness);
-                        final dotColor = palette[index % palette.length];
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: _currentTaskPage == index ? 24 : 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: _currentTaskPage == index
-                                ? dotColor
-                                : dotColor.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
-              ],
+                          }),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -1674,10 +1701,13 @@ class _EditorHeroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _liquidGlassFill(theme, accent, strength: 0.95),
+        gradient: LinearGradient(
+          colors: [_neonGlassFill(alpha: 0.16), accent.withValues(alpha: 0.14)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: _liquidGlassBorder(theme, accent)),
-        boxShadow: _liquidGlassShadow(theme, accent, strength: 0.7),
+        boxShadow: _neonGlassGlow(accent, strength: 0.75),
       ),
       child: Row(
         children: [
@@ -1685,12 +1715,17 @@ class _EditorHeroCard extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: theme.brightness == Brightness.dark
-                  ? accent.withValues(alpha: 0.22)
-                  : accent.withValues(alpha: 0.16),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.24),
+                  accent.withValues(alpha: 0.34),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(Icons.tune_rounded),
+            child: const Icon(Icons.tune_rounded, color: Colors.white),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1701,13 +1736,14 @@ class _EditorHeroCard extends StatelessWidget {
                   '编辑任务',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   kindLabel,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: Colors.white.withValues(alpha: 0.72),
                   ),
                 ),
               ],
@@ -1736,10 +1772,16 @@ class _EditorSectionCard extends StatelessWidget {
     return Card(
       child: Container(
         decoration: BoxDecoration(
-          color: _liquidGlassFill(theme, accent, strength: 0.82),
+          gradient: LinearGradient(
+            colors: [
+              _neonGlassFill(alpha: 0.15),
+              accent.withValues(alpha: 0.12),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: _liquidGlassBorder(theme, accent)),
-          boxShadow: _liquidGlassShadow(theme, accent, strength: 0.55),
+          boxShadow: _neonGlassGlow(accent, strength: 0.58),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -1761,6 +1803,7 @@ class _EditorSectionCard extends StatelessWidget {
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
+                      color: Colors.white,
                     ),
                   ),
                 ],

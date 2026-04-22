@@ -310,69 +310,71 @@ class _TaskManagementSettingsPageState
         onPressed: () => _editTask(),
         label: const Text('新增任务'),
       ),
-      body: isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-                child: SizedBox(
-                  height: MediaQuery.sizeOf(context).height * 0.8,
-                  width: double.infinity,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 28,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primaryContainer
-                                  .withValues(alpha: 0.55),
-                              borderRadius: BorderRadius.circular(22),
+      body: _NeonPageBackground(
+        child: isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                  child: SizedBox(
+                    height: MediaQuery.sizeOf(context).height * 0.8,
+                    width: double.infinity,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 28,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            Container(
+                              width: 68,
+                              height: 68,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: const Icon(
+                                Icons.event_note_rounded,
+                                size: 34,
+                                color: Colors.white,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.event_note_rounded,
-                              size: 34,
-                              color: theme.colorScheme.primary,
+                            const SizedBox(height: 16),
+                            Text(
+                              '还没有任务',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '还没有任务',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
+                            const SizedBox(height: 8),
+                            Text(
+                              '点击右下角新增任务，把常用提醒和脚本绑定都配好。',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.72),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '点击右下角新增任务，把常用提醒和脚本绑定都配好。',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                            const SizedBox(height: 18),
+                            FilledButton.icon(
+                              onPressed: () => _editTask(),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('新增第一个任务'),
                             ),
-                          ),
-                          const SizedBox(height: 18),
-                          FilledButton.icon(
-                            onPressed: () => _editTask(),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('新增第一个任务'),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                children: _buildGroupedTaskSections(context),
               ),
-            )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              children: _buildGroupedTaskSections(context),
-            ),
+      ),
     );
   }
 }
@@ -558,113 +560,118 @@ class _TemplateLibrarySettingsPageState
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              title: const Text('将当前全部任务保存为模板'),
-              subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
-              trailing: FilledButton.tonal(
-                key: const ValueKey('save_template_group_button'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: mintFill,
-                  foregroundColor: mintText,
+      body: _NeonPageBackground(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                title: const Text('将当前全部任务保存为模板'),
+                subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
+                trailing: FilledButton.tonal(
+                  key: const ValueKey('save_template_group_button'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: mintFill,
+                    foregroundColor: mintText,
+                  ),
+                  onPressed: _showSaveTemplateGroupDialog,
+                  child: const Text('保存'),
                 ),
-                onPressed: _showSaveTemplateGroupDialog,
-                child: const Text('保存'),
               ),
             ),
-          ),
-          ..._draft.templateGroups.map((group) {
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            group.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
+            ..._draft.templateGroups.map((group) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              group.name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
-                        ),
-                        if (!group.builtIn) ...[
-                          _MiniIconButton(
-                            onPressed: () => _renameTemplateGroup(group),
-                            icon: Icons.drive_file_rename_outline_rounded,
+                          if (!group.builtIn) ...[
+                            _MiniIconButton(
+                              onPressed: () => _renameTemplateGroup(group),
+                              icon: Icons.drive_file_rename_outline_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _MiniIconButton(
+                              onPressed: () => _editTemplateGroup(group),
+                              icon: Icons.edit_note_rounded,
+                            ),
+                            const SizedBox(width: 8),
+                            _MiniIconButton(
+                              onPressed: () => _deleteTemplateGroup(group.id),
+                              icon: Icons.delete_outline_rounded,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '含 ${group.tasks.length} 个任务',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          _MiniIconButton(
-                            onPressed: () => _editTemplateGroup(group),
-                            icon: Icons.edit_note_rounded,
-                          ),
-                          const SizedBox(width: 8),
-                          _MiniIconButton(
-                            onPressed: () => _deleteTemplateGroup(group.id),
-                            icon: Icons.delete_outline_rounded,
+                          FilledButton.tonal(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: mintFill,
+                              foregroundColor: mintText,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              minimumSize: Size.zero,
+                            ),
+                            onPressed: () => _applyTemplateGroup(group),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.auto_awesome_motion_rounded,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  '整组使用',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '含 ${group.tasks.length} 个任务',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        FilledButton.tonal(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: mintFill,
-                            foregroundColor: mintText,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            minimumSize: Size.zero,
-                          ),
-                          onPressed: () => _applyTemplateGroup(group),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome_motion_rounded, size: 16),
-                              SizedBox(width: 6),
-                              Text(
-                                '整组使用',
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
-        ],
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

@@ -54,6 +54,102 @@ List<BoxShadow> _liquidGlassShadow(
   ];
 }
 
+Color _neonGlassFill({double alpha = 0.22}) {
+  return const Color(0xFF2B2F5B);
+}
+
+Color _neonGlassLine(Color accent, {double alpha = 0.7}) {
+  return Color.alphaBlend(
+    Colors.white.withValues(alpha: 0.24),
+    accent.withValues(alpha: alpha),
+  );
+}
+
+List<BoxShadow> _neonGlassGlow(Color accent, {double strength = 1}) {
+  return [
+    BoxShadow(
+      color: accent.withValues(alpha: 0.26 * strength),
+      blurRadius: 26,
+      spreadRadius: 1,
+      offset: const Offset(0, 10),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.22),
+      blurRadius: 18,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
+BoxDecoration _neonPageDecoration() {
+  return const BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        Color(0xFF171A5A),
+        Color(0xFF1A235F),
+        Color(0xFF28144D),
+        Color(0xFF3B103E),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  );
+}
+
+class _NeonPageBackground extends StatelessWidget {
+  const _NeonPageBackground({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(decoration: _neonPageDecoration()),
+        Positioned(
+          top: -80,
+          left: -40,
+          child: Container(
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF55DFFF).withValues(alpha: 0.22),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF55DFFF).withValues(alpha: 0.38),
+                  blurRadius: 120,
+                  spreadRadius: 24,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          right: -60,
+          bottom: -30,
+          child: Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFFF5FD2).withValues(alpha: 0.18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF5FD2).withValues(alpha: 0.30),
+                  blurRadius: 130,
+                  spreadRadius: 26,
+                ),
+              ],
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
 class _CenteredToastState extends State<_CenteredToast>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
@@ -309,8 +405,9 @@ class _HeaderCardState extends State<_HeaderCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    const cyan = Color(0xFF7FE7FF);
+    const pink = Color(0xFFE78BFF);
+    final edgeTint = Color.lerp(cyan, pink, 0.52)!;
     final poemLines = _poemLines(widget.title);
     final poemPages = _poemPages(poemLines);
     if (_lastPageCount != poemPages.length) {
@@ -327,41 +424,17 @@ class _HeaderCardState extends State<_HeaderCard> {
           padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: isDark
-                  ? const [
-                      Color(0xFF16332E),
-                      Color(0xFF1B3D37),
-                      Color(0xFF224740),
-                    ]
-                  : const [
-                      Color(0xFFF4FBF8),
-                      Color(0xFFEAF7F3),
-                      Color(0xFFDDF4EC),
-                    ],
+              colors: const [
+                Color(0x3AFFFFFF),
+                Color(0x24BFD8FF),
+                Color(0x22E69CFF),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: isDark
-                  ? const Color(0xFF4E847A)
-                  : const Color(0xFFCDE5DE),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark
-                        ? const Color(0xFF0D1917)
-                        : const Color(0xFF98C8B9))
-                    .withValues(alpha: isDark ? 0.32 : 0.22),
-                blurRadius: 30,
-                offset: const Offset(0, 16),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            border: Border.all(color: _neonGlassLine(edgeTint)),
+            boxShadow: _neonGlassGlow(edgeTint, strength: 1.15),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +448,7 @@ class _HeaderCardState extends State<_HeaderCard> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
+                        color: Colors.white.withValues(alpha: 0.78),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -416,6 +489,13 @@ class _HeaderCardState extends State<_HeaderCard> {
                                       fontSize: poemFontSize,
                                       fontWeight: FontWeight.w900,
                                       height: 1.28,
+                                      color: Colors.white,
+                                      shadows: [
+                                        Shadow(
+                                          color: cyan.withValues(alpha: 0.24),
+                                          blurRadius: 12,
+                                        ),
+                                      ],
                                       fontFamilyFallback: const [
                                         'KaiTi',
                                         'STKaiti',
@@ -448,7 +528,7 @@ class _HeaderCardState extends State<_HeaderCard> {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.right,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
+                      color: Colors.white.withValues(alpha: 0.76),
                       fontWeight: FontWeight.w700,
                       fontFamilyFallback: const [
                         'KaiTi',
@@ -467,7 +547,7 @@ class _HeaderCardState extends State<_HeaderCard> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
+                  color: Colors.white.withValues(alpha: 0.70),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -495,7 +575,7 @@ class _HeaderIconAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: background,
+      color: background.withValues(alpha: 0.82),
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -517,16 +597,18 @@ class _HeaderPortrait extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
       width: 112,
       height: 112,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.44),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        gradient: const LinearGradient(
+          colors: [Color(0x30FFFFFF), Color(0x18B8E5FF), Color(0x18E390FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
+        boxShadow: _neonGlassGlow(const Color(0xFF8CDFFF), strength: 0.7),
         image: imageProvider == null
             ? null
             : DecorationImage(image: imageProvider!, fit: BoxFit.cover),
@@ -534,7 +616,7 @@ class _HeaderPortrait extends StatelessWidget {
       child: imageProvider == null
           ? Icon(
               Icons.image_outlined,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: Colors.white.withValues(alpha: 0.76),
               size: 28,
             )
           : null,
@@ -582,8 +664,7 @@ class _TaskDeckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final glassFill = _liquidGlassFill(theme, accent, strength: 1.1);
+    final glassFill = _neonGlassFill(alpha: 0.16);
     final primaryButtonFill = theme.brightness == Brightness.dark
         ? accent.withValues(alpha: 0.88)
         : Color.lerp(accent, Colors.white, 0.2)!;
@@ -605,10 +686,14 @@ class _TaskDeckCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            color: glassFill,
-            border: Border.all(color: _liquidGlassBorder(theme, accent)),
+            gradient: LinearGradient(
+              colors: [glassFill, accent.withValues(alpha: 0.16)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: _neonGlassLine(accent)),
             borderRadius: BorderRadius.circular(26),
-            boxShadow: _liquidGlassShadow(theme, accent, strength: 0.9),
+            boxShadow: _neonGlassGlow(accent, strength: 0.9),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
@@ -622,10 +707,18 @@ class _TaskDeckCard extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.16),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.28),
+                            accent.withValues(alpha: 0.40),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         borderRadius: BorderRadius.circular(14),
+                        boxShadow: _neonGlassGlow(accent, strength: 0.55),
                       ),
-                      child: Icon(icon, color: accent, size: 23),
+                      child: Icon(icon, color: Colors.white, size: 23),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -638,6 +731,7 @@ class _TaskDeckCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w900,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -646,7 +740,7 @@ class _TaskDeckCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: Colors.white.withValues(alpha: 0.72),
                             ),
                           ),
                         ],
@@ -668,12 +762,11 @@ class _TaskDeckCard extends StatelessWidget {
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: accent.withValues(
-                                alpha: theme.brightness == Brightness.dark
-                                    ? 0.14
-                                    : 0.1,
-                              ),
+                              color: accent.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.34),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,7 +778,9 @@ class _TaskDeckCard extends StatelessWidget {
                                       line,
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: accent,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.84,
+                                            ),
                                             fontWeight: FontWeight.w700,
                                             height: 1.3,
                                           ),
@@ -762,7 +857,7 @@ class _TaskDeckCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                        color: accent.withValues(alpha: 0.1),
+                        color: Colors.white.withValues(alpha: 0.12),
                         width: 1,
                       ),
                     ),
@@ -831,9 +926,7 @@ class _TaskQuickActionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: accent.withValues(
-        alpha: theme.brightness == Brightness.dark ? 0.24 : 0.18,
-      ),
+      color: accent.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -843,7 +936,7 @@ class _TaskQuickActionChip extends StatelessWidget {
           child: Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: accent,
+              color: Colors.white.withValues(alpha: 0.88),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -887,6 +980,9 @@ class _EnhancedTaskButton extends StatelessWidget {
       height: 44, // 增加高度
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isTonal ? 0.14 : 0.18),
+        ),
         boxShadow: (onPressed != null && shadowColor != null && !isTonal)
             ? [
                 BoxShadow(
@@ -954,14 +1050,15 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.14),
+        color: accent.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.42)),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w800,
-          color: accent,
+          color: Colors.white,
         ),
       ),
     );
@@ -1194,10 +1291,17 @@ class _SettingsSectionCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            color: _liquidGlassFill(theme, accent),
+            gradient: LinearGradient(
+              colors: [
+                _neonGlassFill(alpha: 0.16),
+                accent.withValues(alpha: 0.14),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: _liquidGlassBorder(theme, accent)),
-            boxShadow: _liquidGlassShadow(theme, accent, strength: 0.9),
+            border: Border.all(color: _neonGlassLine(accent)),
+            boxShadow: _neonGlassGlow(accent, strength: 0.82),
           ),
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -1211,7 +1315,7 @@ class _SettingsSectionCard extends StatelessWidget {
                       width: 10,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: accent,
+                        color: accent.withValues(alpha: 0.86),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -1224,6 +1328,7 @@ class _SettingsSectionCard extends StatelessWidget {
                             title,
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w900,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1231,13 +1336,14 @@ class _SettingsSectionCard extends StatelessWidget {
                             subtitle,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
+                              color: Colors.white.withValues(alpha: 0.82),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             helper,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: Colors.white.withValues(alpha: 0.68),
                               height: 1.45,
                             ),
                           ),
@@ -1276,10 +1382,11 @@ class _PastelButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.tonal(
       style: FilledButton.styleFrom(
-        backgroundColor: background,
+        backgroundColor: background.withValues(alpha: 0.82),
         foregroundColor: foreground,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
       ),
       onPressed: onPressed,
       child: Row(
@@ -1327,14 +1434,14 @@ class _SettingsNavCell extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
-          boxShadow: _liquidGlassShadow(theme, iconTint, strength: 0.65),
+          boxShadow: _neonGlassGlow(iconTint, strength: 0.62),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Material(
-              color: _liquidGlassFill(theme, iconTint, strength: 0.86),
+              color: _neonGlassFill(alpha: 0.16),
               child: InkWell(
                 borderRadius: BorderRadius.circular(28),
                 onTap: onTap,
@@ -1346,17 +1453,18 @@ class _SettingsNavCell extends StatelessWidget {
                         width: 46,
                         height: 46,
                         decoration: BoxDecoration(
-                          color: iconBackground.withValues(
-                            alpha: theme.brightness == Brightness.dark
-                                ? 0.34
-                                : 0.46,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withValues(alpha: 0.24),
+                              iconTint.withValues(alpha: 0.38),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _liquidGlassBorder(theme, iconTint),
-                          ),
+                          border: Border.all(color: _neonGlassLine(iconTint)),
                         ),
-                        child: Icon(icon, color: iconTint, size: 24),
+                        child: Icon(icon, color: Colors.white, size: 24),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1367,13 +1475,14 @@ class _SettingsNavCell extends StatelessWidget {
                               title,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w900,
+                                color: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               subtitle,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: Colors.white.withValues(alpha: 0.72),
                                 height: 1.35,
                               ),
                             ),
@@ -1387,14 +1496,14 @@ class _SettingsNavCell extends StatelessWidget {
                           Text(
                             trailingText,
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.primary,
+                              color: Colors.white.withValues(alpha: 0.88),
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Icon(
                             Icons.chevron_right_rounded,
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: Colors.white.withValues(alpha: 0.72),
                           ),
                         ],
                       ),
