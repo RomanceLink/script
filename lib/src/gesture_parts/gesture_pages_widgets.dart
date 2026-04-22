@@ -52,22 +52,12 @@ class _GlassActionTile extends StatelessWidget {
                   vertical: 13,
                 ),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [
-                            const Color(0xFF223231).withValues(alpha: 0.96),
-                            const Color(0xFF1B282B).withValues(alpha: 0.96),
-                          ]
-                        : [
-                            Colors.white.withValues(alpha: 0.94),
-                            const Color(0xFFF0FBF7).withValues(alpha: 0.88),
-                          ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: isDark
+                      ? const Color(0xFF223231).withValues(alpha: 0.92)
+                      : Colors.white.withValues(alpha: 0.68),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.70),
+                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
                   ),
                 ),
                 child: Row(
@@ -151,7 +141,7 @@ class _ModernSectionCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: _automationCardDecoration(theme),
           child: Column(
@@ -209,19 +199,9 @@ class _CompactSelectionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: theme.brightness == Brightness.dark
-                ? [
-                    const Color(0xFF183030).withValues(alpha: 0.92),
-                    const Color(0xFF1A2430).withValues(alpha: 0.88),
-                  ]
-                : [
-                    Colors.white.withValues(alpha: 0.88),
-                    const Color(0xFFEFFBF7).withValues(alpha: 0.78),
-                  ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF183030).withValues(alpha: 0.92)
+              : Colors.white.withValues(alpha: 0.66),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: Colors.white.withValues(
@@ -285,19 +265,9 @@ class _ModernActionTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: theme.brightness == Brightness.dark
-                ? [
-                    const Color(0xFF17302F).withValues(alpha: 0.92),
-                    const Color(0xFF1A2430).withValues(alpha: 0.88),
-                  ]
-                : [
-                    Colors.white.withValues(alpha: 0.90),
-                    const Color(0xFFF3FFF9).withValues(alpha: 0.80),
-                  ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF17302F).withValues(alpha: 0.92)
+              : Colors.white.withValues(alpha: 0.66),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: Colors.white.withValues(

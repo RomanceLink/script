@@ -112,7 +112,7 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
   );
   final glassSurface = isDark
       ? const Color(0xFF172625).withValues(alpha: 0.92)
-      : Colors.white.withValues(alpha: 0.86);
+      : Colors.white.withValues(alpha: 0.82);
   final glassBorder = isDark
       ? Colors.white.withValues(alpha: 0.14)
       : Colors.white.withValues(alpha: 0.72);
@@ -157,10 +157,10 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: isDark
           ? const Color(0xFF172625)
-          : const Color(0xFFF8FFFC),
+          : Colors.white.withValues(alpha: 0.86),
       modalBackgroundColor: isDark
           ? const Color(0xFF172625)
-          : const Color(0xFFF8FFFC),
+          : Colors.white.withValues(alpha: 0.86),
       surfaceTintColor: Colors.white.withValues(alpha: isDark ? 0.04 : 0.35),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -750,32 +750,38 @@ class _DashboardPageState extends State<DashboardPage>
     final selected = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              _ActionSheetTile(
-                icon: Icons.block_rounded,
-                title: result == 'pre' ? '无前置脚本' : '无执行脚本',
-                subtitle: '清空当前绑定',
-                destructive: true,
-                onTap: () => Navigator.of(context).pop('none'),
-              ),
-              ..._gestureConfigs.map(
-                (config) => _ActionSheetTile(
-                  icon: config.infiniteLoop
-                      ? Icons.all_inclusive_rounded
-                      : Icons.play_circle_outline_rounded,
-                  title: config.name,
-                  subtitle: config.infiniteLoop
-                      ? '无限循环 · 间隔 ${config.loopIntervalMillis} 毫秒'
-                      : '${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒',
-                  onTap: () => Navigator.of(context).pop(config.id),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                _ActionSheetTile(
+                  icon: Icons.block_rounded,
+                  title: result == 'pre' ? '无前置脚本' : '无执行脚本',
+                  subtitle: '清空当前绑定',
+                  destructive: true,
+                  onTap: () => Navigator.of(context).pop('none'),
                 ),
-              ),
-            ],
+                ..._gestureConfigs.map(
+                  (config) => _ActionSheetTile(
+                    icon: config.infiniteLoop
+                        ? Icons.all_inclusive_rounded
+                        : Icons.play_circle_outline_rounded,
+                    title: config.name,
+                    subtitle: config.infiniteLoop
+                        ? '无限循环 · 间隔 ${config.loopIntervalMillis} 毫秒'
+                        : '${config.loopCount} 次 · 间隔 ${config.loopIntervalMillis} 毫秒',
+                    onTap: () => Navigator.of(context).pop(config.id),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

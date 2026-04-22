@@ -29,20 +29,9 @@ BoxDecoration _automationPageBackground(ThemeData theme) {
 BoxDecoration _automationCardDecoration(ThemeData theme) {
   final isDark = theme.brightness == Brightness.dark;
   return BoxDecoration(
-    gradient: LinearGradient(
-      colors: isDark
-          ? [
-              const Color(0xFF17312F).withValues(alpha: 0.92),
-              const Color(0xFF192538).withValues(alpha: 0.88),
-            ]
-          : [
-              Colors.white.withValues(alpha: 0.88),
-              const Color(0xFFE6FFF6).withValues(alpha: 0.78),
-              const Color(0xFFEAF1FF).withValues(alpha: 0.74),
-            ],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
+    color: isDark
+        ? const Color(0xFF17312F).withValues(alpha: 0.92)
+        : Colors.white.withValues(alpha: 0.66),
     borderRadius: BorderRadius.circular(24),
     border: Border.all(
       color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.64),

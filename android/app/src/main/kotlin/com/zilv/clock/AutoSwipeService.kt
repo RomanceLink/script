@@ -3442,17 +3442,64 @@ class AutoSwipeService : AccessibilityService() {
             )
         }
         val duration = segment.duration.coerceAtLeast(80L)
-        try {
-            dispatchGestureWithRetry(
-                GestureDescription.Builder()
-                    .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
-                    .build(),
-                retriesRemaining = 2,
-                retryDelayMillis = 180L,
-                onDone = onDone,
-            )
+        val gesture = try {
+            GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                .build()
         } catch (_: Exception) {
             onDone()
+            return
+        }
+        dispatchRecordingReplayGesture(gesture, retriesRemaining = 2, retryDelayMillis = 180L, onDone = onDone)
+    }
+
+    private fun dispatchRecordingReplayGesture(
+        gesture: GestureDescription,
+        retriesRemaining: Int,
+        retryDelayMillis: Long,
+        onDone: () -> Unit,
+    ) {
+        val started = try {
+            dispatchGesture(
+                gesture,
+                object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        onDone()
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        if (retriesRemaining > 0) {
+                            handler.postDelayed({
+                                dispatchRecordingReplayGesture(
+                                    gesture = gesture,
+                                    retriesRemaining = retriesRemaining - 1,
+                                    retryDelayMillis = retryDelayMillis,
+                                    onDone = onDone,
+                                )
+                            }, retryDelayMillis)
+                        } else {
+                            onDone()
+                        }
+                    }
+                },
+                null,
+            )
+        } catch (_: Exception) {
+            false
+        }
+        if (!started) {
+            if (retriesRemaining > 0) {
+                handler.postDelayed({
+                    dispatchRecordingReplayGesture(
+                        gesture = gesture,
+                        retriesRemaining = retriesRemaining - 1,
+                        retryDelayMillis = retryDelayMillis,
+                        onDone = onDone,
+                    )
+                }, retryDelayMillis)
+            } else {
+                onDone()
+            }
         }
     }
 

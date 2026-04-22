@@ -170,30 +170,36 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     final selected = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ActionSheetTile(
-                icon: Icons.link_off_rounded,
-                title: allowNoneLabel,
-                onTap: () => Navigator.of(context).pop('none'),
-              ),
-              ..._availableConfigs.map(
-                (c) => _ActionSheetTile(
-                  icon: c.infiniteLoop
-                      ? Icons.all_inclusive_rounded
-                      : Icons.play_circle_outline_rounded,
-                  title: c.name,
-                  subtitle: c.infiniteLoop
-                      ? '无限循环 · 间隔 ${c.loopIntervalMillis} 毫秒'
-                      : '${c.loopCount} 次 · 间隔 ${c.loopIntervalMillis} 毫秒',
-                  onTap: () => Navigator.of(context).pop(c.id),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                _ActionSheetTile(
+                  icon: Icons.link_off_rounded,
+                  title: allowNoneLabel,
+                  onTap: () => Navigator.of(context).pop('none'),
                 ),
-              ),
-            ],
+                ..._availableConfigs.map(
+                  (c) => _ActionSheetTile(
+                    icon: c.infiniteLoop
+                        ? Icons.all_inclusive_rounded
+                        : Icons.play_circle_outline_rounded,
+                    title: c.name,
+                    subtitle: c.infiniteLoop
+                        ? '无限循环 · 间隔 ${c.loopIntervalMillis} 毫秒'
+                        : '${c.loopCount} 次 · 间隔 ${c.loopIntervalMillis} 毫秒',
+                    onTap: () => Navigator.of(context).pop(c.id),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

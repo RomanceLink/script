@@ -1555,66 +1555,60 @@ class _MottoGlassButton extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: borderRadius,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: borderRadius,
-            child: Ink(
-              height: height,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: filled
-                      ? [
-                          accent.withValues(alpha: enabled ? 0.92 : 0.28),
-                          accent.withValues(alpha: enabled ? 0.72 : 0.20),
-                        ]
-                      : isDark
-                      ? [
-                          const Color(0xFF213231).withValues(alpha: 0.96),
-                          const Color(0xFF19282A).withValues(alpha: 0.94),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.92),
-                          const Color(0xFFF0FBF7).withValues(alpha: 0.84),
-                        ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: borderRadius,
-                border: Border.all(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: borderRadius,
+              child: Ink(
+                height: height,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
                   color: filled
-                      ? Colors.white.withValues(alpha: isDark ? 0.10 : 0.22)
-                      : Colors.white.withValues(alpha: isDark ? 0.10 : 0.66),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: 20,
+                      ? accent.withValues(alpha: enabled ? 0.78 : 0.26)
+                      : isDark
+                      ? const Color(0xFF213231).withValues(alpha: 0.92)
+                      : Colors.white.withValues(alpha: 0.68),
+                  borderRadius: borderRadius,
+                  border: Border.all(
                     color: filled
-                        ? Colors.white.withValues(alpha: enabled ? 1 : 0.46)
-                        : accent.withValues(alpha: enabled ? 1 : 0.42),
+                        ? Colors.white.withValues(alpha: isDark ? 0.10 : 0.34)
+                        : Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: filled
-                            ? Colors.white.withValues(alpha: enabled ? 1 : 0.50)
-                            : accent.withValues(alpha: enabled ? 1 : 0.45),
-                        fontWeight: FontWeight.w900,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 20,
+                      color: filled
+                          ? Colors.white.withValues(alpha: enabled ? 1 : 0.46)
+                          : (isDark ? theme.colorScheme.onSurface : accent)
+                                .withValues(alpha: enabled ? 1 : 0.42),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: filled
+                              ? Colors.white.withValues(
+                                  alpha: enabled ? 1 : 0.50,
+                                )
+                              : (isDark ? theme.colorScheme.onSurface : accent)
+                                    .withValues(alpha: enabled ? 1 : 0.45),
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1760,33 +1754,29 @@ class _MottoGlassCell extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: borderRadius,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: borderRadius,
-            child: Ink(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [
-                          const Color(0xFF213231).withValues(alpha: 0.96),
-                          const Color(0xFF19282A).withValues(alpha: 0.94),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.92),
-                          const Color(0xFFF0FBF7).withValues(alpha: 0.84),
-                        ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: borderRadius,
+              child: Ink(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
                 ),
-                borderRadius: borderRadius,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.66),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF213231).withValues(alpha: 0.92)
+                      : Colors.white.withValues(alpha: 0.68),
+                  borderRadius: borderRadius,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
+                  ),
                 ),
+                child: child,
               ),
-              child: child,
             ),
           ),
         ),

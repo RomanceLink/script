@@ -282,41 +282,26 @@ class _HeaderCardState extends State<_HeaderCard> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: theme.brightness == Brightness.dark
-                  ? [
-                      const Color(0xFF17312F).withValues(alpha: 0.92),
-                      const Color(0xFF192538).withValues(alpha: 0.88),
-                      const Color(0xFF26304A).withValues(alpha: 0.78),
-                    ]
-                  : [
-                      Colors.white.withValues(alpha: 0.90),
-                      const Color(0xFFE6FFF6).withValues(alpha: 0.82),
-                      const Color(0xFFEAF1FF).withValues(alpha: 0.78),
-                    ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFF172725).withValues(alpha: 0.94)
+                : Colors.white.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: Colors.white.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.10 : 0.72,
-              ),
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : colors.primary.withValues(alpha: 0.20),
             ),
             boxShadow: [
               BoxShadow(
-                color: colors.primary.withValues(alpha: 0.16),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-              BoxShadow(
-                color: Colors.white.withValues(alpha: 0.26),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
+                color: colors.primary.withValues(
+                  alpha: theme.brightness == Brightness.dark ? 0.22 : 0.14,
+                ),
+                blurRadius: 30,
+                offset: const Offset(0, 16),
               ),
             ],
           ),
@@ -539,6 +524,13 @@ class _TaskDeckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final glassFill = isDark
+        ? const Color(0xFF172725).withValues(alpha: 0.94)
+        : Color.alphaBlend(
+            accent.withValues(alpha: 0.08),
+            Colors.white.withValues(alpha: 0.84),
+          );
     final primaryButtonFill = theme.brightness == Brightness.dark
         ? accent.withValues(alpha: 0.88)
         : Color.lerp(accent, Colors.white, 0.2)!;
@@ -557,30 +549,23 @@ class _TaskDeckCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accent.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.24 : 0.16,
-                ),
-                (theme.cardTheme.color ?? theme.colorScheme.surface).withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.92 : 0.86,
-                ),
-                Colors.white.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.04 : 0.34,
-                ),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: glassFill,
             border: Border.all(
-              color: Colors.white.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.10 : 0.62,
-              ),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : accent.withValues(alpha: 0.24),
             ),
             borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
@@ -1167,30 +1152,30 @@ class _SettingsSectionCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accent.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.18 : 0.14,
-                ),
-                (theme.cardTheme.color ?? theme.colorScheme.surface).withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.90 : 0.86,
-                ),
-                Colors.white.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.04 : 0.34,
-                ),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFF172725).withValues(alpha: 0.94)
+                : Color.alphaBlend(
+                    accent.withValues(alpha: 0.07),
+                    Colors.white.withValues(alpha: 0.84),
+                  ),
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: Colors.white.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.08 : 0.58,
-              ),
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : accent.withValues(alpha: 0.24),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(
+                  alpha: theme.brightness == Brightness.dark ? 0.18 : 0.10,
+                ),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -1447,22 +1432,12 @@ class _ActionSheetTile extends StatelessWidget {
                   vertical: 13,
                 ),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [
-                            const Color(0xFF223231).withValues(alpha: 0.96),
-                            const Color(0xFF1B282B).withValues(alpha: 0.96),
-                          ]
-                        : [
-                            Colors.white.withValues(alpha: 0.94),
-                            const Color(0xFFF0FBF7).withValues(alpha: 0.88),
-                          ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: isDark
+                      ? const Color(0xFF223231).withValues(alpha: 0.92)
+                      : Colors.white.withValues(alpha: 0.68),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.70),
+                    color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.74),
                   ),
                 ),
                 child: Row(
