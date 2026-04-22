@@ -197,13 +197,12 @@ class _CompactSelectionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF183030).withValues(alpha: 0.92)
-              : Colors.white.withValues(alpha: 0.66),
+          color: _automationLiquidGlassFill(theme, theme.colorScheme.primary),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: Colors.white.withValues(
-              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.64,
+            color: _automationLiquidGlassBorder(
+              theme,
+              theme.colorScheme.primary,
             ),
           ),
         ),
@@ -263,15 +262,18 @@ class _ModernActionTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF17302F).withValues(alpha: 0.92)
-              : Colors.white.withValues(alpha: 0.66),
+          color: _automationLiquidGlassFill(theme, color),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withValues(
-              alpha: theme.brightness == Brightness.dark ? 0.10 : 0.62,
+          border: Border.all(color: _automationLiquidGlassBorder(theme, color)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.14 : 0.08,
+              ),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
-          ),
+          ],
         ),
         child: ListTile(
           dense: true,
@@ -656,11 +658,13 @@ class _InlineActionPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tint = theme.colorScheme.primary;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: _automationLiquidGlassFill(theme, tint),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _automationLiquidGlassBorder(theme, tint)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,9 +748,11 @@ class _ImageTemplatePreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: _automationLiquidGlassFill(theme, theme.colorScheme.primary),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        border: Border.all(
+          color: _automationLiquidGlassBorder(theme, theme.colorScheme.primary),
+        ),
       ),
       child: Row(
         children: [

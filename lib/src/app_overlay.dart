@@ -468,14 +468,23 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                         padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: theme.brightness == Brightness.dark
-                                ? const Color(0xFF1E2628)
-                                : const Color(0xFFF1F6F4),
+                            color: _liquidGlassFill(
+                              theme,
+                              theme.colorScheme.primary,
+                              strength: 0.92,
+                            ),
                             borderRadius: BorderRadius.circular(32),
                             border: Border.all(
-                              color: theme.colorScheme.outlineVariant
-                                  .withValues(alpha: 0.8),
+                              color: _liquidGlassBorder(
+                                theme,
+                                theme.colorScheme.primary,
+                              ),
                               width: 2.0,
+                            ),
+                            boxShadow: _liquidGlassShadow(
+                              theme,
+                              theme.colorScheme.primary,
+                              strength: 0.65,
                             ),
                           ),
                           child: Padding(
@@ -518,10 +527,19 @@ class _GestureRunChooserPageState extends State<_GestureRunChooserPage> {
                                 Container(
                                   padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.surface.withValues(
-                                      alpha: 0.8,
+                                    color: _liquidGlassFill(
+                                      theme,
+                                      theme.colorScheme.primary,
+                                      strength: 0.45,
                                     ),
                                     borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: _liquidGlassBorder(
+                                        theme,
+                                        theme.colorScheme.primary,
+                                        strength: 0.45,
+                                      ),
+                                    ),
                                   ),
                                   child: Column(
                                     children: [

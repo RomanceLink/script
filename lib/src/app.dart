@@ -112,10 +112,16 @@ ThemeData _scriptAssistantTheme(Brightness brightness) {
   );
   final glassSurface = isDark
       ? const Color(0xFF172625).withValues(alpha: 0.92)
-      : Colors.white.withValues(alpha: 0.82);
+      : Color.alphaBlend(
+          scheme.primary.withValues(alpha: 0.10),
+          Colors.white.withValues(alpha: 0.84),
+        );
   final glassBorder = isDark
       ? Colors.white.withValues(alpha: 0.14)
-      : Colors.white.withValues(alpha: 0.72);
+      : Color.alphaBlend(
+          Colors.white.withValues(alpha: 0.42),
+          scheme.primary.withValues(alpha: 0.32),
+        );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -1664,17 +1670,14 @@ class _EditorHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: theme.brightness == Brightness.dark
-              ? const [Color(0xFF1A2C2A), Color(0xFF1A2232)]
-              : const [Color(0xFFE7F7F1), Color(0xFFE8F0FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _liquidGlassFill(theme, accent, strength: 0.95),
         borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: _liquidGlassBorder(theme, accent)),
+        boxShadow: _liquidGlassShadow(theme, accent, strength: 0.7),
       ),
       child: Row(
         children: [
@@ -1683,8 +1686,8 @@ class _EditorHeroCard extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               color: theme.brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.72),
+                  ? accent.withValues(alpha: 0.22)
+                  : accent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(18),
             ),
             child: const Icon(Icons.tune_rounded),
@@ -1733,17 +1736,10 @@ class _EditorSectionCard extends StatelessWidget {
     return Card(
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accent.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.12 : 0.1,
-              ),
-              theme.cardTheme.color ?? theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: _liquidGlassFill(theme, accent, strength: 0.82),
           borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: _liquidGlassBorder(theme, accent)),
+          boxShadow: _liquidGlassShadow(theme, accent, strength: 0.55),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
