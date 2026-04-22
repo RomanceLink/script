@@ -510,6 +510,13 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _pickTaskScriptBinding(AssistantTaskDefinition task) async {
+    final latestConfigs = await _repository.loadGestureConfigs();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _gestureConfigs = latestConfigs;
+    });
     final result = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
