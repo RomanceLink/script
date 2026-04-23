@@ -323,13 +323,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         throw Exception('没有抓到可用内容');
       }
       final entries = mottos.map(DailyMottoEntry.fromLegacy).toList();
-      setState(() => _mottos = entries);
-      await widget.repository.saveDailyMottoEntries(entries);
-      if (_pinnedMottoId != null &&
-          !entries.any((item) => item.id == _pinnedMottoId)) {
-        _pinnedMottoId = null;
-        await widget.repository.savePinnedDailyMottoId(null);
-      }
+      final merged = _mergeMottoEntries(_mottos, entries);
+      setState(() => _mottos = merged);
+      await widget.repository.saveDailyMottoEntries(merged);
       await widget.repository.saveDailyMottoSourceUrl(_sourceUrl);
       await widget.repository.saveDailyMottoLastFetchDate(
         _dateKey(DateTime.now()),
@@ -346,6 +342,34 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         setState(() => _fetching = false);
       }
     }
+  }
+
+  List<DailyMottoEntry> _mergeMottoEntries(
+    List<DailyMottoEntry> existing,
+    List<DailyMottoEntry> incoming,
+  ) {
+    final merged = <DailyMottoEntry>[];
+    for (final item in [...existing, ...incoming]) {
+      final content = item.content.trim();
+      if (content.isEmpty) continue;
+      final existingIndex = merged.indexWhere(
+        (entry) => entry.content.trim() == content,
+      );
+      if (existingIndex == -1) {
+        merged.add(item);
+        continue;
+      }
+      final current = merged[existingIndex];
+      merged[existingIndex] = current.copyWith(
+        author: current.author?.trim().isNotEmpty == true
+            ? current.author
+            : item.author,
+        poemTitle: current.poemTitle?.trim().isNotEmpty == true
+            ? current.poemTitle
+            : item.poemTitle,
+      );
+    }
+    return merged;
   }
 
   Future<void> _openWebRecognizer() async {
