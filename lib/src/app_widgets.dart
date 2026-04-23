@@ -174,6 +174,86 @@ class _NeonPageBackground extends StatelessWidget {
   }
 }
 
+class _LoadingGlassBlock extends StatelessWidget {
+  const _LoadingGlassBlock({required this.height, this.radius = 24});
+
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _neonGlassFill(theme, alpha: 0.18),
+            Colors.white.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.06 : 0.22,
+            ),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: Colors.white.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.10 : 0.32,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeLoadingView extends StatelessWidget {
+  const _HomeLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _NeonPageBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+          children: const [
+            _LoadingGlassBlock(height: 72, radius: 28),
+            SizedBox(height: 16),
+            _LoadingGlassBlock(height: 220, radius: 32),
+            SizedBox(height: 16),
+            _LoadingGlassBlock(height: 116, radius: 28),
+            SizedBox(height: 12),
+            _LoadingGlassBlock(height: 116, radius: 28),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MottoLoadingView extends StatelessWidget {
+  const _MottoLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('每日箴言')),
+      body: _NeonPageBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: const [
+            _LoadingGlassBlock(height: 330, radius: 28),
+            SizedBox(height: 12),
+            _LoadingGlassBlock(height: 126, radius: 24),
+            SizedBox(height: 12),
+            _LoadingGlassBlock(height: 126, radius: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CenteredToastState extends State<_CenteredToast>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;

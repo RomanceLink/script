@@ -719,9 +719,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
           border: Border.all(
             color: Color.alphaBlend(
               Colors.white.withValues(alpha: isDark ? 0.12 : 0.26),
-              const Color(0xFF72DFFF).withValues(
-                alpha: isDark ? 0.42 : 0.34,
-              ),
+              const Color(0xFF72DFFF).withValues(alpha: isDark ? 0.42 : 0.34),
             ),
           ),
         ),
@@ -1559,10 +1557,12 @@ class _GestureEditPageState extends State<GestureEditPage> {
                                 size: 20,
                               ),
                               style: IconButton.styleFrom(
-                                backgroundColor: const Color(
-                                  0xFF7F8CFF,
-                                ).withValues(alpha: 0.1),
-                                foregroundColor: const Color(0xFF6170B8),
+                                backgroundColor: isDark
+                                    ? const Color(0xFF31397A)
+                                    : const Color(0xFFE7ECFF),
+                                foregroundColor: isDark
+                                    ? const Color(0xFFF3F5FF)
+                                    : const Color(0xFF4556A8),
                               ),
                             ),
                           ],
@@ -1576,10 +1576,15 @@ class _GestureEditPageState extends State<GestureEditPage> {
                           decoration: BoxDecoration(
                             color: isDark
                                 ? const Color(
-                                    0xFF163130,
-                                  ).withValues(alpha: 0.88)
+                                    0xFF2A2F63,
+                                  ).withValues(alpha: 0.92)
                                 : Colors.white.withValues(alpha: 0.92),
                             borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF5966B3)
+                                  : const Color(0xFFD6DEFF),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

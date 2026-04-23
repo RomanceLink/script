@@ -1280,7 +1280,7 @@ class _DashboardPageState extends State<DashboardPage>
     final theme = Theme.of(context);
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const _HomeLoadingView();
     }
     if (_error != null) {
       return Scaffold(
@@ -1958,11 +1958,11 @@ class _TaskKindSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? (theme.brightness == Brightness.dark
-                                  ? accent.withValues(alpha: 0.15)
-                                  : accent.withValues(alpha: 0.1))
+                                  ? accent.withValues(alpha: 0.16)
+                                  : accent.withValues(alpha: 0.12))
                             : (theme.brightness == Brightness.dark
-                                  ? const Color(0xFF172425)
-                                  : const Color(0xFFF4F8F6)),
+                                  ? const Color(0xFF252B61)
+                                  : const Color(0xFFF1F4FF)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
@@ -2098,15 +2098,15 @@ class _IntervalUnitSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: selected
                             ? (theme.brightness == Brightness.dark
-                                  ? const Color(0xFF1F3D39)
-                                  : const Color(0xFFDDF5EC))
+                                  ? const Color(0xFF31397A)
+                                  : const Color(0xFFE5EBFF))
                             : (theme.brightness == Brightness.dark
-                                  ? const Color(0xFF172425)
-                                  : const Color(0xFFF4F8F6)),
+                                  ? const Color(0xFF252B61)
+                                  : const Color(0xFFF1F4FF)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: selected
-                              ? const Color(0xFF83D8BD)
+                              ? const Color(0xFF8EA8FF)
                               : theme.colorScheme.outlineVariant.withValues(
                                   alpha: 0.45,
                                 ),
@@ -2123,7 +2123,7 @@ class _IntervalUnitSelector extends StatelessWidget {
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w900,
                                     color: selected
-                                        ? const Color(0xFF2F7D6B)
+                                        ? const Color(0xFF5B6EE1)
                                         : theme.colorScheme.onSurface,
                                   ),
                                 ),
@@ -2140,7 +2140,7 @@ class _IntervalUnitSelector extends StatelessWidget {
                           if (selected)
                             const Icon(
                               Icons.check_rounded,
-                              color: Color(0xFF2F7D6B),
+                              color: Color(0xFF5B6EE1),
                             ),
                         ],
                       ),

@@ -608,9 +608,31 @@ class _TemplateLibrarySettingsPageState
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
+            Container(
               margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _neonGlassFill(theme, alpha: 0.18),
+                    const Color(0xFF72DFFF).withValues(alpha: 0.10),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: _neonGlassLine(const Color(0xFF72DFFF), alpha: 0.42),
+                ),
+                boxShadow: _neonGlassGlow(
+                  const Color(0xFF72DFFF),
+                  strength: 0.34,
+                ),
+              ),
               child: ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                contentPadding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
                 title: const Text('将当前全部任务保存为模板'),
                 subtitle: const Text('保存当前整套任务配置，供以后整组套用。'),
                 trailing: FilledButton.tonal(
@@ -625,8 +647,26 @@ class _TemplateLibrarySettingsPageState
               ),
             ),
             ..._draft.templateGroups.map((group) {
-              return Card(
+              return Container(
                 margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _neonGlassFill(theme, alpha: 0.18),
+                      const Color(0xFFD69AF1).withValues(alpha: 0.10),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: _neonGlassLine(const Color(0xFFD69AF1), alpha: 0.38),
+                  ),
+                  boxShadow: _neonGlassGlow(
+                    const Color(0xFFD69AF1),
+                    strength: 0.34,
+                  ),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(

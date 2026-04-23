@@ -338,7 +338,7 @@ class AutoSwipeService : AccessibilityService() {
                 if (isDeviceLocked(context)) {
                     updateConfig(0, 0, unlockActions, "验证锁屏解锁", 1, 0)
                 } else {
-                    service.performLockScreenAction {
+                    service.performLockScreenAction(runToken = Long.MIN_VALUE) {
                         service.handler.postDelayed({
                             updateConfig(0, 0, unlockActions, "验证锁屏解锁", 1, 0)
                         }, 1500)
@@ -5119,6 +5119,18 @@ class AutoSwipeService : AccessibilityService() {
     private fun launchReminderTask(intent: Intent) {
         val taskId = intent.getStringExtra("taskId").orEmpty()
         val targetAppPackage = intent.getStringExtra("targetAppPackage")
+        val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
+        val preConfigName = intent.getStringExtra("preGestureConfigName")
+        val configName = intent.getStringExtra("gestureConfigName")
+        val preActions = parseActionsJson(intent.getStringExtra("preGestureActionsJson"))
+        val actions = parseActionsJson(intent.getStringExtra("gestureActionsJson"))
+        val preLoopCount = intent.getIntExtra("preGestureLoopCount", 1).coerceAtLeast(1)
+        val preLoopIntervalMillis =
+            intent.getIntExtra("preGestureLoopIntervalMillis", 0).coerceAtLeast(0)
+        val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
+        val loopIntervalMillis =
+            intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
+        val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
         val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
         val notificationId = intent.getIntExtra("notificationId", 0)
         if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
@@ -5132,6 +5144,26 @@ class AutoSwipeService : AccessibilityService() {
             AlarmLaunchStore.setPendingTaskId(this, taskId)
             if (!targetAppPackage.isNullOrBlank()) {
                 AlarmLaunchStore.setPendingOpenTaskId(this, taskId)
+            }
+        }
+        if (!targetAppPackage.isNullOrBlank()) {
+            val opened = openAppAndRunConfig(
+                context = this,
+                packageName = targetAppPackage,
+                packageLabel = targetAppLabel,
+                preConfigName = preConfigName,
+                preActions = preActions,
+                preLoopCount = preLoopCount,
+                preLoopIntervalMillis = preLoopIntervalMillis,
+                configName = configName,
+                actions = actions,
+                loopCount = loopCount,
+                loopIntervalMillis = loopIntervalMillis,
+                delaySeconds = autoOpenDelaySeconds,
+            )
+            if (opened) {
+                dismissReminder(notificationId)
+                return
             }
         }
         val launchIntent = Intent(this, MainActivity::class.java).apply {
