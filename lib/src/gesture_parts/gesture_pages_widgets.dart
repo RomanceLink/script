@@ -177,6 +177,38 @@ class _ModernSectionCard extends StatelessWidget {
   }
 }
 
+class _CompactTimeBadge extends StatelessWidget {
+  const _CompactTimeBadge({required this.isDark, required this.label});
+  final bool isDark;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, size: 12, color: isDark ? Colors.white70 : Colors.black54),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CompactSelectionTile extends StatelessWidget {
   const _CompactSelectionTile({
     required this.label,

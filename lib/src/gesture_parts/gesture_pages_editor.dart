@@ -1573,82 +1573,55 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    _nameController.text.trim().isEmpty
-                                        ? '未命名方案'
-                                        : _nameController.text.trim(),
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _nameController.text.trim().isEmpty
+                                              ? '未命名方案'
+                                              : _nameController.text.trim(),
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(fontWeight: FontWeight.w900, fontSize: 16),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _CompactTimeBadge(
+                                        isDark: isDark,
+                                        label: _infiniteLoop
+                                            ? '持续执行'
+                                            : estimateGestureConfigDuration(previewConfig).label,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 2),
                                   Text(
                                     _infiniteLoop
                                         ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
                                         : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                      fontSize: 11,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            IconButton.filledTonal(
+                            const SizedBox(width: 8),
+                            IconButton(
                               onPressed: _editName,
-                              icon: const Icon(
-                                Icons.settings_suggest_rounded,
-                                size: 20,
-                              ),
+                              icon: const Icon(Icons.edit_note_rounded, size: 22),
                               style: IconButton.styleFrom(
                                 backgroundColor: isDark
-                                    ? const Color(0xFF31397A)
-                                    : const Color(0xFFE7ECFF),
-                                foregroundColor: isDark
-                                    ? const Color(0xFFF3F5FF)
-                                    : const Color(0xFF4556A8),
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.04),
+                                visualDensity: VisualDensity.compact,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(
-                                    0xFF2A2F63,
-                                  ).withValues(alpha: 0.92)
-                                : Colors.white.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF5966B3)
-                                  : const Color(0xFFD6DEFF),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.timer_outlined,
-                                size: 14,
-                                color: Color(0xFF6170B8),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _infiniteLoop
-                                    ? '预计耗时：持续执行'
-                                    : '预计耗时：${estimateGestureConfigDuration(previewConfig).label}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         _CompactSelectionTile(
                           label: '追加配置',
                           value:
