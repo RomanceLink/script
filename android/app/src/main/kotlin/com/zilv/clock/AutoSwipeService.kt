@@ -3913,7 +3913,7 @@ class AutoSwipeService : AccessibilityService() {
         unlockRecordFinalizing = false
         unlockMotionTrailSegments.clear()
         unlockMotionRecorder = MotionEventRecorder().apply { startRecording() }
-        unlockMotionStartedAt = SystemClock.uptimeMillis()
+        unlockMotionStartedAt = SystemClock.elapsedRealtime()
         ensureUnlockMotionTrailOverlay()
         ensureUnlockMotionCaptureOverlay()
         showUnlockMotionControl()
@@ -3928,7 +3928,16 @@ class AutoSwipeService : AccessibilityService() {
         unlockMotionCaptureOverlay = object : View(this) {
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 val recorder = unlockMotionRecorder ?: return true
-                val segment = recorder.onMotionEvent(event, screenSize())
+                val location = IntArray(2)
+                getLocationOnScreen(location)
+                val (screenWidth, screenHeight) = screenSize()
+                val segment = recorder.onMotionEvent(
+                    event = event,
+                    screenWidth = screenWidth,
+                    screenHeight = screenHeight,
+                    offsetX = location[0].toFloat(),
+                    offsetY = location[1].toFloat(),
+                )
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> detachUnlockMotionControl()
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -4004,13 +4013,18 @@ class AutoSwipeService : AccessibilityService() {
             background = roundedBackground(0xDD151A1E.toInt(), dp(18).toFloat(), 0x55FFFFFF)
         }
         val status = TextView(this).apply {
-            text = "录制 00:00"
+            text = "录制 00:00.0"
             textSize = 12f
             setTextColor(Color.WHITE)
             includeFontPadding = false
+            typeface = Typeface.MONOSPACE
+            minWidth = dp(92)
         }
         unlockMotionStatusView = status
-        root.addView(status, LinearLayout.LayoutParams(dp(78), dp(32)).apply {
+        root.addView(status, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            dp(32),
+        ).apply {
             marginEnd = dp(8)
         })
         root.addView(menuButton("结束", 0xFF4CAF50.toInt()) {
@@ -4108,8 +4122,12 @@ class AutoSwipeService : AccessibilityService() {
     private fun updateUnlockMotionStatus() {
         val started = unlockMotionStartedAt
         if (started == 0L) return
-        unlockMotionStatusView?.text =
-            "录制 ${formatElapsedTenths((SystemClock.uptimeMillis() - started).coerceAtLeast(0L))}"
+        unlockMotionStatusView?.let { statusView ->
+            statusView.text =
+                "录制 ${formatElapsedTenths((SystemClock.elapsedRealtime() - started).coerceAtLeast(0L))}"
+            statusView.requestLayout()
+            statusView.invalidate()
+        }
     }
 
     private fun stopUnlockMotionTicker() {
@@ -4144,18 +4162,23 @@ class AutoSwipeService : AccessibilityService() {
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
+                val location = IntArray(2)
+                getLocationOnScreen(location)
+                val (screenWidth, screenHeight) = screenSize()
+                val widthScale = screenWidth.coerceAtLeast(1).toFloat()
+                val heightScale = screenHeight.coerceAtLeast(1).toFloat()
                 unlockMotionTrailSegments.forEachIndexed { index, segment ->
                     if (segment.points.isEmpty()) return@forEachIndexed
                     val path = Path()
                     segment.points.forEachIndexed { pointIndex, item ->
-                        val x = item.x * width
-                        val y = item.y * height
+                        val x = item.x * widthScale - location[0]
+                        val y = item.y * heightScale - location[1]
                         if (pointIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
                     }
                     canvas.drawPath(path, stroke)
                     val first = segment.points.first()
-                    val cx = first.x * width
-                    val cy = first.y * height
+                    val cx = first.x * widthScale - location[0]
+                    val cy = first.y * heightScale - location[1]
                     val radius = 10f * resources.displayMetrics.density
                     canvas.drawCircle(cx, cy, radius, fill)
                     val baseline = cy - (number.descent() + number.ascent()) / 2
@@ -5461,7 +5484,13 @@ class AutoSwipeService : AccessibilityService() {
     override fun onMotionEvent(event: MotionEvent) {
         if (unlockMotionCaptureOverlay != null) return
         val recorder = unlockMotionRecorder ?: return
-        val finishedSegment = recorder.onMotionEvent(event, screenSize())
+        val (screenWidth, screenHeight) = screenSize()
+        val finishedSegment = recorder.onMotionEvent(
+            event = event,
+            screenWidth = screenWidth,
+            screenHeight = screenHeight,
+            useRawCoordinates = true,
+        )
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> detachUnlockMotionControl()
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handler.postDelayed({
@@ -5546,34 +5575,47 @@ class AutoSwipeService : AccessibilityService() {
             startedAt = SystemClock.uptimeMillis()
         }
 
-        fun onMotionEvent(event: MotionEvent, screenSize: Pair<Int, Int>): RecordedSegment? {
+        fun onMotionEvent(
+            event: MotionEvent,
+            screenWidth: Int,
+            screenHeight: Int,
+            offsetX: Float = 0f,
+            offsetY: Float = 0f,
+            useRawCoordinates: Boolean = false,
+        ): RecordedSegment? {
             if (!recording) return null
-            val width = screenSize.first.coerceAtLeast(1).toFloat()
-            val height = screenSize.second.coerceAtLeast(1).toFloat()
+            val width = screenWidth.coerceAtLeast(1).toFloat()
+            val height = screenHeight.coerceAtLeast(1).toFloat()
+            fun currentX(): Float = if (useRawCoordinates) event.rawX else event.x + offsetX
+            fun currentY(): Float = if (useRawCoordinates) event.rawY else event.y + offsetY
+            fun historicalX(index: Int): Float =
+                if (useRawCoordinates) event.getHistoricalX(index) else event.getHistoricalX(index) + offsetX
+            fun historicalY(index: Int): Float =
+                if (useRawCoordinates) event.getHistoricalY(index) else event.getHistoricalY(index) + offsetY
             return when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     val start = (event.eventTime - startedAt).coerceAtLeast(0L)
                     currentSegment = RecordedSegment(start = start).also {
                         segments.add(it)
                     }
-                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    appendPoint(currentX(), currentY(), event.eventTime, width, height)
                     null
                 }
                 MotionEvent.ACTION_MOVE -> {
                     for (index in 0 until event.historySize) {
                         appendPoint(
-                            event.getHistoricalX(index),
-                            event.getHistoricalY(index),
+                            historicalX(index),
+                            historicalY(index),
                             event.getHistoricalEventTime(index),
                             width,
                             height,
                         )
                     }
-                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    appendPoint(currentX(), currentY(), event.eventTime, width, height)
                     null
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    appendPoint(event.rawX, event.rawY, event.eventTime, width, height)
+                    appendPoint(currentX(), currentY(), event.eventTime, width, height)
                     finishCurrentSegment(event.eventTime)
                 }
                 else -> null
