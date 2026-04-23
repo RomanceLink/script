@@ -61,7 +61,9 @@ class _TaskManagementSettingsPageState
     final edited = await showModalBottomSheet<AssistantTaskDefinition>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      useSafeArea: true,
+      showDragHandle: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) =>
           TaskEditorSheet(task: task, repository: widget.repository),
     );
@@ -830,7 +832,9 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
     final edited = await showModalBottomSheet<AssistantTaskDefinition>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      useSafeArea: true,
+      showDragHandle: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) =>
           TaskEditorSheet(task: task, repository: widget.repository),
     );

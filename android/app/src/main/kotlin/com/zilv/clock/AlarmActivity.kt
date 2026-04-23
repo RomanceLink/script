@@ -141,7 +141,8 @@ class AlarmActivity : ComponentActivity() {
         val actions = AutoSwipeService.parseActionsJson(actionsJson)
         if (!targetAppPackage.isNullOrBlank()) {
             AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
-            AlarmLaunchStore.setPendingOpenTaskId(this@AlarmActivity, taskId)
+            // Clear stale pending-open marker from previous reminders.
+            AlarmLaunchStore.consumePendingOpenTaskId(this@AlarmActivity)
             val opened = AutoSwipeService.openAppAndRunConfig(
                 context = this@AlarmActivity,
                 packageName = targetAppPackage,
@@ -157,6 +158,7 @@ class AlarmActivity : ComponentActivity() {
                 delaySeconds = 5,
             )
             if (!opened) {
+                AlarmLaunchStore.setPendingOpenTaskId(this@AlarmActivity, taskId)
                 val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     putExtra("taskId", taskId)

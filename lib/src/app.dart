@@ -718,7 +718,9 @@ class _DashboardPageState extends State<DashboardPage>
     final edited = await showModalBottomSheet<AssistantTaskDefinition>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      useSafeArea: true,
+      showDragHandle: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) =>
           TaskEditorSheet(task: task, repository: _repository),
     );
@@ -1387,10 +1389,11 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFF8EF0FF)
                                 : const Color(0xFF4B63D9),
-                            background: (theme.brightness == Brightness.dark
-                                    ? const Color(0xFF8EF0FF)
-                                    : const Color(0xFF4B63D9))
-                                .withValues(alpha: 0.16),
+                            background:
+                                (theme.brightness == Brightness.dark
+                                        ? const Color(0xFF8EF0FF)
+                                        : const Color(0xFF4B63D9))
+                                    .withValues(alpha: 0.16),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1428,10 +1431,11 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFFFFC98A)
                                 : const Color(0xFFB97738),
-                            background: (theme.brightness == Brightness.dark
-                                    ? const Color(0xFFFFC98A)
-                                    : const Color(0xFFB97738))
-                                .withValues(alpha: 0.16),
+                            background:
+                                (theme.brightness == Brightness.dark
+                                        ? const Color(0xFFFFC98A)
+                                        : const Color(0xFFB97738))
+                                    .withValues(alpha: 0.16),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1440,10 +1444,11 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFFE2A6FF)
                                 : const Color(0xFF8A53D2),
-                            background: (theme.brightness == Brightness.dark
-                                    ? const Color(0xFFE2A6FF)
-                                    : const Color(0xFF8A53D2))
-                                .withValues(alpha: 0.16),
+                            background:
+                                (theme.brightness == Brightness.dark
+                                        ? const Color(0xFFE2A6FF)
+                                        : const Color(0xFF8A53D2))
+                                    .withValues(alpha: 0.16),
                           ),
                         ],
                       ),

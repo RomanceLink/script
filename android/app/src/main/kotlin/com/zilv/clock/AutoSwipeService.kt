@@ -5228,9 +5228,8 @@ class AutoSwipeService : AccessibilityService() {
         }
         if (taskId.isNotBlank()) {
             AlarmLaunchStore.setPendingTaskId(this, taskId)
-            if (!targetAppPackage.isNullOrBlank()) {
-                AlarmLaunchStore.setPendingOpenTaskId(this, taskId)
-            }
+            // Clear stale pending-open marker from previous reminders.
+            AlarmLaunchStore.consumePendingOpenTaskId(this)
         }
         if (!targetAppPackage.isNullOrBlank()) {
             val opened = openAppAndRunConfig(
@@ -5257,6 +5256,7 @@ class AutoSwipeService : AccessibilityService() {
             if (taskId.isNotBlank()) {
                 putExtra("taskId", taskId)
                 if (!targetAppPackage.isNullOrBlank()) {
+                    AlarmLaunchStore.setPendingOpenTaskId(this@AutoSwipeService, taskId)
                     putExtra("openTaskId", taskId)
                 }
             }

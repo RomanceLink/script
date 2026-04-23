@@ -207,28 +207,77 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     return selected;
   }
 
+  void _submitTask() {
+    final isCounter = _kind == AssistantTaskKind.adCooldown;
+    final isWindow = _kind == AssistantTaskKind.feedWindow;
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      setState(() => _showError = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写任务名称')));
+      return;
+    }
+    Navigator.of(context).pop(
+      AssistantTaskDefinition(
+        id: widget.task?.id ?? 'task_${DateTime.now().millisecondsSinceEpoch}',
+        kind: _kind,
+        title: title,
+        startHour: _start.hour,
+        startMinute: _start.minute,
+        endHour: isWindow ? _end?.hour ?? _start.hour : null,
+        endMinute: isWindow ? _end?.minute ?? _start.minute : null,
+        targetCount: isCounter ? int.tryParse(_targetController.text) ?? 1 : 0,
+        cooldownValue: isCounter
+            ? int.tryParse(_cooldownController.text) ?? 10
+            : 0,
+        intervalUnit: _intervalUnit,
+        ringtoneLabel: _ringtoneController.text.trim().isEmpty
+            ? '默认铃声'
+            : _ringtoneController.text.trim(),
+        ringtoneSource: _ringtoneSource,
+        ringtoneValue: _ringtoneFilePath,
+        showQuickLaunch: _showQuickLaunch,
+        preGestureConfigId: _preGestureConfigId,
+        gestureConfigId: _gestureConfigId,
+        infiniteLoop: _infiniteLoop,
+        autoOpenDelaySeconds:
+            int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
+        autoCompleteDelayValue:
+            int.tryParse(_autoCompleteDelayController.text.trim()) ?? 0,
+        autoCompleteDelayUnit: _autoCompleteDelayUnit,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isCounter = _kind == AssistantTaskKind.adCooldown;
     final isWindow = _kind == AssistantTaskKind.feedWindow;
     final theme = Theme.of(context);
-    final mintFill = theme.brightness == Brightness.dark
-        ? const Color(0xFF1F3D39)
-        : const Color(0xFFDDF5EC);
-    final mintText = theme.brightness == Brightness.dark
-        ? const Color(0xFF94DFC9)
-        : const Color(0xFF2F7D6B);
     return Scaffold(
       backgroundColor:
           theme.bottomSheetTheme.modalBackgroundColor ??
           theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: 68,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           tooltip: '返回',
         ),
         title: Text(widget.task == null ? '新建任务' : '编辑任务'),
+        actions: [
+          TextButton.icon(
+            onPressed: _submitTask,
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('保存'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -500,62 +549,6 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.tonal(
-              style: FilledButton.styleFrom(
-                backgroundColor: mintFill,
-                foregroundColor: mintText,
-                minimumSize: const Size.fromHeight(52),
-              ),
-              onPressed: () {
-                final title = _titleController.text.trim();
-                if (title.isEmpty) {
-                  setState(() => _showError = true);
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('请填写任务名称')));
-                  return;
-                }
-                Navigator.of(context).pop(
-                  AssistantTaskDefinition(
-                    id:
-                        widget.task?.id ??
-                        'task_${DateTime.now().millisecondsSinceEpoch}',
-                    kind: _kind,
-                    title: title,
-                    startHour: _start.hour,
-                    startMinute: _start.minute,
-                    endHour: isWindow ? _end?.hour ?? _start.hour : null,
-                    endMinute: isWindow ? _end?.minute ?? _start.minute : null,
-                    targetCount: isCounter
-                        ? int.tryParse(_targetController.text) ?? 1
-                        : 0,
-                    cooldownValue: isCounter
-                        ? int.tryParse(_cooldownController.text) ?? 10
-                        : 0,
-                    intervalUnit: _intervalUnit,
-                    ringtoneLabel: _ringtoneController.text.trim().isEmpty
-                        ? '默认铃声'
-                        : _ringtoneController.text.trim(),
-                    ringtoneSource: _ringtoneSource,
-                    ringtoneValue: _ringtoneFilePath,
-                    showQuickLaunch: _showQuickLaunch,
-                    preGestureConfigId: _preGestureConfigId,
-                    gestureConfigId: _gestureConfigId,
-                    infiniteLoop: _infiniteLoop,
-                    autoOpenDelaySeconds:
-                        int.tryParse(_autoOpenDelayController.text.trim()) ?? 0,
-                    autoCompleteDelayValue:
-                        int.tryParse(
-                          _autoCompleteDelayController.text.trim(),
-                        ) ??
-                        0,
-                    autoCompleteDelayUnit: _autoCompleteDelayUnit,
-                  ),
-                );
-              },
-              child: const Text('保存任务'),
             ),
           ],
         ),
