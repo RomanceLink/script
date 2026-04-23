@@ -3265,7 +3265,7 @@ class AutoSwipeService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
         }
         handler.postDelayed({
-            if (isRunSessionActive(runToken)) onDone()
+            if (runToken == Long.MIN_VALUE || isRunSessionActive(runToken)) onDone()
         }, 500)
     }
 
