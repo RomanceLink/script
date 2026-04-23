@@ -61,7 +61,7 @@ class _TaskManagementSettingsPageState
     final edited = await showModalBottomSheet<AssistantTaskDefinition>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
+      useSafeArea: false,
       showDragHandle: false,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) =>
@@ -832,7 +832,7 @@ class _TemplateTasksPageState extends State<TemplateTasksPage> {
     final edited = await showModalBottomSheet<AssistantTaskDefinition>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
+      useSafeArea: false,
       showDragHandle: false,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (context) =>
