@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Widget Colors -->
-    <color name="widget_text_primary">#172123</color>
-    <color name="widget_text_secondary">#4B5D86</color>
-    <color name="widget_text_summary">#2A3F77</color>
-    <color name="widget_task_status_done">#71817C</color>
-    <color name="widget_task_status_urgent">#B26A00</color>
-    <color name="widget_task_status_normal">#536965</color>
+    <!-- Widget Colors - 书卷气 -->
+    <color name="widget_text_primary">#2C2925</color> <!-- 待完成标题：深墨 -->
+    <color name="widget_text_secondary">#7A7369</color>
+    <color name="widget_text_summary">#5D5750</color>
+    
+    <color name="widget_task_text_done">#B0ACA4</color> <!-- 已完成标题：淡灰咖 -->
+    <color name="widget_task_status_done">#C2BEB6</color> <!-- 已完成状态：极淡 -->
+    <color name="widget_task_status_urgent">#A67C37</color> <!-- 紧急：琥珀 -->
+    <color name="widget_task_status_normal">#5E5851</color> <!-- 待完成状态：次深墨 -->
 
     <!-- Alarm Colors -->
     <color name="alarm_title">#1D1D1F</color>

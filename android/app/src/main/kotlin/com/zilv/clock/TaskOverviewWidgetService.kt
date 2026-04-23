@@ -3,6 +3,9 @@ package com.zilv.clock
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StrikethroughSpan
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 
@@ -38,15 +41,19 @@ private class TaskOverviewRemoteViewsFactory(
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
 
-        views.setTextViewText(
-            R.id.widget_task_item_title,
-            "${if (item.urgent) "!" else "-"} ${item.timeLabel}  ${item.title}",
-        )
+        val rawTitle = "${if (item.urgent) "!" else "-"} ${item.timeLabel}  ${item.title}"
+        if (item.done) {
+            val spannable = SpannableString(rawTitle)
+            spannable.setSpan(StrikethroughSpan(), 0, rawTitle.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            views.setTextViewText(R.id.widget_task_item_title, spannable)
+        } else {
+            views.setTextViewText(R.id.widget_task_item_title, rawTitle)
+        }
         views.setTextViewText(R.id.widget_task_item_status, item.status)
         views.setInt(
             R.id.widget_task_item_title,
             "setTextColor",
-            context.getColor(R.color.widget_text_primary)
+            context.getColor(if (item.done) R.color.widget_task_text_done else R.color.widget_text_primary)
         )
         views.setInt(
             R.id.widget_task_item_status,
