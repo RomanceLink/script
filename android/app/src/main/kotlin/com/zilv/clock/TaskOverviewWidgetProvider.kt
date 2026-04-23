@@ -83,10 +83,10 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
                 if (widgetData.tasks.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE,
             )
 
-            views.setInt(R.id.widget_summary, "setTextColor", if (isNight) 0xFFFFFFFF.toInt() else 0xFF2A3F77.toInt())
-            views.setInt(R.id.widget_motto, "setTextColor", if (isNight) 0xFFFFFFFF.toInt() else 0xFF172123.toInt())
-            views.setInt(R.id.widget_footer, "setTextColor", if (isNight) 0xFFF0F4FF.toInt() else 0xFF4B5D86.toInt())
-            views.setInt(R.id.widget_task_empty, "setTextColor", if (isNight) 0xFFF0F4FF.toInt() else 0xFF4B5D86.toInt())
+            // 强制刷新背景资源，以支持实时渲染切换
+            views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_task_overview_bg)
+            views.setInt(R.id.widget_motto_container, "setBackgroundResource", R.drawable.widget_motto_card_bg)
+            views.setInt(R.id.widget_task_list_frame, "setBackgroundResource", R.drawable.widget_task_list_bg)
 
             val serviceIntent = Intent(context, TaskOverviewWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

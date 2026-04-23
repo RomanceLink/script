@@ -1,8 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="alarm_title">#EAF8F3</color>
-    <color name="alarm_body">#BBD2CB</color>
-    <color name="alarm_hint_text">#9FE6D4</color>
-    <color name="alarm_primary_text">#052420</color>
-    <color name="alarm_secondary_text">#FFE0C4</color>
+    <!-- Widget Colors -->
+    <color name="widget_text_primary">#FFFFFF</color>
+    <color name="widget_text_secondary">#F0F4FF</color>
+    <color name="widget_text_summary">#FFFFFF</color>
+    <color name="widget_task_status_done">#DDE4FF</color>
+    <color name="widget_task_status_urgent">#FFE2A6</color>
+    <color name="widget_task_status_normal">#F0F4FF</color>
+
+    <!-- Alarm Colors -->
+    <color name="alarm_title">#FFFFFF</color>
+    <color name="alarm_body">#EBEBF5</color>
+    <color name="alarm_hint_text">#8E8E93</color>
+    <color name="alarm_primary_text">#FFFFFF</color>
+    <color name="alarm_secondary_text">#C5D0FF</color>
 </resources>

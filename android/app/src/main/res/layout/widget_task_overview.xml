@@ -17,6 +17,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
+            android:textColor="@color/widget_text_summary"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -37,6 +38,7 @@
                 android:fontFamily="serif"
                 android:lineSpacingExtra="2dp"
                 android:maxLines="2"
+                android:textColor="@color/widget_text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -66,6 +68,7 @@
                 android:layout_gravity="center"
                 android:gravity="center"
                 android:text="暂无任务"
+                android:textColor="@color/widget_text_secondary"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -78,6 +81,7 @@
             android:layout_marginTop="6dp"
             android:ellipsize="end"
             android:maxLines="1"
+            android:textColor="@color/widget_text_secondary"
             android:textSize="11sp" />
     </LinearLayout>
 </FrameLayout>

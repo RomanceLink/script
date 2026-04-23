@@ -46,19 +46,18 @@ private class TaskOverviewRemoteViewsFactory(
         views.setInt(
             R.id.widget_task_item_title,
             "setTextColor",
-            if (isNight) 0xFFFFFFFF.toInt() else 0xFF172123.toInt(),
+            context.getColor(R.color.widget_text_primary)
         )
         views.setInt(
             R.id.widget_task_item_status,
             "setTextColor",
-            when {
-                item.done && isNight -> 0xFFDDE4FF.toInt()
-                item.done -> 0xFF71817C.toInt()
-                item.urgent && isNight -> 0xFFFFE2A6.toInt()
-                item.urgent -> 0xFFB26A00.toInt()
-                isNight -> 0xFFF0F4FF.toInt()
-                else -> 0xFF536965.toInt()
-            },
+            context.getColor(
+                when {
+                    item.done -> R.color.widget_task_status_done
+                    item.urgent -> R.color.widget_task_status_urgent
+                    else -> R.color.widget_task_status_normal
+                }
+            )
         )
         views.setInt(
             R.id.widget_task_item_container,
