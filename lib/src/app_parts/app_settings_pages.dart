@@ -201,23 +201,64 @@ class _AppSelectionSettingsPageState extends State<_AppSelectionSettingsPage> {
 
   Future<void> _pickApp() async {
     setState(() => _loadingApps = true);
-    final apps = await widget.launcher.listLaunchableApps();
-    final recentPackages = await widget.launcher.loadRecentAppPackages();
-    if (!mounted) return;
-    setState(() => _loadingApps = false);
-    final selected = await _showLaunchableAppPickerSheet(
-      context: context,
-      apps: apps,
-      recentPackages: recentPackages,
-    );
-    if (selected == null || !mounted) return;
-    await widget.launcher.markAppAsRecent(selected.packageName);
-    setState(() {
-      _draft = _draft.copyWith(
-        selectedAppPackage: selected.packageName,
-        selectedAppLabel: selected.appName,
+    _showAppLoadingDialog();
+    try {
+      final apps = await widget.launcher.listLaunchableApps();
+      final recentPackages = await widget.launcher.loadRecentAppPackages();
+      if (!mounted) return;
+      setState(() => _loadingApps = false);
+      Navigator.of(context, rootNavigator: true).pop();
+      final selected = await _showLaunchableAppPickerSheet(
+        context: context,
+        apps: apps,
+        recentPackages: recentPackages,
       );
-    });
+      if (selected == null || !mounted) return;
+      await widget.launcher.markAppAsRecent(selected.packageName);
+      setState(() {
+        _draft = _draft.copyWith(
+          selectedAppPackage: selected.packageName,
+          selectedAppLabel: selected.appName,
+        );
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingApps = false);
+      Navigator.of(context, rootNavigator: true).pop();
+      VibrantHUD.show(context, '$error', type: ToastType.error);
+    }
+  }
+
+  void _showAppLoadingDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Dialog(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.6),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '正在加载应用...',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
