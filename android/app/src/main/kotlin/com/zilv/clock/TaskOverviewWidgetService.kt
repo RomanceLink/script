@@ -54,8 +54,8 @@ private class TaskOverviewRemoteViewsFactory(
             when {
                 item.done && isNight -> 0xFFAEB6D9.toInt()
                 item.done -> 0xFF71817C.toInt()
-                item.urgent && isNight -> 0xFFFFB8C0.toInt()
-                item.urgent -> 0xFFC84E5A.toInt()
+                item.urgent && isNight -> 0xFFFFD27A.toInt()
+                item.urgent -> 0xFFB26A00.toInt()
                 isNight -> 0xFFDDE3FF.toInt()
                 else -> 0xFF536965.toInt()
             },

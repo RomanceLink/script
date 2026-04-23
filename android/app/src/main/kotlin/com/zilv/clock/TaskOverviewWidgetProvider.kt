@@ -153,13 +153,7 @@ data class TaskOverviewWidgetData(
                 val content = normalizeText(selected?.optString("content"))
                 val author = normalizeText(selected?.optString("author"))
                 val poemTitle = normalizeText(selected?.optString("poemTitle"))
-                val attribution =
-                    when {
-                        author.isBlank() && poemTitle.isBlank() -> ""
-                        author.isBlank() -> "《$poemTitle》"
-                        poemTitle.isBlank() -> author
-                        else -> "$author《$poemTitle》"
-                    }
+                val attribution = if (author.isNotBlank() && poemTitle.isNotBlank()) "$author《$poemTitle》" else ""
                 formatMotto(content.ifBlank { "今日箴言未设置" }) to attribution
             } catch (_: Exception) {
                 "今日箴言未设置" to ""
@@ -178,7 +172,8 @@ data class TaskOverviewWidgetData(
                 val now = System.currentTimeMillis()
                 var total = 0
                 var done = 0
-                var nextReminderMillis: Long? = null
+                var nextFutureDelta: Long? = null
+                var nextNearestDistance: Long? = null
                 var nextReminderLabel: String? = null
                 val lines = mutableListOf<WidgetTaskLine>()
 
@@ -224,8 +219,17 @@ data class TaskOverviewWidgetData(
                     total += 1
                     if (doneFlag) done += 1
                     if (!doneFlag && reminderMillis != null) {
-                        if (nextReminderMillis == null || reminderMillis < nextReminderMillis) {
-                            nextReminderMillis = reminderMillis
+                        val delta = reminderMillis - now
+                        val distance = kotlin.math.abs(delta)
+                        if (delta >= 0) {
+                            if (nextFutureDelta == null || delta < nextFutureDelta) {
+                                nextFutureDelta = delta
+                                nextReminderLabel = "$timeLabel $title"
+                            }
+                        } else if (nextFutureDelta == null &&
+                            (nextNearestDistance == null || distance < nextNearestDistance)
+                        ) {
+                            nextNearestDistance = distance
                             nextReminderLabel = "$timeLabel $title"
                         }
                     }
