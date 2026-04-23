@@ -262,7 +262,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
           theme.bottomSheetTheme.modalBackgroundColor ??
           theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        toolbarHeight: 56 + topPadding + 50,
+        toolbarHeight: 56 + topPadding + 30,
         primary: false,
         automaticallyImplyLeading: false, // 彻底禁用默认返回
         flexibleSpace: Align(
@@ -291,7 +291,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                   ),
                   child: const Text('保存'),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 0),
               ],
             ),
           ),
