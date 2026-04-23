@@ -1287,45 +1287,57 @@ class _ToggleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fill = theme.brightness == Brightness.dark
-        ? (value ? const Color(0xFF1E3B35) : const Color(0xFF1A2526))
-        : (value ? const Color(0xFFE0F5EC) : const Color(0xFFF2F7F4));
-    final text = theme.brightness == Brightness.dark
-        ? (value ? const Color(0xFF96E1CC) : const Color(0xFFBCD1CA))
-        : (value ? const Color(0xFF2D7A67) : const Color(0xFF5E7F75));
+    final isDark = theme.brightness == Brightness.dark;
+    
+    // 采用更纯净、与卡片融合的配色
+    final fill = isDark
+        ? (value ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.06))
+        : (value ? theme.colorScheme.primary.withValues(alpha: 0.09) : const Color(0xFFF5F7FA));
+        
+    final textColor = isDark
+        ? (value ? Colors.white : Colors.white.withValues(alpha: 0.6))
+        : (value ? theme.colorScheme.primary : const Color(0xFF667085));
+        
+    final borderColor = isDark
+        ? (value ? Colors.white.withValues(alpha: 0.2) : Colors.transparent)
+        : (value ? theme.colorScheme.primary.withValues(alpha: 0.15) : Colors.transparent);
+        
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: value
-              ? const Color(0xFF86D7BF).withValues(alpha: 0.8)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Expanded(
             child: Text(
               label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: textColor,
+                fontSize: 11.5,
+                fontWeight: value ? FontWeight.w900 : FontWeight.w500,
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: const Color(0xFF83D8BD),
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: theme.brightness == Brightness.dark
-                ? const Color(0xFF384A46)
-                : const Color(0xFFD7E3DE),
-            trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+          Transform.scale(
+            scale: 0.65,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: Colors.white,
+              activeTrackColor: isDark ? Colors.white30 : theme.colorScheme.primary.withValues(alpha: 0.8),
+              inactiveThumbColor: isDark ? Colors.white24 : Colors.black12,
+              inactiveTrackColor: Colors.transparent,
+              trackOutlineColor: WidgetStatePropertyAll(
+                isDark ? Colors.white10 : (value ? theme.colorScheme.primary.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05)),
+              ),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
