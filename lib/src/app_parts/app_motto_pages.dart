@@ -31,6 +31,7 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   IntervalUnit _autoSwitchUnit = IntervalUnit.seconds;
   bool _selectingDelete = false;
   final Set<String> _selectedDeleteIds = <String>{};
+  final Set<String> _expandedMottoIds = <String>{};
   bool _loading = true;
   bool _fetching = false;
   bool _fetchingImage = false;
@@ -471,6 +472,10 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
     return '${sentences.take(2).join('\n')}...';
   }
 
+  bool _canExpandMotto(DailyMottoEntry value) {
+    return _mottoPreview(value.content) != value.content.trim();
+  }
+
   String _mottoSubtitle(DailyMottoEntry value) {
     final parts = <String>[];
     if (_pinnedMottoId == value.id) {
@@ -742,39 +747,93 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                     strength: 0.62,
                   ),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-                  onTap: _selectingDelete
-                      ? () => _toggleDeleteSelection(item)
-                      : null,
-                  leading: _selectingDelete
-                      ? Checkbox(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_selectingDelete) ...[
+                        Checkbox(
                           value: _selectedDeleteIds.contains(item.id),
                           onChanged: (_) => _toggleDeleteSelection(item),
-                        )
-                      : null,
-                  minLeadingWidth: _selectingDelete ? null : 0,
-                  title: Text(
-                    _mottoPreview(item.content),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  subtitle: _mottoSubtitle(item).isEmpty
-                      ? null
-                      : Text(
-                          _mottoSubtitle(item),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.72),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _selectingDelete
+                              ? () => _toggleDeleteSelection(item)
+                              : null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _expandedMottoIds.contains(item.id)
+                                    ? item.content.trim()
+                                    : _mottoPreview(item.content),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.35,
+                                ),
+                              ),
+                              if (_mottoSubtitle(item).isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  _mottoSubtitle(item),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.72),
+                                  ),
+                                ),
+                              ],
+                              if (_canExpandMotto(item) &&
+                                  !_selectingDelete) ...[
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      if (_expandedMottoIds.contains(item.id)) {
+                                        _expandedMottoIds.remove(item.id);
+                                      } else {
+                                        _expandedMottoIds.add(item.id);
+                                      }
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 0,
+                                      vertical: 0,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    foregroundColor: const Color(0xFFBFC8FF),
+                                  ),
+                                  icon: Icon(
+                                    _expandedMottoIds.contains(item.id)
+                                        ? Icons.expand_less_rounded
+                                        : Icons.expand_more_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    _expandedMottoIds.contains(item.id)
+                                        ? 'Collapse'
+                                        : 'Expand',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                  trailing: _selectingDelete
-                      ? null
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
+                      ),
+                      if (!_selectingDelete) ...[
+                        const SizedBox(width: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
                             _MiniIconButton(
                               onPressed: _pinnedMottoId == item.id
@@ -790,7 +849,6 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                                   ? Colors.white
                                   : null,
                             ),
-                            const SizedBox(height: 8),
                             _MiniIconButton(
                               onPressed: () =>
                                   _editItem(initialEntry: item, index: index),
@@ -806,7 +864,6 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                                   ? const Color(0xFFD9D9FF)
                                   : const Color(0xFF6C5DD3),
                             ),
-                            const SizedBox(height: 8),
                             _MiniIconButton(
                               onPressed: () => _deleteItem(index),
                               icon: Icons.delete_outline_rounded,
@@ -823,6 +880,9 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                             ),
                           ],
                         ),
+                      ],
+                    ],
+                  ),
                 ),
               );
             }),

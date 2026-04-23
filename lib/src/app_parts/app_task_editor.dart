@@ -218,33 +218,28 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     final mintText = theme.brightness == Brightness.dark
         ? const Color(0xFF94DFC9)
         : const Color(0xFF2F7D6B);
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          22,
-          12,
-          22,
-          MediaQuery.of(context).viewInsets.bottom + 28,
+    return Scaffold(
+      backgroundColor:
+          theme.bottomSheetTheme.modalBackgroundColor ??
+          theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          tooltip: '返回',
         ),
+        title: Text(widget.task == null ? '新建任务' : '编辑任务'),
+      ),
+      body: SafeArea(
+        top: false,
         child: ListView(
-          shrinkWrap: true,
+          padding: EdgeInsets.fromLTRB(
+            22,
+            18,
+            22,
+            MediaQuery.of(context).viewInsets.bottom + 28,
+          ),
           children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  tooltip: '返回',
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.task == null ? '新建任务' : '快捷编辑任务',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
             _EditorHeroCard(kindLabel: _kindLabel(_kind)),
             const SizedBox(height: 18),
             _EditorSectionCard(

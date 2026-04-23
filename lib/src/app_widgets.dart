@@ -1489,15 +1489,15 @@ class _SettingsNavCell extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         isDark
-                            ? const Color(0xFF2A2F63)
-                            : const Color(0xFFE7ECFF),
+                            ? const Color(0xFF2A2F63).withValues(alpha: 0.92)
+                            : const Color(0xFFF2F5FF).withValues(alpha: 0.88),
                         Color.alphaBlend(
                           iconBackground.withValues(
-                            alpha: isDark ? 0.16 : 0.22,
+                            alpha: isDark ? 0.22 : 0.32,
                           ),
                           isDark
                               ? const Color(0xFF232859)
-                              : const Color(0xFFDCE4FF),
+                              : const Color(0xFFE8EEFF),
                         ),
                       ],
                       begin: Alignment.topLeft,
@@ -1505,6 +1505,13 @@ class _SettingsNavCell extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(color: _neonGlassLine(iconTint)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: iconTint.withValues(alpha: isDark ? 0.14 : 0.10),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
