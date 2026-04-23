@@ -74,6 +74,7 @@ class AutoSwipeService : AccessibilityService() {
     private var flutterOverlayChannel: MethodChannel? = null
     private var pickerOverlay: View? = null
     private var reminderOverlay: View? = null
+    private var reminderAutoOpenRunnable: Runnable? = null
     private var startMenuButton: ImageView? = null
     private var pauseMenuButton: ImageView? = null
     private var endMenuButton: ImageView? = null
@@ -5094,6 +5095,8 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun removeReminderOverlay() {
+        reminderAutoOpenRunnable?.let(handler::removeCallbacks)
+        reminderAutoOpenRunnable = null
         val overlay = reminderOverlay ?: return
         reminderOverlay = null
         try {
@@ -5172,12 +5175,24 @@ class AutoSwipeService : AccessibilityService() {
         try {
             windowManager?.addView(root, params)
             reminderOverlay = root
+            if (autoOpenDelaySeconds > 0) {
+                reminderAutoOpenRunnable = Runnable {
+                    if (reminderOverlay === root) {
+                        launchReminderTask(intent)
+                    }
+                }.also {
+                    handler.postDelayed(it, autoOpenDelaySeconds * 1000L)
+                }
+            }
         } catch (_: Exception) {
             reminderOverlay = null
+            reminderAutoOpenRunnable = null
         }
     }
 
     private fun dismissReminder(notificationId: Int) {
+        reminderAutoOpenRunnable?.let(handler::removeCallbacks)
+        reminderAutoOpenRunnable = null
         removeReminderOverlay()
         if (notificationId != 0) {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -5186,6 +5201,8 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun launchReminderTask(intent: Intent) {
+        reminderAutoOpenRunnable?.let(handler::removeCallbacks)
+        reminderAutoOpenRunnable = null
         val taskId = intent.getStringExtra("taskId").orEmpty()
         val targetAppPackage = intent.getStringExtra("targetAppPackage")
         val targetAppLabel = intent.getStringExtra("targetAppLabel") ?: "目标应用"
