@@ -14,6 +14,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class TaskOverviewWidgetProvider : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == Intent.ACTION_CONFIGURATION_CHANGED) {
+            refreshAll(context)
+        }
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -76,10 +83,10 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
                 if (widgetData.tasks.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE,
             )
 
-            views.setInt(R.id.widget_summary, "setTextColor", if (isNight) 0xFFDDE3FF.toInt() else 0xFF48605E.toInt())
+            views.setInt(R.id.widget_summary, "setTextColor", if (isNight) 0xFFFFFFFF.toInt() else 0xFF2A3F77.toInt())
             views.setInt(R.id.widget_motto, "setTextColor", if (isNight) 0xFFFFFFFF.toInt() else 0xFF172123.toInt())
-            views.setInt(R.id.widget_footer, "setTextColor", if (isNight) 0xFFC8CFFF.toInt() else 0xFF61736F.toInt())
-            views.setInt(R.id.widget_task_empty, "setTextColor", if (isNight) 0xFFC8CFFF.toInt() else 0xFF61736F.toInt())
+            views.setInt(R.id.widget_footer, "setTextColor", if (isNight) 0xFFF0F4FF.toInt() else 0xFF4B5D86.toInt())
+            views.setInt(R.id.widget_task_empty, "setTextColor", if (isNight) 0xFFF0F4FF.toInt() else 0xFF4B5D86.toInt())
 
             val serviceIntent = Intent(context, TaskOverviewWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

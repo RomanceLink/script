@@ -52,11 +52,11 @@ private class TaskOverviewRemoteViewsFactory(
             R.id.widget_task_item_status,
             "setTextColor",
             when {
-                item.done && isNight -> 0xFFAEB6D9.toInt()
+                item.done && isNight -> 0xFFDDE4FF.toInt()
                 item.done -> 0xFF71817C.toInt()
-                item.urgent && isNight -> 0xFFFFD27A.toInt()
+                item.urgent && isNight -> 0xFFFFE2A6.toInt()
                 item.urgent -> 0xFFB26A00.toInt()
-                isNight -> 0xFFDDE3FF.toInt()
+                isNight -> 0xFFF0F4FF.toInt()
                 else -> 0xFF536965.toInt()
             },
         )
