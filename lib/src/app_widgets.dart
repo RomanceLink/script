@@ -60,6 +60,20 @@ Color _neonGlassFill(ThemeData theme, {double alpha = 0.22}) {
       : const Color(0xFFE9EEFF);
 }
 
+Color _taskMetaPanelFill(ThemeData theme, Color accent) {
+  final isDark = theme.brightness == Brightness.dark;
+  final base = _neonGlassFill(theme);
+  return Color.alphaBlend(accent.withValues(alpha: isDark ? 0.08 : 0.10), base);
+}
+
+Color _taskMetaPanelBorder(ThemeData theme, Color accent) {
+  final isDark = theme.brightness == Brightness.dark;
+  return Color.alphaBlend(
+    Colors.white.withValues(alpha: isDark ? 0.10 : 0.32),
+    accent.withValues(alpha: isDark ? 0.18 : 0.22),
+  );
+}
+
 Color _neonGlassLine(Color accent, {double alpha = 0.7}) {
   return Color.alphaBlend(
     Colors.white.withValues(alpha: 0.24),
@@ -1093,11 +1107,9 @@ class _InfoPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: _liquidGlassFill(theme, accent, strength: 0.55),
+        color: _taskMetaPanelFill(theme, accent),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _liquidGlassBorder(theme, accent, strength: 0.5),
-        ),
+        border: Border.all(color: _taskMetaPanelBorder(theme, accent)),
       ),
       child: Row(
         children: [
@@ -1153,11 +1165,9 @@ class _DetailPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: _liquidGlassFill(theme, accent, strength: 0.55),
+        color: _taskMetaPanelFill(theme, accent),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _liquidGlassBorder(theme, accent, strength: 0.5),
-        ),
+        border: Border.all(color: _taskMetaPanelBorder(theme, accent)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

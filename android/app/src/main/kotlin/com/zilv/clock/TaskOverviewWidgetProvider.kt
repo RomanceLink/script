@@ -3,10 +3,15 @@ package com.zilv.clock
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Bundle
 import android.widget.RemoteViews
+import java.io.File
 import java.util.Calendar
 import org.json.JSONArray
 import org.json.JSONObject
@@ -18,8 +23,28 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         appWidgetIds.forEach { appWidgetId ->
-            appWidgetManager.updateAppWidget(appWidgetId, buildRemoteViews(context))
+            appWidgetManager.updateAppWidget(
+                appWidgetId,
+                buildRemoteViews(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    options = appWidgetManager.getAppWidgetOptions(appWidgetId),
+                ),
+            )
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        appWidgetManager.updateAppWidget(
+            appWidgetId,
+            buildRemoteViews(context, appWidgetId, newOptions),
+        )
+        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_task_list)
     }
 
     companion object {
@@ -30,14 +55,33 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
             )
             if (ids.isEmpty()) return
             ids.forEach { id ->
-                manager.updateAppWidget(id, buildRemoteViews(context))
+                manager.updateAppWidget(
+                    id,
+                    buildRemoteViews(
+                        context = context,
+                        appWidgetId = id,
+                        options = manager.getAppWidgetOptions(id),
+                    ),
+                )
+                manager.notifyAppWidgetViewDataChanged(id, R.id.widget_task_list)
             }
         }
 
-        private fun buildRemoteViews(context: Context): RemoteViews {
+        private fun buildRemoteViews(
+            context: Context,
+            appWidgetId: Int,
+            options: Bundle?,
+        ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_task_overview)
-            val data = TaskOverviewWidgetData.load(context)
-            views.setTextViewText(R.id.widget_summary, "总共 ${data.totalCount} 项 · 待完成 ${data.pendingCount} 项 · 已完成 ${data.completedCount} 项")
+            val profile = WidgetProfile.fromOptions(options)
+            val data = TaskOverviewWidgetData.load(context, profile)
+            val isNight =
+                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+            views.setTextViewText(
+                R.id.widget_summary,
+                "总共 ${data.totalCount} 项 · 待完成 ${data.pendingCount} 项 · 已完成 ${data.completedCount} 项",
+            )
             views.setTextViewText(R.id.widget_motto, data.motto)
             views.setTextViewText(
                 R.id.widget_footer,
@@ -46,10 +90,44 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
                     data.attribution.takeIf { it.isNotBlank() },
                 ).joinToString(" · ").ifBlank { "轻触打开查看全部任务" },
             )
-            bindTaskLine(views, R.id.widget_task_1, data.tasks.getOrNull(0))
-            bindTaskLine(views, R.id.widget_task_2, data.tasks.getOrNull(1))
-            bindTaskLine(views, R.id.widget_task_3, data.tasks.getOrNull(2))
-            bindTaskLine(views, R.id.widget_task_4, data.tasks.getOrNull(3))
+
+            views.setViewVisibility(
+                R.id.widget_summary,
+                if (profile.showSummary) android.view.View.VISIBLE else android.view.View.GONE,
+            )
+            views.setViewVisibility(
+                R.id.widget_footer,
+                if (profile.showFooter) android.view.View.VISIBLE else android.view.View.GONE,
+            )
+            views.setInt(R.id.widget_motto, "setMaxLines", profile.mottoMaxLines)
+            views.setInt(R.id.widget_summary, "setTextColor", if (isNight) 0xFFC8D1FF.toInt() else 0xFF5A6B6A.toInt())
+            views.setInt(R.id.widget_motto, "setTextColor", if (isNight) 0xFFFFFFFF.toInt() else 0xFF1E2528.toInt())
+            views.setInt(R.id.widget_footer, "setTextColor", if (isNight) 0xFFA9B4E8.toInt() else 0xFF607372.toInt())
+            views.setInt(R.id.widget_task_empty, "setTextColor", if (isNight) 0xFFC8D1FF.toInt() else 0xFF5A6B6A.toInt())
+
+            val taskIntent = Intent(context, TaskOverviewWidgetService::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                this.data = android.net.Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+            }
+            views.setRemoteAdapter(R.id.widget_task_list, taskIntent)
+            views.setViewVisibility(
+                R.id.widget_task_list,
+                if (data.tasks.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE,
+            )
+            views.setViewVisibility(
+                R.id.widget_task_empty,
+                if (data.tasks.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE,
+            )
+
+            val backgroundBitmap = decodeWidgetBackground(data.imagePath, profile)
+            if (backgroundBitmap != null) {
+                views.setImageViewBitmap(R.id.widget_bg_image, backgroundBitmap)
+                views.setViewVisibility(R.id.widget_bg_image, android.view.View.VISIBLE)
+                views.setViewVisibility(R.id.widget_bg_scrim, android.view.View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_bg_image, android.view.View.GONE)
+                views.setViewVisibility(R.id.widget_bg_scrim, android.view.View.GONE)
+            }
 
             val launchIntent = Intent(context, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
@@ -59,43 +137,81 @@ class TaskOverviewWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+            views.setPendingIntentTemplate(R.id.widget_task_list, pendingIntent)
             return views
         }
 
-        private fun bindTaskLine(
-            views: RemoteViews,
-            viewId: Int,
-            taskLine: String?,
-        ) {
-            if (taskLine.isNullOrBlank()) {
-                views.setTextViewText(viewId, "")
-                views.setViewVisibility(viewId, android.view.View.GONE)
-            } else {
-                views.setTextViewText(viewId, taskLine)
-                views.setViewVisibility(viewId, android.view.View.VISIBLE)
+        private fun decodeWidgetBackground(path: String?, profile: WidgetProfile): Bitmap? {
+            if (path.isNullOrBlank()) return null
+            return try {
+                val file = File(path)
+                if (!file.exists()) return null
+                val raw = BitmapFactory.decodeFile(file.absolutePath) ?: return null
+                val maxEdge = when (profile) {
+                    WidgetProfile.COMPACT -> 512
+                    WidgetProfile.MEDIUM -> 768
+                    WidgetProfile.LARGE -> 1024
+                    WidgetProfile.XLARGE -> 1280
+                }
+                val scale = maxOf(raw.width, raw.height).toFloat() / maxEdge.toFloat()
+                if (scale <= 1f) raw else Bitmap.createScaledBitmap(
+                    raw,
+                    (raw.width / scale).toInt().coerceAtLeast(1),
+                    (raw.height / scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+            } catch (_: Exception) {
+                null
             }
         }
     }
 }
 
-private data class TaskOverviewWidgetData(
+enum class WidgetProfile(
+    val showSummary: Boolean,
+    val showFooter: Boolean,
+    val mottoMaxLines: Int,
+) {
+    COMPACT(showSummary = false, showFooter = false, mottoMaxLines = 2),
+    MEDIUM(showSummary = true, showFooter = false, mottoMaxLines = 3),
+    LARGE(showSummary = true, showFooter = true, mottoMaxLines = 4),
+    XLARGE(showSummary = true, showFooter = true, mottoMaxLines = 5),
+    ;
+
+    companion object {
+        fun fromOptions(options: Bundle?): WidgetProfile {
+            val minWidth = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
+            val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
+            return when {
+                minWidth >= 320 || minHeight >= 300 -> XLARGE
+                minWidth >= 250 || minHeight >= 220 -> LARGE
+                minWidth >= 180 || minHeight >= 160 -> MEDIUM
+                else -> COMPACT
+            }
+        }
+    }
+}
+
+data class TaskOverviewWidgetData(
     val motto: String,
     val attribution: String,
     val totalCount: Int,
     val completedCount: Int,
     val pendingCount: Int,
     val nextReminder: String?,
-    val tasks: List<String>,
+    val tasks: List<WidgetTaskLine>,
+    val imagePath: String?,
 ) {
     companion object {
-        fun load(context: Context): TaskOverviewWidgetData {
+        fun load(context: Context, profile: WidgetProfile): TaskOverviewWidgetData {
             val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             val mottoEntriesRaw = prefs.getString("flutter.daily_motto_entries_v1", null)
             val pinnedMottoId = prefs.getString("flutter.pinned_daily_motto_id_v1", null)
             val showMeta = prefs.getBoolean("flutter.show_daily_motto_meta_on_home_v1", true)
             val todayStateRaw = prefs.getString("flutter.daily_task_state_v1", null)
+            val imagePath = prefs.getString("flutter.daily_motto_image_path_v1", null)
 
-            val mottoEntry = parseMottoEntry(mottoEntriesRaw, pinnedMottoId)
+            val mottoEntry = parseMottoEntry(mottoEntriesRaw, pinnedMottoId, profile)
             val tasksState = parseTasks(todayStateRaw)
             return TaskOverviewWidgetData(
                 motto = mottoEntry.first.ifBlank { "今日箴言未设置" },
@@ -105,10 +221,15 @@ private data class TaskOverviewWidgetData(
                 pendingCount = (tasksState.totalCount - tasksState.completedCount).coerceAtLeast(0),
                 nextReminder = tasksState.nextReminder,
                 tasks = tasksState.lines,
+                imagePath = imagePath?.trim(),
             )
         }
 
-        private fun parseMottoEntry(raw: String?, pinnedId: String?): Pair<String, String> {
+        private fun parseMottoEntry(
+            raw: String?,
+            pinnedId: String?,
+            profile: WidgetProfile,
+        ): Pair<String, String> {
             if (raw.isNullOrBlank()) {
                 return "今日箴言未设置" to ""
             }
@@ -137,10 +258,41 @@ private data class TaskOverviewWidgetData(
                     poemTitle.isBlank() -> "-- $author"
                     else -> "-- $author《$poemTitle》"
                 }
-                content.ifBlank { "今日箴言未设置" } to attribution
+                formatMotto(content.ifBlank { "今日箴言未设置" }, profile) to attribution
             } catch (_: Exception) {
                 "今日箴言未设置" to ""
             }
+        }
+
+        private fun formatMotto(content: String, profile: WidgetProfile): String {
+            val target = when (profile) {
+                WidgetProfile.COMPACT -> 10
+                WidgetProfile.MEDIUM -> 14
+                WidgetProfile.LARGE -> 18
+                WidgetProfile.XLARGE -> 22
+            }
+            val parts = content
+                .split(Regex("(?<=[，。！？；：,.!?;:])"))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            if (parts.isEmpty()) return content
+            val lines = mutableListOf<String>()
+            val current = StringBuilder()
+            for (part in parts) {
+                if (current.isEmpty()) {
+                    current.append(part)
+                    continue
+                }
+                if (current.length + part.length > target) {
+                    lines.add(current.toString())
+                    current.clear()
+                    current.append(part)
+                } else {
+                    current.append(part)
+                }
+            }
+            if (current.isNotEmpty()) lines.add(current.toString())
+            return lines.joinToString("\n")
         }
 
         private fun parseTasks(raw: String?): ParsedTasks {
@@ -155,11 +307,12 @@ private data class TaskOverviewWidgetData(
                 val completed = stringSet(root.optJSONArray("completedTaskIds"))
                 val intervalCounts = root.optJSONObject("intervalCompletedCounts") ?: JSONObject()
 
-                val lines = mutableListOf<String>()
+                val lines = mutableListOf<WidgetTaskLine>()
                 var total = 0
                 var done = 0
                 var nextReminderMillis: Long? = null
                 var nextReminderLabel: String? = null
+                val nowMillis = System.currentTimeMillis()
 
                 for (index in 0 until tasks.length()) {
                     val task = tasks.optJSONObject(index) ?: continue
@@ -190,11 +343,24 @@ private data class TaskOverviewWidgetData(
                     } else {
                         if (doneFlag) "已完成" else "待完成"
                     }
-                    if (lines.size < 4) {
-                        lines.add("• $timeLabel  $title  ·  $status")
-                    }
 
                     val reminderMillis = millisForToday(task.optInt("startHour"), task.optInt("startMinute"))
+                    val sortDistance = when {
+                        reminderMillis == null -> Long.MAX_VALUE
+                        doneFlag -> Long.MAX_VALUE - reminderMillis
+                        else -> kotlin.math.abs(reminderMillis - nowMillis)
+                    }
+                    val urgent = !doneFlag && reminderMillis != null && kotlin.math.abs(reminderMillis - nowMillis) <= 60 * 60 * 1000
+                    lines.add(
+                        WidgetTaskLine(
+                            title = title.ifBlank { "未命名任务" },
+                            timeLabel = timeLabel,
+                            status = status,
+                            urgent = urgent,
+                            done = doneFlag,
+                            sortDistance = sortDistance,
+                        ),
+                    )
                     if (!doneFlag && reminderMillis != null) {
                         if (nextReminderMillis == null || reminderMillis < nextReminderMillis) {
                             nextReminderMillis = reminderMillis
@@ -202,7 +368,12 @@ private data class TaskOverviewWidgetData(
                         }
                     }
                 }
-                ParsedTasks(total, done, nextReminderLabel, lines)
+                val sorted = lines.sortedWith(
+                    compareBy<WidgetTaskLine> { it.done }
+                        .thenBy { it.sortDistance }
+                        .thenBy { it.timeLabel },
+                )
+                ParsedTasks(total, done, nextReminderLabel, sorted)
             } catch (_: Exception) {
                 ParsedTasks(0, 0, null, emptyList())
             }
@@ -232,9 +403,18 @@ private data class TaskOverviewWidgetData(
     }
 }
 
-private data class ParsedTasks(
+data class ParsedTasks(
     val totalCount: Int,
     val completedCount: Int,
     val nextReminder: String?,
-    val lines: List<String>,
+    val lines: List<WidgetTaskLine>,
+)
+
+data class WidgetTaskLine(
+    val title: String,
+    val timeLabel: String,
+    val status: String,
+    val urgent: Boolean,
+    val done: Boolean,
+    val sortDistance: Long,
 )
