@@ -3332,25 +3332,23 @@ class AutoSwipeService : AccessibilityService() {
         val (screenWidth, screenHeight) = screenSize()
         val width = screenWidth.coerceAtLeast(1).toFloat()
         val height = screenHeight.coerceAtLeast(1).toFloat()
-        val recordedWidth = ((action["screenWidth"] as? Number)?.toFloat() ?: width).coerceAtLeast(1f)
-        val recordedHeight = ((action["screenHeight"] as? Number)?.toFloat() ?: height).coerceAtLeast(1f)
         val actionType = action["type"] as? String ?: "swipe"
 
         val gestureBuilder = GestureDescription.Builder()
         val hasStroke = if (actionType == "recorded") {
-            addRecordedStrokes(gestureBuilder, action, recordedWidth, recordedHeight)
+            addRecordedStrokes(gestureBuilder, action, width, height)
         } else {
             val duration = ((action["duration"] as? Number)?.toLong() ?: 300L).coerceAtLeast(50L)
             val path = Path()
             if (actionType == "click") {
-                val x = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
-                val y = ((action["y1"] as? Number)?.toFloat() ?: 0.5f) * recordedHeight
+                val x = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width
+                val y = ((action["y1"] as? Number)?.toFloat() ?: 0.5f) * height
                 path.moveTo(x, y)
             } else {
-                val x1 = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
-                val y1 = ((action["y1"] as? Number)?.toFloat() ?: 0.7f) * recordedHeight
-                val x2 = ((action["x2"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
-                val y2 = ((action["y2"] as? Number)?.toFloat() ?: 0.3f) * recordedHeight
+                val x1 = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width
+                val y1 = ((action["y1"] as? Number)?.toFloat() ?: 0.7f) * height
+                val x2 = ((action["x2"] as? Number)?.toFloat() ?: 0.5f) * width
+                val y2 = ((action["y2"] as? Number)?.toFloat() ?: 0.3f) * height
                 path.moveTo(x1, y1)
                 path.lineTo(x2, y2)
             }
@@ -5672,8 +5670,11 @@ class AutoSwipeService : AccessibilityService() {
                     appendPoint(currentX(), currentY(), event.eventTime, width, height)
                     null
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
                     appendPoint(currentX(), currentY(), event.eventTime, width, height)
+                    finishCurrentSegment(event.eventTime)
+                }
+                MotionEvent.ACTION_CANCEL -> {
                     finishCurrentSegment(event.eventTime)
                 }
                 else -> null
@@ -6166,7 +6167,7 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
-    private class RecordingSurface(
+    private inner class RecordingSurface(
         context: Context,
         private val drawEnabled: Boolean = true,
         private val onSegmentFinished: ((RecordedSegment) -> Unit)? = null,
@@ -6175,6 +6176,8 @@ class AutoSwipeService : AccessibilityService() {
         private var currentSegment: RecordedSegment? = null
         private var recording = false
         private var startedAt = 0L
+        private var recordingScreenWidth = 0
+        private var recordingScreenHeight = 0
 
         private val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFF4444.toInt()
@@ -6194,6 +6197,9 @@ class AutoSwipeService : AccessibilityService() {
             currentSegment = null
             recording = true
             startedAt = SystemClock.uptimeMillis()
+            val (screenWidth, screenHeight) = screenSize()
+            recordingScreenWidth = screenWidth.coerceAtLeast(1)
+            recordingScreenHeight = screenHeight.coerceAtLeast(1)
             invalidate()
         }
 
@@ -6214,6 +6220,8 @@ class AutoSwipeService : AccessibilityService() {
             return mapOf(
                 "type" to "recorded",
                 "duration" to duration,
+                "screenWidth" to recordingScreenWidth.coerceAtLeast(1),
+                "screenHeight" to recordingScreenHeight.coerceAtLeast(1),
                 "segments" to segments.filter { it.points.isNotEmpty() }.map { segment ->
                     mapOf(
                         "start" to segment.start,
@@ -6234,28 +6242,49 @@ class AutoSwipeService : AccessibilityService() {
             if (!recording || width <= 0 || height <= 0) {
                 return true
             }
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val (screenWidth, screenHeight) = screenSize()
+            recordingScreenWidth = screenWidth.coerceAtLeast(1)
+            recordingScreenHeight = screenHeight.coerceAtLeast(1)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     val start = (event.eventTime - startedAt).coerceAtLeast(0L)
                     currentSegment = RecordedSegment(start = start).also {
                         segments.add(it)
                     }
-                    appendPoint(event.x, event.y, event.eventTime)
+                    appendPoint(
+                        event.x + location[0],
+                        event.y + location[1],
+                        event.eventTime,
+                    )
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
                     for (index in 0 until event.historySize) {
                         appendPoint(
-                            event.getHistoricalX(index),
-                            event.getHistoricalY(index),
+                            event.getHistoricalX(index) + location[0],
+                            event.getHistoricalY(index) + location[1],
                             event.getHistoricalEventTime(index),
                         )
                     }
-                    appendPoint(event.x, event.y, event.eventTime)
+                    appendPoint(
+                        event.x + location[0],
+                        event.y + location[1],
+                        event.eventTime,
+                    )
                     invalidate()
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    appendPoint(event.x, event.y, event.eventTime)
+                MotionEvent.ACTION_UP -> {
+                    appendPoint(
+                        event.x + location[0],
+                        event.y + location[1],
+                        event.eventTime,
+                    )
+                    finishCurrentSegment(event.eventTime)
+                    invalidate()
+                }
+                MotionEvent.ACTION_CANCEL -> {
                     finishCurrentSegment(event.eventTime)
                     invalidate()
                 }
@@ -6266,12 +6295,18 @@ class AutoSwipeService : AccessibilityService() {
         override fun onDraw(canvas: Canvas) {
             if (!drawEnabled) return
             super.onDraw(canvas)
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val screenWidth = recordingScreenWidth.takeIf { it > 0 } ?: screenSize().first
+            val screenHeight = recordingScreenHeight.takeIf { it > 0 } ?: screenSize().second
+            val widthScale = screenWidth.coerceAtLeast(1).toFloat()
+            val heightScale = screenHeight.coerceAtLeast(1).toFloat()
             segments.forEach { segment ->
                 if (segment.points.isEmpty()) return@forEach
                 val path = Path()
                 segment.points.forEachIndexed { index, point ->
-                    val x = point.x * width
-                    val y = point.y * height
+                    val x = point.x * widthScale - location[0]
+                    val y = point.y * heightScale - location[1]
                     if (index == 0) {
                         path.moveTo(x, y)
                     } else {
@@ -6280,14 +6315,19 @@ class AutoSwipeService : AccessibilityService() {
                 }
                 canvas.drawPath(path, pathPaint)
                 val first = segment.points.first()
-                canvas.drawCircle(first.x * width, first.y * height, 8f, pointPaint)
+                canvas.drawCircle(
+                    first.x * widthScale - location[0],
+                    first.y * heightScale - location[1],
+                    8f,
+                    pointPaint,
+                )
             }
         }
 
         private fun appendPoint(x: Float, y: Float, eventTime: Long) {
             val segment = currentSegment ?: return
-            val normalizedX = (x / width).coerceIn(0f, 1f)
-            val normalizedY = (y / height).coerceIn(0f, 1f)
+            val normalizedX = (x / recordingScreenWidth.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+            val normalizedY = (y / recordingScreenHeight.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
             val t = (eventTime - startedAt).coerceAtLeast(0L)
             val last = segment.points.lastOrNull()
             if (last != null &&
