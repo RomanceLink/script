@@ -760,133 +760,176 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                                   maxLines: 2,
                                 )..layout(maxWidth: constraints.maxWidth);
                                 final canExpand = painter.didExceedMaxLines;
-                                return GestureDetector(
-                                  onTap: _selectingDelete
-                                      ? () => _toggleDeleteSelection(item)
-                                      : null,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.content.trim(),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: previewStyle,
-                                      ),
-                                      if (_mottoSubtitle(item).isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          _mottoSubtitle(item),
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.72,
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: GestureDetector(
+                                            onTap: _selectingDelete
+                                                ? () => _toggleDeleteSelection(
+                                                    item,
+                                                  )
+                                                : null,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.content.trim(),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: previewStyle,
+                                                ),
+                                                if (_mottoSubtitle(
+                                                  item,
+                                                ).isNotEmpty) ...[
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    _mottoSubtitle(item),
+                                                    style: TextStyle(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                            alpha: 0.72,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
                                         ),
+                                        if (!_selectingDelete) ...[
+                                          const SizedBox(width: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              _MiniIconButton(
+                                                onPressed:
+                                                    _pinnedMottoId == item.id
+                                                    ? () {}
+                                                    : () => _setHomeMotto(item),
+                                                icon: _pinnedMottoId == item.id
+                                                    ? Icons.home_filled
+                                                    : Icons.home_rounded,
+                                                backgroundColor:
+                                                    _pinnedMottoId == item.id
+                                                    ? const Color(0xFF6F79FF)
+                                                    : null,
+                                                iconColor:
+                                                    _pinnedMottoId == item.id
+                                                    ? Colors.white
+                                                    : null,
+                                              ),
+                                              _MiniIconButton(
+                                                onPressed: () => _editItem(
+                                                  initialEntry: item,
+                                                  index: index,
+                                                ),
+                                                icon: Icons.edit_rounded,
+                                                backgroundColor:
+                                                    Theme.of(
+                                                          context,
+                                                        ).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFF2D336D)
+                                                    : const Color(0xFFE9E7FF),
+                                                iconColor:
+                                                    Theme.of(
+                                                          context,
+                                                        ).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFD9D9FF)
+                                                    : const Color(0xFF6C5DD3),
+                                              ),
+                                              _MiniIconButton(
+                                                onPressed: () =>
+                                                    _deleteItem(index),
+                                                icon: Icons
+                                                    .delete_outline_rounded,
+                                                backgroundColor:
+                                                    Theme.of(
+                                                          context,
+                                                        ).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFF4A2A45)
+                                                    : const Color(0xFFFFE4EC),
+                                                iconColor:
+                                                    Theme.of(
+                                                          context,
+                                                        ).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFFFB8C8)
+                                                    : const Color(0xFFD95078),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ],
+                                    ),
+                                    if (canExpand && !_selectingDelete) ...[
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () {
+                                            setState(() {
+                                              if (_expandedMottoIds.contains(
+                                                item.id,
+                                              )) {
+                                                _expandedMottoIds.remove(
+                                                  item.id,
+                                                );
+                                              } else {
+                                                _expandedMottoIds.add(item.id);
+                                              }
+                                            });
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            foregroundColor: const Color(
+                                              0xFFBFC8FF,
+                                            ),
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.08),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                          icon: Icon(
+                                            _expandedMottoIds.contains(item.id)
+                                                ? Icons.expand_less_rounded
+                                                : Icons.expand_more_rounded,
+                                            size: 18,
+                                          ),
+                                          label: Text(
+                                            _expandedMottoIds.contains(item.id)
+                                                ? '隐藏'
+                                                : '展开更多',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ],
-                                  ),
+                                  ],
                                 );
                               },
                             ),
                           ),
-                          if (!_selectingDelete) ...[
-                            const SizedBox(width: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                if (canExpand)
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        if (_expandedMottoIds.contains(item.id)) {
-                                          _expandedMottoIds.remove(item.id);
-                                        } else {
-                                          _expandedMottoIds.add(item.id);
-                                        }
-                                      });
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 8,
-                                      ),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      foregroundColor: const Color(0xFFBFC8FF),
-                                      backgroundColor: Colors.white.withValues(
-                                        alpha: 0.08,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                    icon: Icon(
-                                      _expandedMottoIds.contains(item.id)
-                                          ? Icons.expand_less_rounded
-                                          : Icons.expand_more_rounded,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      _expandedMottoIds.contains(item.id)
-                                          ? '隐藏'
-                                          : '展开更多',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                _MiniIconButton(
-                                  onPressed: _pinnedMottoId == item.id
-                                      ? () {}
-                                      : () => _setHomeMotto(item),
-                                  icon: _pinnedMottoId == item.id
-                                      ? Icons.home_filled
-                                      : Icons.home_rounded,
-                                  backgroundColor: _pinnedMottoId == item.id
-                                      ? const Color(0xFF6F79FF)
-                                      : null,
-                                  iconColor: _pinnedMottoId == item.id
-                                      ? Colors.white
-                                      : null,
-                                ),
-                                _MiniIconButton(
-                                  onPressed: () => _editItem(
-                                    initialEntry: item,
-                                    index: index,
-                                  ),
-                                  icon: Icons.edit_rounded,
-                                  backgroundColor:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFF2D336D)
-                                      : const Color(0xFFE9E7FF),
-                                  iconColor:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFD9D9FF)
-                                      : const Color(0xFF6C5DD3),
-                                ),
-                                _MiniIconButton(
-                                  onPressed: () => _deleteItem(index),
-                                  icon: Icons.delete_outline_rounded,
-                                  backgroundColor:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFF4A2A45)
-                                      : const Color(0xFFFFE4EC),
-                                  iconColor:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFFFB8C8)
-                                      : const Color(0xFFD95078),
-                                ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                       if (_expandedMottoIds.contains(item.id) &&
