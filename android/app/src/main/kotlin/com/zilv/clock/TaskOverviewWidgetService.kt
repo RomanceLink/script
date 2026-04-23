@@ -1,6 +1,5 @@
 package com.zilv.clock
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -9,31 +8,19 @@ import android.widget.RemoteViewsService
 
 class TaskOverviewWidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        return TaskOverviewRemoteViewsFactory(applicationContext, intent)
+        return TaskOverviewRemoteViewsFactory(applicationContext)
     }
 }
 
 private class TaskOverviewRemoteViewsFactory(
     private val context: Context,
-    intent: Intent,
 ) : RemoteViewsService.RemoteViewsFactory {
-    private val appWidgetId =
-        intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
     private var items: List<WidgetTaskLine> = emptyList()
 
     override fun onCreate() = Unit
 
     override fun onDataSetChanged() {
-        val manager = AppWidgetManager.getInstance(context)
-        val providerClassName = manager.getAppWidgetInfo(appWidgetId)?.provider?.className.orEmpty()
-        val variant =
-            when {
-                providerClassName.endsWith("TaskOverviewWidgetSmallProvider") -> WidgetVariant.COMPACT_2X2
-                providerClassName.endsWith("TaskOverviewWidgetMediumProvider") -> WidgetVariant.MEDIUM_3X3
-                providerClassName.endsWith("TaskOverviewWidgetMottoProvider") -> WidgetVariant.MOTTO_4X4
-                else -> WidgetVariant.LARGE_5X5
-            }
-        items = TaskOverviewWidgetData.load(context, variant).tasks
+        items = TaskOverviewWidgetData.load(context).tasks
     }
 
     override fun onDestroy() {
@@ -43,30 +30,34 @@ private class TaskOverviewRemoteViewsFactory(
     override fun getCount(): Int = items.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val item = items.getOrNull(position) ?: return RemoteViews(context.packageName, R.layout.widget_task_item)
+        val item =
+            items.getOrNull(position)
+                ?: return RemoteViews(context.packageName, R.layout.widget_task_item)
         val views = RemoteViews(context.packageName, R.layout.widget_task_item)
         val isNight =
-            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+
         views.setTextViewText(
             R.id.widget_task_item_title,
-            "${if (item.urgent) "‼ " else "• "}${item.timeLabel}  ${item.title}",
+            "${if (item.urgent) "!" else "-"} ${item.timeLabel}  ${item.title}",
         )
         views.setTextViewText(R.id.widget_task_item_status, item.status)
         views.setInt(
             R.id.widget_task_item_title,
             "setTextColor",
-            if (isNight) 0xFFFFFFFF.toInt() else 0xFF243031.toInt(),
+            if (isNight) 0xFFFFFFFF.toInt() else 0xFF172123.toInt(),
         )
         views.setInt(
             R.id.widget_task_item_status,
             "setTextColor",
             when {
-                item.done && isNight -> 0xFFA9B4E8.toInt()
-                item.done -> 0xFF6B7A95.toInt()
-                item.urgent && isNight -> 0xFFFFB7B7.toInt()
-                item.urgent -> 0xFFC74D4D.toInt()
-                isNight -> 0xFFC8D1FF.toInt()
-                else -> 0xFF52607A.toInt()
+                item.done && isNight -> 0xFFAEB6D9.toInt()
+                item.done -> 0xFF71817C.toInt()
+                item.urgent && isNight -> 0xFFFFB8C0.toInt()
+                item.urgent -> 0xFFC84E5A.toInt()
+                isNight -> 0xFFDDE3FF.toInt()
+                else -> 0xFF536965.toInt()
             },
         )
         views.setInt(
@@ -78,9 +69,7 @@ private class TaskOverviewRemoteViewsFactory(
                 else -> R.drawable.widget_task_item_bg
             },
         )
-
-        val fillInIntent = Intent()
-        views.setOnClickFillInIntent(R.id.widget_task_item_container, fillInIntent)
+        views.setOnClickFillInIntent(R.id.widget_task_item_container, Intent())
         return views
     }
 

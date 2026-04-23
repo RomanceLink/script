@@ -5,26 +5,11 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_task_overview_bg">
 
-    <ImageView
-        android:id="@+id/widget_bg_image"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:visibility="gone" />
-
-    <ImageView
-        android:id="@+id/widget_bg_scrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#66F6F8FF"
-        android:scaleType="fitXY"
-        android:visibility="gone" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="14dp">
 
         <TextView
             android:id="@+id/widget_summary"
@@ -32,87 +17,45 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#5A6B6A"
             android:textSize="12sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
+            android:textStyle="bold" />
 
         <LinearLayout
             android:id="@+id/widget_motto_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/widget_motto_card_bg"
             android:orientation="vertical"
-            android:visibility="gone">
+            android:padding="10dp">
 
             <TextView
                 android:id="@+id/widget_motto"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
                 android:fontFamily="serif"
-                android:lineSpacingExtra="4dp"
-                android:maxLines="5"
-                android:textColor="#1E2528"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/widget_current_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/widget_task_item_bg"
-            android:orientation="vertical"
-            android:padding="12dp"
-            android:visibility="gone">
-
-            <TextView
-                android:id="@+id/widget_current_time"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#4E67C3"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_current_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
+                android:lineSpacingExtra="2dp"
                 android:maxLines="2"
-                android:textColor="#1E2528"
-                android:textSize="15sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_current_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textColor="#607372"
-                android:textSize="11sp" />
         </LinearLayout>
 
         <FrameLayout
             android:id="@+id/widget_task_list_frame"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:layout_weight="1"
             android:background="@drawable/widget_task_list_bg"
-            android:padding="8dp"
-            android:visibility="gone">
+            android:padding="6dp">
 
             <ListView
                 android:id="@+id/widget_task_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:divider="@android:color/transparent"
-                android:dividerHeight="8dp"
+                android:dividerHeight="6dp"
                 android:fadingEdge="none"
                 android:scrollbars="none" />
 
@@ -123,7 +66,6 @@
                 android:layout_gravity="center"
                 android:gravity="center"
                 android:text="暂无任务"
-                android:textColor="#5A6B6A"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -133,11 +75,9 @@
             android:id="@+id/widget_footer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="6dp"
             android:ellipsize="end"
-            android:maxLines="2"
-            android:textColor="#607372"
-            android:textSize="11sp"
-            android:visibility="gone" />
+            android:maxLines="1"
+            android:textSize="11sp" />
     </LinearLayout>
 </FrameLayout>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="accessibility_description">用于执行测试自动化配置，模拟点击、滑动、导航和录制手势。</string>
-    <string name="task_overview_widget_desc">显示今日箴言、任务总览与待办状态。</string>
+    <string name="task_overview_widget_desc">显示今日箴言、任务列表与待办状态。</string>
 </resources>

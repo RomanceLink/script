@@ -5,15 +5,14 @@
     android:layout_height="wrap_content"
     android:background="@drawable/widget_task_item_bg"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="9dp">
 
     <TextView
         android:id="@+id/widget_task_item_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="2"
-        android:textColor="#243031"
+        android:maxLines="1"
         android:textSize="12sp"
         android:textStyle="bold" />
 
@@ -21,10 +20,8 @@
         android:id="@+id/widget_task_item_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="3dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="#52607A"
         android:textSize="11sp" />
-
 </LinearLayout>
