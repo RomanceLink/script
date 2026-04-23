@@ -504,27 +504,12 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   }
 
   Future<void> _pickAutoSwitchValue() async {
-    final result = await showModalBottomSheet<int>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final item in const [1, 2, 3, 4, 5, 10, 15, 30, 60])
-                _ActionSheetTile(
-                  icon: item == _autoSwitchValue
-                      ? Icons.check_circle_rounded
-                      : Icons.schedule_rounded,
-                  title: '$item',
-                  onTap: () => Navigator.of(context).pop(item),
-                ),
-            ],
-          ),
-        ),
-      ),
+    final result = await _showMottoChoiceSheet<int>(
+      values: const [1, 2, 3, 4, 5, 10, 15, 30, 60],
+      selected: _autoSwitchValue,
+      titleBuilder: (item) => '$item',
+      selectedIcon: Icons.check_circle_rounded,
+      unselectedIcon: Icons.schedule_rounded,
     );
     if (result == null) return;
     setState(() => _autoSwitchValue = result);
@@ -532,32 +517,17 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
   }
 
   Future<void> _pickAutoSwitchUnit() async {
-    final result = await showModalBottomSheet<IntervalUnit>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final unit in IntervalUnit.values)
-                _ActionSheetTile(
-                  icon: unit == _autoSwitchUnit
-                      ? Icons.check_circle_rounded
-                      : Icons.timer_outlined,
-                  title: switch (unit) {
-                    IntervalUnit.seconds => '秒',
-                    IntervalUnit.minutes => '分钟',
-                    IntervalUnit.hours => '小时',
-                    IntervalUnit.days => '天',
-                  },
-                  onTap: () => Navigator.of(context).pop(unit),
-                ),
-            ],
-          ),
-        ),
-      ),
+    final result = await _showMottoChoiceSheet<IntervalUnit>(
+      values: IntervalUnit.values,
+      selected: _autoSwitchUnit,
+      titleBuilder: (unit) => switch (unit) {
+        IntervalUnit.seconds => '秒',
+        IntervalUnit.minutes => '分钟',
+        IntervalUnit.hours => '小时',
+        IntervalUnit.days => '天',
+      },
+      selectedIcon: Icons.check_circle_rounded,
+      unselectedIcon: Icons.timer_outlined,
     );
     if (result == null) return;
     setState(() => _autoSwitchUnit = result);
@@ -782,24 +752,8 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                           value: _selectedDeleteIds.contains(item.id),
                           onChanged: (_) => _toggleDeleteSelection(item),
                         )
-                      : Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0.24),
-                                const Color(0xFFD69AF1).withValues(alpha: 0.34),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
+                      : null,
+                  minLeadingWidth: _selectingDelete ? null : 0,
                   title: Text(
                     _mottoPreview(item.content),
                     maxLines: 2,
@@ -819,31 +773,53 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
                         ),
                   trailing: _selectingDelete
                       ? null
-                      : Row(
+                      : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
-                              width: 96,
-                              child: _MottoGlassButton(
-                                height: 38,
-                                icon: Icons.home_rounded,
-                                label: '设为首页',
-                                filled: _pinnedMottoId == item.id,
-                                onPressed: _pinnedMottoId == item.id
-                                    ? null
-                                    : () => _setHomeMotto(item),
-                              ),
+                            _MiniIconButton(
+                              onPressed: _pinnedMottoId == item.id
+                                  ? () {}
+                                  : () => _setHomeMotto(item),
+                              icon: _pinnedMottoId == item.id
+                                  ? Icons.home_filled
+                                  : Icons.home_rounded,
+                              backgroundColor: _pinnedMottoId == item.id
+                                  ? const Color(0xFF6F79FF)
+                                  : null,
+                              iconColor: _pinnedMottoId == item.id
+                                  ? Colors.white
+                                  : null,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(height: 8),
                             _MiniIconButton(
                               onPressed: () =>
                                   _editItem(initialEntry: item, index: index),
                               icon: Icons.edit_rounded,
+                              backgroundColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF2D336D)
+                                  : const Color(0xFFE9E7FF),
+                              iconColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFD9D9FF)
+                                  : const Color(0xFF6C5DD3),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(height: 8),
                             _MiniIconButton(
                               onPressed: () => _deleteItem(index),
                               icon: Icons.delete_outline_rounded,
+                              backgroundColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF4A2A45)
+                                  : const Color(0xFFFFE4EC),
+                              iconColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFFFB8C8)
+                                  : const Color(0xFFD95078),
                             ),
                           ],
                         ),
@@ -1669,6 +1645,39 @@ class _MottoGlassButton extends StatelessWidget {
       ),
     );
     return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
+extension on _DailyMottoSettingsPageState {
+  Future<T?> _showMottoChoiceSheet<T>({
+    required List<T> values,
+    required T selected,
+    required String Function(T value) titleBuilder,
+    required IconData selectedIcon,
+    required IconData unselectedIcon,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      builder: (context) => SafeArea(
+        top: false,
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          itemCount: values.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final item = values[index];
+            return _ActionSheetTile(
+              icon: item == selected ? selectedIcon : unselectedIcon,
+              title: titleBuilder(item),
+              onTap: () => Navigator.of(context).pop(item),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 

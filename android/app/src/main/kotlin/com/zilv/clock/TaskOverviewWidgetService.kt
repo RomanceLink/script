@@ -24,9 +24,16 @@ private class TaskOverviewRemoteViewsFactory(
     override fun onCreate() = Unit
 
     override fun onDataSetChanged() {
-        val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(appWidgetId)
-        val profile = WidgetProfile.fromOptions(options)
-        items = TaskOverviewWidgetData.load(context, profile).tasks
+        val manager = AppWidgetManager.getInstance(context)
+        val providerClassName = manager.getAppWidgetInfo(appWidgetId)?.provider?.className.orEmpty()
+        val variant =
+            when {
+                providerClassName.endsWith("TaskOverviewWidgetSmallProvider") -> WidgetVariant.COMPACT_2X2
+                providerClassName.endsWith("TaskOverviewWidgetMediumProvider") -> WidgetVariant.MEDIUM_3X3
+                providerClassName.endsWith("TaskOverviewWidgetMottoProvider") -> WidgetVariant.MOTTO_4X4
+                else -> WidgetVariant.LARGE_5X5
+            }
+        items = TaskOverviewWidgetData.load(context, variant).tasks
     }
 
     override fun onDestroy() {

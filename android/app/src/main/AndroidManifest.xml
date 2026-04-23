@@ -86,8 +86,42 @@
             </intent-filter>
         </receiver>
         <receiver
+            android:name=".TaskOverviewWidgetSmallProvider"
+            android:exported="true"
+            android:label="任务微件 2x2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/task_overview_widget_small_info" />
+        </receiver>
+        <receiver
+            android:name=".TaskOverviewWidgetMediumProvider"
+            android:exported="true"
+            android:label="任务微件 3x3">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/task_overview_widget_medium_info" />
+        </receiver>
+        <receiver
+            android:name=".TaskOverviewWidgetMottoProvider"
+            android:exported="true"
+            android:label="任务微件 4x4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/task_overview_widget_motto_info" />
+        </receiver>
+        <receiver
             android:name=".TaskOverviewWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="任务微件 5x5">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

@@ -680,10 +680,96 @@ class _GestureEditPageState extends State<GestureEditPage> {
     final recentPackages = await widget.launcher.loadRecentAppPackages();
     if (!mounted) return;
 
-    final selected = await showModalBottomSheet<LaunchableApp>(
+    final selected = await _showAppPickerSheet(
+      context: context,
+      apps: apps,
+      recentPackages: recentPackages,
+    );
+
+    if (selected != null) {
+      await widget.launcher.markAppAsRecent(selected.packageName);
+      _addAction(
+        LaunchAppAction(
+          packageName: selected.packageName,
+          label: selected.appName,
+        ),
+      );
+    }
+  }
+
+  Future<LaunchableApp?> _showAppPickerSheet({
+    required BuildContext context,
+    required List<LaunchableApp> apps,
+    required List<String> recentPackages,
+  }) {
+    Widget appTile(BuildContext context, LaunchableApp app) {
+      final theme = Theme.of(context);
+      final isDark = theme.brightness == Brightness.dark;
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              isDark ? const Color(0xFF2A2F63) : const Color(0xFFE7ECFF),
+              const Color(0xFF72DFFF).withValues(alpha: isDark ? 0.12 : 0.10),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Color.alphaBlend(
+              Colors.white.withValues(alpha: isDark ? 0.12 : 0.26),
+              const Color(0xFF72DFFF).withValues(
+                alpha: isDark ? 0.42 : 0.34,
+              ),
+            ),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 4,
+          ),
+          leading: app.icon == null
+              ? CircleAvatar(
+                  backgroundColor: isDark
+                      ? const Color(0xFF31397A)
+                      : const Color(0xFFDCE5FF),
+                  child: Icon(
+                    Icons.apps_rounded,
+                    color: isDark ? Colors.white : const Color(0xFF4F62B0),
+                  ),
+                )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(
+                    app.icon!,
+                    width: 42,
+                    height: 42,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+          title: Text(
+            app.appName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          subtitle: Text(
+            app.packageName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => Navigator.of(context).pop(app),
+        ),
+      );
+    }
+
+    return showModalBottomSheet<LaunchableApp>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
       builder: (context) {
         final controller = TextEditingController();
         var query = '';
@@ -705,6 +791,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                   app,
             ];
             return SafeArea(
+              top: false,
               child: SizedBox(
                 height: 520,
                 child: Column(
@@ -723,55 +810,28 @@ class _GestureEditPageState extends State<GestureEditPage> {
                     ),
                     Expanded(
                       child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
                         children: [
                           if (recent.isNotEmpty) ...[
                             const Padding(
-                              padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                              padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
                               child: Text(
                                 '最近使用',
                                 style: TextStyle(fontWeight: FontWeight.w800),
                               ),
                             ),
                             ...recent.map(
-                              (app) => ListTile(
-                                leading: app.icon == null
-                                    ? const CircleAvatar(
-                                        child: Icon(Icons.apps_rounded),
-                                      )
-                                    : ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Image.memory(
-                                          app.icon!,
-                                          width: 40,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                title: Text(app.appName),
-                                subtitle: Text(app.packageName),
-                                onTap: () => Navigator.of(context).pop(app),
+                              (app) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: appTile(context, app),
                               ),
                             ),
-                            const Divider(height: 12),
+                            const SizedBox(height: 4),
                           ],
                           ...others.map(
-                            (app) => ListTile(
-                              leading: app.icon == null
-                                  ? const CircleAvatar(
-                                      child: Icon(Icons.apps_rounded),
-                                    )
-                                  : ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Image.memory(
-                                        app.icon!,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                              title: Text(app.appName),
-                              subtitle: Text(app.packageName),
-                              onTap: () => Navigator.of(context).pop(app),
+                            (app) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: appTile(context, app),
                             ),
                           ),
                         ],
@@ -785,16 +845,6 @@ class _GestureEditPageState extends State<GestureEditPage> {
         );
       },
     );
-
-    if (selected != null) {
-      await widget.launcher.markAppAsRecent(selected.packageName);
-      _addAction(
-        LaunchAppAction(
-          packageName: selected.packageName,
-          label: selected.appName,
-        ),
-      );
-    }
   }
 
   Future<void> _pickButtonRecognizeAction({

@@ -1256,10 +1256,17 @@ class _ToggleChip extends StatelessWidget {
 }
 
 class _MiniIconButton extends StatelessWidget {
-  const _MiniIconButton({required this.icon, required this.onPressed});
+  const _MiniIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.backgroundColor,
+    this.iconColor,
+  });
 
   final IconData icon;
   final VoidCallback onPressed;
+  final Color? backgroundColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1270,17 +1277,21 @@ class _MiniIconButton extends StatelessWidget {
       child: Ink(
         padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFF213033)
-              : const Color(0xFFEAF4F0),
+          color:
+              backgroundColor ??
+              (theme.brightness == Brightness.dark
+                  ? const Color(0xFF2D336D)
+                  : const Color(0xFFE8EDFF)),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
           icon,
           size: 20,
-          color: theme.brightness == Brightness.dark
-              ? const Color(0xFFC7DDD7)
-              : const Color(0xFF55776E),
+          color:
+              iconColor ??
+              (theme.brightness == Brightness.dark
+                  ? const Color(0xFFDDE3FF)
+                  : const Color(0xFF5867B5)),
         ),
       ),
     );
@@ -1450,6 +1461,13 @@ class _SettingsNavCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF26336F);
+    final subtitleColor = isDark
+        ? Colors.white.withValues(alpha: 0.74)
+        : const Color(0xFF5C6AA8);
+    final trailingColor = isDark
+        ? Colors.white.withValues(alpha: 0.88)
+        : const Color(0xFF3E4E9A);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DecoratedBox(
@@ -1462,89 +1480,102 @@ class _SettingsNavCell extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Material(
-              color: isDark ? const Color(0xFF2A2F63) : const Color(0xFFDCE3FF),
+              color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(28),
                 onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withValues(
-                                alpha: isDark ? 0.24 : 0.18,
-                              ),
-                              iconTint.withValues(alpha: isDark ? 0.38 : 0.30),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                child: Ink(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        isDark
+                            ? const Color(0xFF2A2F63)
+                            : const Color(0xFFE7ECFF),
+                        Color.alphaBlend(
+                          iconBackground.withValues(
+                            alpha: isDark ? 0.16 : 0.22,
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: _neonGlassLine(iconTint)),
+                          isDark
+                              ? const Color(0xFF232859)
+                              : const Color(0xFFDCE4FF),
                         ),
-                        child: Icon(
-                          icon,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF26336F),
-                          size: 24,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: _neonGlassLine(iconTint)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(
+                                  alpha: isDark ? 0.24 : 0.20,
+                                ),
+                                iconTint.withValues(
+                                  alpha: isDark ? 0.38 : 0.30,
+                                ),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: _neonGlassLine(iconTint)),
+                          ),
+                          child: Icon(icon, color: titleColor, size: 24),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: subtitleColor,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF26336F),
+                              trailingText,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: trailingColor,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.72)
-                                    : const Color(0xFF5C6AA8),
-                                height: 1.35,
-                              ),
+                            const SizedBox(height: 6),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.72)
+                                  : const Color(0xFF6A78B6),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            trailingText,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.88)
-                                  : const Color(0xFF3E4E9A),
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.72)
-                                : const Color(0xFF6A78B6),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1554,6 +1585,151 @@ class _SettingsNavCell extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<LaunchableApp?> _showLaunchableAppPickerSheet({
+  required BuildContext context,
+  required List<LaunchableApp> apps,
+  required List<String> recentPackages,
+}) {
+  Widget appTile(BuildContext context, LaunchableApp app) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _neonGlassFill(theme, alpha: 0.14),
+            const Color(0xFF72DFFF).withValues(alpha: isDark ? 0.12 : 0.10),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: _neonGlassLine(
+            const Color(0xFF72DFFF),
+            alpha: isDark ? 0.42 : 0.34,
+          ),
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: app.icon == null
+            ? CircleAvatar(
+                backgroundColor: isDark
+                    ? const Color(0xFF31397A)
+                    : const Color(0xFFDCE5FF),
+                child: Icon(
+                  Icons.apps_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF4F62B0),
+                ),
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  app.icon!,
+                  width: 42,
+                  height: 42,
+                  fit: BoxFit.cover,
+                ),
+              ),
+        title: Text(
+          app.appName,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: Text(
+          app.packageName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onTap: () => Navigator.of(context).pop(app),
+      ),
+    );
+  }
+
+  return showModalBottomSheet<LaunchableApp>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    clipBehavior: Clip.antiAlias,
+    builder: (context) {
+      final controller = TextEditingController();
+      var query = '';
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filtered = apps.where((app) {
+            if (query.isEmpty) return true;
+            final q = query.toLowerCase();
+            return app.appName.toLowerCase().contains(q) ||
+                app.packageName.toLowerCase().contains(q);
+          }).toList();
+          final recent = [
+            for (final package in recentPackages)
+              ...filtered.where((app) => app.packageName == package),
+          ];
+          final others = [
+            for (final app in filtered)
+              if (!recent.any((item) => item.packageName == app.packageName))
+                app,
+          ];
+          return SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 520,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: TextField(
+                      controller: controller,
+                      onChanged: (value) =>
+                          setSheetState(() => query = value.trim()),
+                      decoration: const InputDecoration(
+                        labelText: '搜索应用',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+                      children: [
+                        if (recent.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
+                            child: Text(
+                              '最近使用',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          ...recent.map(
+                            (app) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: appTile(context, app),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+                        ...others.map(
+                          (app) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: appTile(context, app),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
 }
 
 class _ActionSheetTile extends StatelessWidget {
