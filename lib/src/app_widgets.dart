@@ -214,13 +214,15 @@ class _HomeLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _NeonPageBackground(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-          children: const [
-            _LoadingGlassBlock(height: 72, radius: 28),
-            SizedBox(height: 16),
-            _LoadingGlassBlock(height: 390, radius: 32),
-          ],
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            children: const [
+              _LoadingGlassBlock(height: 280, radius: 28),
+              SizedBox(height: 10),
+              _LoadingGlassBlock(height: 410, radius: 26),
+            ],
+          ),
         ),
       ),
     );
