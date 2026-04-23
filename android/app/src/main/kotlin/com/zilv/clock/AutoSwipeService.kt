@@ -19,6 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.text.InputType
 import android.graphics.Typeface
@@ -878,10 +879,6 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun screenSize(): Pair<Int, Int> {
         val wm = windowManager ?: return resources.displayMetrics.widthPixels to resources.displayMetrics.heightPixels
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = wm.maximumWindowMetrics.bounds
-            return bounds.width() to bounds.height()
-        }
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(metrics)
@@ -2591,11 +2588,23 @@ class AutoSwipeService : AccessibilityService() {
         }
     }
 
+    private fun isScreenOn(): Boolean {
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        return pm?.isInteractive ?: true
+    }
+
     private fun executeActionIndex(index: Int) {
         if (!isRunning) return
         val runToken = runSessionId
         if (isPaused) {
             resumeActionIndex = index
+            return
+        }
+
+        if (!isScreenOn()) {
+            handler.postDelayed({
+                if (isRunSessionActive(runToken)) executeActionIndex(index)
+            }, 1000L)
             return
         }
 
