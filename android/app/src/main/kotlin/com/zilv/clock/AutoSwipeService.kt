@@ -1928,7 +1928,11 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun floatingActionsFromPickerResult(result: Map<String, Any?>): List<Map<String, Any?>> {
-        return when (result["type"] as? String) {
+        val type = result["type"] as? String
+        if (type == "buttonRecognize") {
+            return listOf(normalizeMap(result))
+        }
+        return when (type) {
             "clickSteps" -> {
                 val points = result["points"] as? List<*> ?: emptyList<Any?>()
                 val sortedPoints = points.mapNotNull { it as? Map<*, *> }
@@ -4369,6 +4373,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showImageTemplateSelectOverlay() {
+        detachPickerOverlayView()
         pickerMode = "imageButtonDetect"
         val lp = fullScreenOverlayParams()
         val container = FrameLayout(this).apply {
@@ -4398,17 +4403,21 @@ class AutoSwipeService : AccessibilityService() {
             if (rect == null || rect.width() < dp(12) || rect.height() < dp(12)) {
                 return@menuButton
             }
-            removePickerOverlay()
+            showLoadingPickerOverlay("正在处理截图...")
             handler.postDelayed({
                 captureScreenBitmap(
                     onSuccess = { bitmap ->
                         val result = buildImageTemplateResult(bitmap, rect)
                         bitmap.recycle()
+                        removePickerOverlay()
                         publishPickerResult(result ?: mapOf("cancelled" to true))
                     },
-                    onFailure = { publishPickerResult(mapOf("cancelled" to true)) },
+                    onFailure = { 
+                        removePickerOverlay()
+                        publishPickerResult(mapOf("cancelled" to true)) 
+                    },
                 )
-            }, 180L)
+            }, 200L)
         }, LinearLayout.LayoutParams(dp(72), dp(40)).apply {
             marginEnd = dp(8)
         })
@@ -4433,6 +4442,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showLoadingPickerOverlay(message: String) {
+        detachPickerOverlayView()
         val lp = fullScreenOverlayParams()
         val container = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -4460,6 +4470,7 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun showOcrTextDetectOverlay(nodes: List<OcrTextInfo>) {
+        detachPickerOverlayView()
         pickerMode = "imageButtonDetect"
         val lp = WindowManager.LayoutParams().apply {
             type = overlayType()
@@ -5042,32 +5053,53 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun detachPickerOverlayView() {
-        pickerOverlay?.let {
+        val overlay = pickerOverlay ?: return
+        pickerOverlay = null
+        try {
+            if (overlay.isAttachedToWindow) {
+                windowManager?.removeViewImmediate(overlay)
+            } else {
+                windowManager?.removeView(overlay)
+            }
+        } catch (_: Exception) {
             try {
-                windowManager?.removeView(it)
+                windowManager?.removeView(overlay)
             } catch (_: Exception) {
             }
-            pickerOverlay = null
         }
     }
 
     private fun removeChooserOverlay() {
-        chooserOverlay?.let {
+        val overlay = chooserOverlay ?: return
+        chooserOverlay = null
+        try {
+            if (overlay.isAttachedToWindow) {
+                windowManager?.removeViewImmediate(overlay)
+            } else {
+                windowManager?.removeView(overlay)
+            }
+        } catch (_: Exception) {
             try {
-                windowManager?.removeView(it)
+                windowManager?.removeView(overlay)
             } catch (_: Exception) {
             }
-            chooserOverlay = null
         }
     }
 
     private fun removeReminderOverlay() {
-        reminderOverlay?.let {
+        val overlay = reminderOverlay ?: return
+        reminderOverlay = null
+        try {
+            if (overlay.isAttachedToWindow) {
+                windowManager?.removeViewImmediate(overlay)
+            } else {
+                windowManager?.removeView(overlay)
+            }
+        } catch (_: Exception) {
             try {
-                windowManager?.removeView(it)
+                windowManager?.removeView(overlay)
             } catch (_: Exception) {
             }
-            reminderOverlay = null
         }
     }
 
