@@ -1568,6 +1568,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start, // 关键：顶端齐平
                           children: [
                             Expanded(
                               child: Column(
@@ -1609,14 +1610,18 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: _editName,
-                              icon: const Icon(Icons.edit_note_rounded, size: 22),
-                              style: IconButton.styleFrom(
-                                backgroundColor: isDark
-                                    ? Colors.white.withValues(alpha: 0.08)
-                                    : Colors.black.withValues(alpha: 0.04),
-                                visualDensity: VisualDensity.compact,
+                            // 微调 IconButton 的位置，使其与第一行文字完美水平
+                            Transform.translate(
+                              offset: const Offset(0, -8),
+                              child: IconButton(
+                                onPressed: _editName,
+                                icon: const Icon(Icons.edit_note_rounded, size: 24), // 略微放大一点更精致
+                                style: IconButton.styleFrom(
+                                  backgroundColor: isDark
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : Colors.black.withValues(alpha: 0.04),
+                                  visualDensity: VisualDensity.compact,
+                                ),
                               ),
                             ),
                           ],
