@@ -677,15 +677,15 @@ class _HeaderIconAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: background.withValues(alpha: 0.82),
+      color: background,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: SizedBox(
-          width: 34,
-          height: 34,
-          child: Icon(icon, size: 18, color: foreground),
+          width: 30,
+          height: 30,
+          child: Icon(icon, size: 16, color: foreground),
         ),
       ),
     );

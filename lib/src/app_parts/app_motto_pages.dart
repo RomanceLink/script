@@ -578,136 +578,39 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
           children: [
-            _SettingsSectionCard(
-              accent: const Color(0xFFD69AF1),
-              title: '每日箴言',
-              subtitle: '抓取、图片、首页展示',
-              helper: '这里管理箴言来源、首页展示方式，以及网页识别导入。',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '在线抓取',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _sourceUrl,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.72),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _MottoGlassButton(
-                          icon: Icons.edit_location_alt_outlined,
-                          label: '设置地址',
-                          onPressed: _editSourceUrl,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _MottoGlassButton(
-                          icon: Icons.cloud_download_outlined,
-                          label: _fetching ? '抓取中' : '立即抓取',
-                          filled: true,
-                          onPressed: _fetching ? null : _fetchFromSource,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _MottoGlassButton(
-                    icon: Icons.travel_explore_rounded,
-                    label: '打开网页识别保存',
-                    filled: true,
-                    fullWidth: true,
-                    onPressed: _openWebRecognizer,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _MottoGlassButton(
-                          icon: Icons.wallpaper_rounded,
-                          label: _fetchingImage ? '更新中' : '微软壁纸',
-                          onPressed: _fetchingImage ? null : _useBingImage,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _MottoGlassButton(
-                          icon: Icons.photo_library_rounded,
-                          label: '图库选择',
-                          onPressed: _pickMottoImage,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _MottoSwitchCell(
-                    title: '首页显示作者和古诗名',
-                    value: _showMetaOnHome,
-                    onChanged: (value) async {
-                      setState(() => _showMetaOnHome = value);
-                      await widget.repository.saveShowDailyMottoMetaOnHome(
-                        value,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _MottoSwitchCell(
-                    title: '首页箴言自动切换',
-                    subtitle: '每 ${_autoSwitchLabel()} 切换',
-                    value: _autoSwitchOnHome,
-                    onChanged: (value) async {
-                      setState(() => _autoSwitchOnHome = value);
-                      await widget.repository.saveAutoScrollDailyMottoOnHome(
-                        value,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _MottoValueCell(
-                    title: '自动切换数值',
-                    subtitle: '当前 $_autoSwitchValue',
-                    onTap: _pickAutoSwitchValue,
-                  ),
-                  const SizedBox(height: 10),
-                  _MottoValueCell(
-                    title: '自动切换单位',
-                    subtitle: switch (_autoSwitchUnit) {
-                      IntervalUnit.seconds => '秒',
-                      IntervalUnit.minutes => '分钟',
-                      IntervalUnit.hours => '小时',
-                      IntervalUnit.days => '天',
-                    },
-                    onTap: _pickAutoSwitchUnit,
-                  ),
-                  const SizedBox(height: 10),
-                  if (_imagePath != null || _imageUrl != null)
-                    _MottoGlassButton(
-                      icon: Icons.delete_outline_rounded,
-                      label: '清除图片',
-                      destructive: true,
-                      fullWidth: true,
-                      onPressed: _clearMottoImage,
-                    ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '每天首次打开时，会自动从该网页抓取 10 条并保存。',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.72),
-                    ),
-                  ),
-                ],
-              ),
+            _MottoControlPanel(
+              sourceUrl: _sourceUrl,
+              fetching: _fetching,
+              fetchingImage: _fetchingImage,
+              hasImage: _imagePath != null || _imageUrl != null,
+              showMetaOnHome: _showMetaOnHome,
+              autoSwitchOnHome: _autoSwitchOnHome,
+              autoSwitchLabel: _autoSwitchLabel(),
+              intervalUnitLabel: switch (_autoSwitchUnit) {
+                IntervalUnit.seconds => '秒',
+                IntervalUnit.minutes => '分钟',
+                IntervalUnit.hours => '小时',
+                IntervalUnit.days => '天',
+              },
+              intervalValue: _autoSwitchValue,
+              onEditSource: _editSourceUrl,
+              onFetch: _fetching ? null : _fetchFromSource,
+              onWebRecognize: _openWebRecognizer,
+              onUseBingImage: _fetchingImage ? null : _useBingImage,
+              onPickImage: _pickMottoImage,
+              onClearImage: _clearMottoImage,
+              onShowMetaChanged: (value) async {
+                setState(() => _showMetaOnHome = value);
+                await widget.repository.saveShowDailyMottoMetaOnHome(value);
+              },
+              onAutoSwitchChanged: (value) async {
+                setState(() => _autoSwitchOnHome = value);
+                await widget.repository.saveAutoScrollDailyMottoOnHome(value);
+              },
+              onPickAutoSwitchValue: _pickAutoSwitchValue,
+              onPickAutoSwitchUnit: _pickAutoSwitchUnit,
             ),
+            const SizedBox(height: 24),
             ..._mottos.indexed.map((entry) {
               final index = entry.$1;
               final item = entry.$2;
@@ -1641,6 +1544,420 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
 
 enum _MottoLineGroupMode { couplet, quatrain, fullPoem }
 
+class _MottoControlPanel extends StatelessWidget {
+  const _MottoControlPanel({
+    required this.sourceUrl,
+    required this.fetching,
+    required this.fetchingImage,
+    required this.hasImage,
+    required this.showMetaOnHome,
+    required this.autoSwitchOnHome,
+    required this.autoSwitchLabel,
+    required this.intervalUnitLabel,
+    required this.intervalValue,
+    required this.onEditSource,
+    required this.onFetch,
+    required this.onWebRecognize,
+    required this.onUseBingImage,
+    required this.onPickImage,
+    required this.onClearImage,
+    required this.onShowMetaChanged,
+    required this.onAutoSwitchChanged,
+    required this.onPickAutoSwitchValue,
+    required this.onPickAutoSwitchUnit,
+  });
+
+  final String sourceUrl;
+  final bool fetching;
+  final bool fetchingImage;
+  final bool hasImage;
+  final bool showMetaOnHome;
+  final bool autoSwitchOnHome;
+  final String autoSwitchLabel;
+  final String intervalUnitLabel;
+  final int intervalValue;
+  final VoidCallback onEditSource;
+  final VoidCallback? onFetch;
+  final VoidCallback onWebRecognize;
+  final VoidCallback? onUseBingImage;
+  final VoidCallback onPickImage;
+  final VoidCallback onClearImage;
+  final ValueChanged<bool> onShowMetaChanged;
+  final ValueChanged<bool> onAutoSwitchChanged;
+  final VoidCallback onPickAutoSwitchValue;
+  final VoidCallback onPickAutoSwitchUnit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFD69AF1);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _neonGlassFill(theme, alpha: 0.14),
+                accent.withValues(alpha: 0.12),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _neonGlassLine(accent)),
+            boxShadow: _neonGlassGlow(accent, strength: 0.56),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.86),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '每日箴言',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  _MottoMiniChip(
+                    icon: Icons.schedule_rounded,
+                    label: autoSwitchOnHome ? autoSwitchLabel : '手动',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _MottoSourceBar(
+                sourceUrl: sourceUrl,
+                fetching: fetching,
+                onEditSource: onEditSource,
+                onFetch: onFetch,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MottoQuickAction(
+                      icon: Icons.travel_explore_rounded,
+                      label: '网页识别',
+                      onTap: onWebRecognize,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MottoQuickAction(
+                      icon: Icons.wallpaper_rounded,
+                      label: fetchingImage ? '更新中' : '微软壁纸',
+                      onTap: onUseBingImage,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MottoQuickAction(
+                      icon: Icons.photo_library_rounded,
+                      label: '图库',
+                      onTap: onPickImage,
+                    ),
+                  ),
+                  if (hasImage) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _MottoQuickAction(
+                        icon: Icons.delete_outline_rounded,
+                        label: '清图',
+                        destructive: true,
+                        onTap: onClearImage,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              _MottoDenseToggleRow(
+                title: '显示作者',
+                value: showMetaOnHome,
+                onChanged: onShowMetaChanged,
+              ),
+              const SizedBox(height: 8),
+              _MottoDenseToggleRow(
+                title: '自动切换',
+                value: autoSwitchOnHome,
+                onChanged: onAutoSwitchChanged,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MottoMiniChip(
+                      label: '$intervalValue',
+                      onTap: onPickAutoSwitchValue,
+                    ),
+                    const SizedBox(width: 6),
+                    _MottoMiniChip(
+                      label: intervalUnitLabel,
+                      onTap: onPickAutoSwitchUnit,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MottoSourceBar extends StatelessWidget {
+  const _MottoSourceBar({
+    required this.sourceUrl,
+    required this.fetching,
+    required this.onEditSource,
+    required this.onFetch,
+  });
+
+  final String sourceUrl;
+  final bool fetching;
+  final VoidCallback onEditSource;
+  final VoidCallback? onFetch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFD69AF1);
+    return _MottoGlassCell(
+      child: Row(
+        children: [
+          Icon(
+            Icons.link_rounded,
+            size: 18,
+            color: accent.withValues(alpha: 0.92),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              sourceUrl,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.82),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Tooltip(
+            message: '设置地址',
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onEditSource,
+              icon: const Icon(Icons.edit_location_alt_outlined),
+              color: accent,
+            ),
+          ),
+          Tooltip(
+            message: fetching ? '抓取中' : '立即抓取',
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onFetch,
+              icon: Icon(
+                fetching
+                    ? Icons.downloading_rounded
+                    : Icons.cloud_download_outlined,
+              ),
+              color: accent,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MottoQuickAction extends StatelessWidget {
+  const _MottoQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onTap != null;
+    final accent = destructive
+        ? const Color(0xFFE15B5B)
+        : const Color(0xFFD69AF1);
+    final borderRadius = BorderRadius.circular(14);
+    return Tooltip(
+      message: label,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: borderRadius,
+              child: Ink(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: _liquidGlassFill(theme, accent, strength: 0.82),
+                  borderRadius: borderRadius,
+                  border: Border.all(
+                    color: _liquidGlassBorder(theme, accent, strength: 0.68),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 19,
+                      color: accent.withValues(alpha: enabled ? 1 : 0.38),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: enabled ? 0.86 : 0.38,
+                        ),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MottoDenseToggleRow extends StatelessWidget {
+  const _MottoDenseToggleRow({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.trailing,
+  });
+
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFD69AF1);
+    return _MottoGlassCell(
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (trailing != null) ...[trailing!, const SizedBox(width: 8)],
+          Transform.scale(
+            scale: 0.78,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: accent,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor: theme.brightness == Brightness.dark
+                  ? const Color(0xFF454545)
+                  : const Color(0xFFD0D0D0),
+              trackOutlineColor: const WidgetStatePropertyAll(
+                Colors.transparent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MottoMiniChip extends StatelessWidget {
+  const _MottoMiniChip({required this.label, this.icon, this.onTap});
+
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFD69AF1);
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 14, color: accent),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.86),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Ink(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        decoration: BoxDecoration(
+          color: _liquidGlassFill(theme, accent, strength: 0.72),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: _liquidGlassBorder(theme, accent, strength: 0.58),
+          ),
+        ),
+        child: Center(child: content),
+      ),
+    );
+  }
+}
+
 class _MottoRegionPainter extends CustomPainter {
   const _MottoRegionPainter(this.region);
 
@@ -1684,7 +2001,7 @@ class _MottoGlassButton extends StatelessWidget {
     required this.onPressed,
     this.filled = false,
     this.destructive = false,
-    this.height = 58,
+    this.height = 48,
     this.fullWidth = false,
   });
 
@@ -1703,8 +2020,8 @@ class _MottoGlassButton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final accent = destructive
         ? const Color(0xFFE15B5B)
-        : const Color(0xFF7F8CFF);
-    final borderRadius = BorderRadius.circular(22);
+        : (filled ? const Color(0xFFD69AF1) : const Color(0xFF7F8CFF));
+    final borderRadius = BorderRadius.circular(16);
     final button = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
@@ -1815,134 +2132,23 @@ extension on _DailyMottoSettingsPageState {
   }
 }
 
-class _MottoSwitchCell extends StatelessWidget {
-  const _MottoSwitchCell({
-    required this.title,
-    required this.value,
-    required this.onChanged,
-    this.subtitle,
-  });
-
-  final String title;
-  final String? subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return _MottoGlassCell(
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: const Color(0xFF8DE2CE),
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: theme.brightness == Brightness.dark
-                ? const Color(0xFF3A4A48)
-                : const Color(0xFFD9E8E2),
-            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MottoValueCell extends StatelessWidget {
-  const _MottoValueCell({
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return _MottoGlassCell(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: theme.colorScheme.primary,
-            size: 26,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MottoGlassCell extends StatelessWidget {
-  const _MottoGlassCell({required this.child, this.onTap});
+  const _MottoGlassCell({required this.child});
 
   final Widget child;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final borderRadius = BorderRadius.circular(22);
+    const accent = Color(0xFFD69AF1);
+    final borderRadius = BorderRadius.circular(16);
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withValues(
-              alpha: isDark ? 0.12 : 0.08,
-            ),
+            color: accent.withValues(alpha: isDark ? 0.08 : 0.04),
             blurRadius: 18,
             offset: const Offset(0, 9),
           ),
@@ -1954,31 +2160,16 @@ class _MottoGlassCell extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Material(
             color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: borderRadius,
-              child: Ink(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+            child: Ink(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: _liquidGlassFill(theme, accent, strength: 0.85),
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: _liquidGlassBorder(theme, accent, strength: 0.7),
                 ),
-                decoration: BoxDecoration(
-                  color: _liquidGlassFill(
-                    theme,
-                    theme.colorScheme.primary,
-                    strength: 0.85,
-                  ),
-                  borderRadius: borderRadius,
-                  border: Border.all(
-                    color: _liquidGlassBorder(
-                      theme,
-                      theme.colorScheme.primary,
-                      strength: 0.8,
-                    ),
-                  ),
-                ),
-                child: child,
               ),
+              child: child,
             ),
           ),
         ),

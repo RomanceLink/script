@@ -1387,9 +1387,10 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFF8EF0FF)
                                 : const Color(0xFF4B63D9),
-                            background: theme.brightness == Brightness.dark
-                                ? const Color(0xFF2A2F63)
-                                : const Color(0xFFDCE3FF),
+                            background: (theme.brightness == Brightness.dark
+                                    ? const Color(0xFF8EF0FF)
+                                    : const Color(0xFF4B63D9))
+                                .withValues(alpha: 0.16),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1427,9 +1428,10 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFFFFC98A)
                                 : const Color(0xFFB97738),
-                            background: theme.brightness == Brightness.dark
-                                ? const Color(0xFF2A2F63)
-                                : const Color(0xFFDCE3FF),
+                            background: (theme.brightness == Brightness.dark
+                                    ? const Color(0xFFFFC98A)
+                                    : const Color(0xFFB97738))
+                                .withValues(alpha: 0.16),
                           ),
                           const SizedBox(width: 6),
                           _HeaderIconAction(
@@ -1438,9 +1440,10 @@ class _DashboardPageState extends State<DashboardPage>
                             foreground: theme.brightness == Brightness.dark
                                 ? const Color(0xFFE2A6FF)
                                 : const Color(0xFF8A53D2),
-                            background: theme.brightness == Brightness.dark
-                                ? const Color(0xFF2A2F63)
-                                : const Color(0xFFDCE3FF),
+                            background: (theme.brightness == Brightness.dark
+                                    ? const Color(0xFFE2A6FF)
+                                    : const Color(0xFF8A53D2))
+                                .withValues(alpha: 0.16),
                           ),
                         ],
                       ),
