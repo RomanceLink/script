@@ -219,11 +219,7 @@ class _HomeLoadingView extends StatelessWidget {
           children: const [
             _LoadingGlassBlock(height: 72, radius: 28),
             SizedBox(height: 16),
-            _LoadingGlassBlock(height: 220, radius: 32),
-            SizedBox(height: 16),
-            _LoadingGlassBlock(height: 116, radius: 28),
-            SizedBox(height: 12),
-            _LoadingGlassBlock(height: 116, radius: 28),
+            _LoadingGlassBlock(height: 390, radius: 32),
           ],
         ),
       ),

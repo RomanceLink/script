@@ -137,15 +137,33 @@ class AlarmActivity : ComponentActivity() {
                 System.currentTimeMillis() + autoCompleteDelaySeconds * 1000L,
             )
         }
+        val preActions = AutoSwipeService.parseActionsJson(preActionsJson)
+        val actions = AutoSwipeService.parseActionsJson(actionsJson)
         if (!targetAppPackage.isNullOrBlank()) {
             AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
             AlarmLaunchStore.setPendingOpenTaskId(this@AlarmActivity, taskId)
-            val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("taskId", taskId)
-                putExtra("openTaskId", taskId)
+            val opened = AutoSwipeService.openAppAndRunConfig(
+                context = this@AlarmActivity,
+                packageName = targetAppPackage,
+                packageLabel = targetAppLabel,
+                preConfigName = preConfigName,
+                preActions = preActions,
+                preLoopCount = preLoopCount,
+                preLoopIntervalMillis = preLoopIntervalMillis,
+                configName = configName,
+                actions = actions,
+                loopCount = loopCount,
+                loopIntervalMillis = loopIntervalMillis,
+                delaySeconds = 5,
+            )
+            if (!opened) {
+                val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("taskId", taskId)
+                    putExtra("openTaskId", taskId)
+                }
+                startActivity(launchIntent)
             }
-            startActivity(launchIntent)
         } else {
             AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
             val launchIntent = Intent(this@AlarmActivity, MainActivity::class.java).apply {
