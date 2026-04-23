@@ -340,12 +340,20 @@ class SwipeAction extends GestureAction {
 }
 
 class ClickAction extends GestureAction {
-  const ClickAction({required this.x1, required this.y1, this.duration = 50})
+  const ClickAction({
+    required this.x1,
+    required this.y1,
+    this.duration = 50,
+    this.screenWidth,
+    this.screenHeight,
+  })
     : super(type: GestureActionType.click);
 
   final double x1;
   final double y1;
   final int duration;
+  final int? screenWidth;
+  final int? screenHeight;
 
   @override
   Map<String, Object?> toJson() => {
@@ -353,12 +361,16 @@ class ClickAction extends GestureAction {
     'x1': x1,
     'y1': y1,
     'duration': duration,
+    if (screenWidth != null) 'screenWidth': screenWidth,
+    if (screenHeight != null) 'screenHeight': screenHeight,
   };
 
   factory ClickAction.fromJson(Map<String, Object?> json) => ClickAction(
     x1: (json['x1'] as num).toDouble(),
     y1: (json['y1'] as num).toDouble(),
     duration: json['duration'] as int? ?? 50,
+    screenWidth: (json['screenWidth'] as num?)?.toInt(),
+    screenHeight: (json['screenHeight'] as num?)?.toInt(),
   );
 }
 
@@ -409,23 +421,34 @@ class GestureSegment {
 }
 
 class RecordedGestureAction extends GestureAction {
-  const RecordedGestureAction({required this.segments, required this.duration})
+  const RecordedGestureAction({
+    required this.segments,
+    required this.duration,
+    this.screenWidth,
+    this.screenHeight,
+  })
     : super(type: GestureActionType.recorded);
 
   final List<GestureSegment> segments;
   final int duration;
+  final int? screenWidth;
+  final int? screenHeight;
 
   @override
   Map<String, Object?> toJson() => {
     'type': type.name,
     'duration': duration,
     'segments': segments.map((s) => s.toJson()).toList(),
+    if (screenWidth != null) 'screenWidth': screenWidth,
+    if (screenHeight != null) 'screenHeight': screenHeight,
   };
 
   factory RecordedGestureAction.fromJson(Map<String, Object?> json) {
     final rawSegments = (json['segments'] as List<Object?>?) ?? const [];
     return RecordedGestureAction(
       duration: (json['duration'] as num?)?.toInt() ?? 0,
+      screenWidth: (json['screenWidth'] as num?)?.toInt(),
+      screenHeight: (json['screenHeight'] as num?)?.toInt(),
       segments: rawSegments
           .whereType<Map<Object?, Object?>>()
           .map(GestureSegment.fromJson)

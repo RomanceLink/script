@@ -3319,17 +3319,19 @@ class AutoSwipeService : AccessibilityService() {
         val (screenWidth, screenHeight) = screenSize()
         val width = screenWidth.coerceAtLeast(1).toFloat()
         val height = screenHeight.coerceAtLeast(1).toFloat()
+        val recordedWidth = ((action["screenWidth"] as? Number)?.toFloat() ?: width).coerceAtLeast(1f)
+        val recordedHeight = ((action["screenHeight"] as? Number)?.toFloat() ?: height).coerceAtLeast(1f)
         val actionType = action["type"] as? String ?: "swipe"
 
         val gestureBuilder = GestureDescription.Builder()
         val hasStroke = if (actionType == "recorded") {
-            addRecordedStrokes(gestureBuilder, action, width, height)
+            addRecordedStrokes(gestureBuilder, action, recordedWidth, recordedHeight)
         } else {
             val duration = ((action["duration"] as? Number)?.toLong() ?: 300L).coerceAtLeast(50L)
             val path = Path()
             if (actionType == "click") {
-                val x = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width
-                val y = ((action["y1"] as? Number)?.toFloat() ?: 0.5f) * height
+                val x = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
+                val y = ((action["y1"] as? Number)?.toFloat() ?: 0.5f) * recordedHeight
                 path.moveTo(x, y)
             } else {
                 val x1 = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width
@@ -4013,7 +4015,7 @@ class AutoSwipeService : AccessibilityService() {
             background = roundedBackground(0xDD151A1E.toInt(), dp(18).toFloat(), 0x55FFFFFF)
         }
         val status = TextView(this).apply {
-            text = "录制 00:00.0"
+            text = "录制 00:00:00"
             textSize = 11f
             setTextColor(Color.WHITE)
             includeFontPadding = false
@@ -4112,7 +4114,7 @@ class AutoSwipeService : AccessibilityService() {
             override fun run() {
                 if (unlockMotionRecorder == null || unlockMotionStartedAt == 0L) return
                 updateUnlockMotionStatus()
-                handler.postDelayed(this, 100)
+                handler.postDelayed(this, 50)
             }
         }
         unlockMotionTicker = ticker
@@ -5414,12 +5416,12 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun formatElapsedTenths(milliseconds: Long): String {
-        val totalTenths = milliseconds / 100
-        val totalSeconds = totalTenths / 10
+        val totalCentiseconds = milliseconds / 10
+        val totalSeconds = totalCentiseconds / 100
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
-        val tenths = totalTenths % 10
-        return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.$tenths"
+        val centiseconds = totalCentiseconds % 100
+        return "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}"
     }
 
     private fun formatDurationLabel(milliseconds: Long): String {
@@ -5567,12 +5569,16 @@ class AutoSwipeService : AccessibilityService() {
         private var currentSegment: RecordedSegment? = null
         private var recording = false
         private var startedAt = 0L
+        private var recordingScreenWidth = 0
+        private var recordingScreenHeight = 0
 
         fun startRecording() {
             segments.clear()
             currentSegment = null
             recording = true
             startedAt = SystemClock.uptimeMillis()
+            recordingScreenWidth = 0
+            recordingScreenHeight = 0
         }
 
         fun onMotionEvent(
@@ -5586,6 +5592,12 @@ class AutoSwipeService : AccessibilityService() {
             if (!recording) return null
             val width = screenWidth.coerceAtLeast(1).toFloat()
             val height = screenHeight.coerceAtLeast(1).toFloat()
+            if (recordingScreenWidth <= 0) {
+                recordingScreenWidth = width.toInt()
+            }
+            if (recordingScreenHeight <= 0) {
+                recordingScreenHeight = height.toInt()
+            }
             fun currentX(): Float = if (useRawCoordinates) event.rawX else event.x + offsetX
             fun currentY(): Float = if (useRawCoordinates) event.rawY else event.y + offsetY
             fun historicalX(index: Int): Float =
@@ -5637,6 +5649,8 @@ class AutoSwipeService : AccessibilityService() {
             return mapOf(
                 "type" to "recorded",
                 "duration" to duration,
+                "screenWidth" to recordingScreenWidth.coerceAtLeast(1),
+                "screenHeight" to recordingScreenHeight.coerceAtLeast(1),
                 "segments" to segments.filter { it.points.isNotEmpty() }.map { segment ->
                     mapOf(
                         "start" to segment.start,

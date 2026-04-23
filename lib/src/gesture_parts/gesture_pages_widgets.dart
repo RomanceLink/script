@@ -464,6 +464,8 @@ class _ActionCategoryHeader extends StatelessWidget {
 
 class _UnlockActionBuilder {
   static List<GestureAction> build(Map<String, Object?> result) {
+    final screenWidth = (result['screenWidth'] as num?)?.toInt();
+    final screenHeight = (result['screenHeight'] as num?)?.toInt();
     final rawSegments = (result['segments'] as List<Object?>?) ?? const [];
     final segments =
         rawSegments
@@ -483,12 +485,21 @@ class _UnlockActionBuilder {
       }
       if (_isTapSegment(segment)) {
         final point = segment.points.first;
-        actions.add(ClickAction(x1: point.x, y1: point.y));
+        actions.add(
+          ClickAction(
+            x1: point.x,
+            y1: point.y,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight,
+          ),
+        );
       } else {
         final duration = (end - start).clamp(50, 10000000);
         actions.add(
           RecordedGestureAction(
             duration: duration,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight,
             segments: [
               GestureSegment(
                 start: 0,
