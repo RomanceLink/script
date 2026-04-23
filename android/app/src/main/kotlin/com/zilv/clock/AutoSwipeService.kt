@@ -3316,9 +3316,9 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun performGestureAction(action: Map<String, Any?>, runToken: Long = runSessionId, onDone: () -> Unit) {
-        val dm = resources.displayMetrics
-        val width = dm.widthPixels.toFloat()
-        val height = dm.heightPixels.toFloat()
+        val (screenWidth, screenHeight) = screenSize()
+        val width = screenWidth.coerceAtLeast(1).toFloat()
+        val height = screenHeight.coerceAtLeast(1).toFloat()
         val actionType = action["type"] as? String ?: "swipe"
 
         val gestureBuilder = GestureDescription.Builder()
@@ -4014,11 +4014,11 @@ class AutoSwipeService : AccessibilityService() {
         }
         val status = TextView(this).apply {
             text = "录制 00:00.0"
-            textSize = 12f
+            textSize = 11f
             setTextColor(Color.WHITE)
             includeFontPadding = false
             typeface = Typeface.MONOSPACE
-            minWidth = dp(92)
+            minWidth = dp(112)
         }
         unlockMotionStatusView = status
         root.addView(status, LinearLayout.LayoutParams(
