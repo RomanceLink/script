@@ -877,14 +877,14 @@ class AutoSwipeService : AccessibilityService() {
     }
 
     private fun screenSize(): Pair<Int, Int> {
-        val wm = windowManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && wm != null) {
-            val bounds = wm.currentWindowMetrics.bounds
+        val wm = windowManager ?: return resources.displayMetrics.widthPixels to resources.displayMetrics.heightPixels
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = wm.maximumWindowMetrics.bounds
             return bounds.width() to bounds.height()
         }
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
-        wm?.defaultDisplay?.getRealMetrics(metrics)
+        wm.defaultDisplay.getRealMetrics(metrics)
         if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
             return metrics.widthPixels to metrics.heightPixels
         }
@@ -3334,10 +3334,10 @@ class AutoSwipeService : AccessibilityService() {
                 val y = ((action["y1"] as? Number)?.toFloat() ?: 0.5f) * recordedHeight
                 path.moveTo(x, y)
             } else {
-                val x1 = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * width
-                val y1 = ((action["y1"] as? Number)?.toFloat() ?: 0.7f) * height
-                val x2 = ((action["x2"] as? Number)?.toFloat() ?: 0.5f) * width
-                val y2 = ((action["y2"] as? Number)?.toFloat() ?: 0.3f) * height
+                val x1 = ((action["x1"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
+                val y1 = ((action["y1"] as? Number)?.toFloat() ?: 0.7f) * recordedHeight
+                val x2 = ((action["x2"] as? Number)?.toFloat() ?: 0.5f) * recordedWidth
+                val y2 = ((action["y2"] as? Number)?.toFloat() ?: 0.3f) * recordedHeight
                 path.moveTo(x1, y1)
                 path.lineTo(x2, y2)
             }
@@ -3656,7 +3656,12 @@ class AutoSwipeService : AccessibilityService() {
 
     private fun finishPositionPicker() {
         val mode = pickerMode ?: return
-        val result = mutableMapOf<String, Any?>("type" to mode)
+        val (screenWidth, screenHeight) = screenSize()
+        val result = mutableMapOf<String, Any?>(
+            "type" to mode,
+            "screenWidth" to screenWidth,
+            "screenHeight" to screenHeight
+        )
         pickerData.forEach { (key, value) ->
             result[key] = value.toDouble()
         }
