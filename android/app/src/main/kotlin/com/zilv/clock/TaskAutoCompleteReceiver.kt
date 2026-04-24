@@ -114,7 +114,7 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
             putExtra("targetAppPackage", targetAppPackage)
             putExtra("targetAppLabel", targetAppLabel)
             putExtra("autoOpenDelaySeconds", task.optInt("autoOpenDelaySeconds", 0))
-            putExtra("autoCompleteDelaySeconds", task.optInt("autoCompleteDelaySeconds", 0))
+            putExtra("autoCompleteDelaySeconds", autoCompleteDelaySeconds(task))
             putExtra("notificationId", 70000 + task.optString("id").hashCode())
         }
 
@@ -199,6 +199,17 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
                 "hours" -> value * 60L * 60L * 1000L
                 "days" -> value * 24L * 60L * 60L * 1000L
                 else -> value * 60L * 1000L
+            }
+        }
+
+        private fun autoCompleteDelaySeconds(task: JSONObject): Int {
+            val value = task.optInt("autoCompleteDelayValue", 0).coerceAtLeast(0)
+            if (value <= 0) return 0
+            return when (task.optString("autoCompleteDelayUnit", "minutes")) {
+                "seconds" -> value
+                "hours" -> value * 60 * 60
+                "days" -> value * 24 * 60 * 60
+                else -> value * 60
             }
         }
 
