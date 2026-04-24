@@ -134,6 +134,15 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
     companion object {
         private const val REQUEST_BASE = 60000
 
+        private data class ResolvedGesturePlan(
+            val name: String,
+            val beforeLoopActions: JSONArray,
+            val loopActions: JSONArray,
+            val loopCount: Int,
+            val loopIntervalMillis: Int,
+            val infiniteLoop: Boolean,
+        )
+
         fun schedule(context: Context, taskId: String, dateKey: String, delaySeconds: Int) {
             cancel(context, taskId)
             if (delaySeconds <= 0) return
@@ -199,10 +208,28 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
         ) {
             if (configId.isNullOrBlank()) return
             val config = findConfig(configs, configId) ?: return
-            intent.putExtra("${prefix}ConfigName", config.optString("name"))
-            intent.putExtra("${prefix}ActionsJson", config.optJSONArray("actions")?.toString())
-            intent.putExtra("${prefix}LoopCount", config.optInt("loopCount", 1))
-            intent.putExtra("${prefix}LoopIntervalMillis", config.optInt("loopIntervalMillis", 0))
+            val allowInfinite = prefix != "preGesture"
+            val plan = resolveGesturePlan(
+                config = config,
+                configs = configs,
+                allowInfinite = allowInfinite,
+            )
+            intent.putExtra("${prefix}ConfigName", plan.name)
+            if (prefix == "preGesture") {
+                val flattened = JSONArray().apply {
+                    mergeJsonArray(plan.beforeLoopActions)
+                    mergeJsonArray(plan.loopActions)
+                }
+                intent.putExtra("${prefix}ActionsJson", flattened.toString())
+                intent.putExtra("${prefix}LoopCount", 1)
+                intent.putExtra("${prefix}LoopIntervalMillis", 0)
+                return
+            }
+            intent.putExtra("${prefix}BeforeLoopActionsJson", plan.beforeLoopActions.toString())
+            intent.putExtra("${prefix}ActionsJson", plan.loopActions.toString())
+            intent.putExtra("${prefix}LoopCount", plan.loopCount)
+            intent.putExtra("${prefix}LoopIntervalMillis", plan.loopIntervalMillis)
+            intent.putExtra("${prefix}InfiniteLoop", plan.infiniteLoop)
         }
 
         private fun findConfig(configs: JSONArray, id: String): JSONObject? {
@@ -211,6 +238,104 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
                 if (obj.optString("id") == id) return obj
             }
             return null
+        }
+
+        private fun resolveGesturePlan(
+            config: JSONObject,
+            configs: JSONArray,
+            allowInfinite: Boolean,
+            visited: MutableSet<String> = mutableSetOf(),
+        ): ResolvedGesturePlan {
+            val configId = config.optString("id")
+            if (configId.isNotBlank() && !visited.add(configId)) {
+                return ResolvedGesturePlan(
+                    name = config.optString("name", "配置"),
+                    beforeLoopActions = expandLoopedActionsJson(
+                        config.optJSONArray("actions"),
+                        config.optInt("loopCount", 1),
+                        config.optInt("loopIntervalMillis", 0),
+                    ),
+                    loopActions = JSONArray(),
+                    loopCount = 1,
+                    loopIntervalMillis = 0,
+                    infiniteLoop = false,
+                )
+            }
+            val name = config.optString("name", "配置")
+            val infiniteLoop = config.optBoolean("infiniteLoop", false)
+            if (infiniteLoop && allowInfinite) {
+                return ResolvedGesturePlan(
+                    name = name,
+                    beforeLoopActions = JSONArray(),
+                    loopActions = cloneJsonArray(config.optJSONArray("actions")),
+                    loopCount = config.optInt("loopCount", 1).coerceIn(1, 9999),
+                    loopIntervalMillis = config.optInt("loopIntervalMillis", 0).coerceAtLeast(0),
+                    infiniteLoop = true,
+                )
+            }
+            val current = expandLoopedActionsJson(
+                config.optJSONArray("actions"),
+                config.optInt("loopCount", 1),
+                config.optInt("loopIntervalMillis", 0),
+            )
+            val followUpId = config.optString("followUpConfigId").takeIf { it.isNotBlank() }
+            val child = followUpId?.let { findConfig(configs, it) }
+            if (child == null) {
+                return ResolvedGesturePlan(
+                    name = name,
+                    beforeLoopActions = current,
+                    loopActions = JSONArray(),
+                    loopCount = 1,
+                    loopIntervalMillis = 0,
+                    infiniteLoop = false,
+                )
+            }
+            val childPlan = resolveGesturePlan(child, configs, allowInfinite, visited)
+            current.mergeJsonArray(childPlan.beforeLoopActions)
+            return ResolvedGesturePlan(
+                name = "$name -> ${childPlan.name}",
+                beforeLoopActions = current,
+                loopActions = cloneJsonArray(childPlan.loopActions),
+                loopCount = childPlan.loopCount,
+                loopIntervalMillis = childPlan.loopIntervalMillis,
+                infiniteLoop = childPlan.infiniteLoop,
+            )
+        }
+
+        private fun expandLoopedActionsJson(
+            actions: JSONArray?,
+            loopCount: Int,
+            loopIntervalMillis: Int,
+        ): JSONArray {
+            val out = JSONArray()
+            val loops = loopCount.coerceIn(1, 9999)
+            for (i in 0 until loops) {
+                out.mergeJsonArray(actions)
+                if (i < loops - 1 && loopIntervalMillis > 0) {
+                    out.put(
+                        JSONObject().apply {
+                            put("type", "wait")
+                            put("waitMode", "fixed")
+                            put("seconds", ((loopIntervalMillis + 999) / 1000).coerceIn(1, 10000))
+                            put("waitMillis", loopIntervalMillis.coerceIn(1, 10_000_000))
+                        },
+                    )
+                }
+            }
+            return out
+        }
+
+        private fun cloneJsonArray(source: JSONArray?): JSONArray {
+            val out = JSONArray()
+            out.mergeJsonArray(source)
+            return out
+        }
+
+        private fun JSONArray.mergeJsonArray(source: JSONArray?) {
+            if (source == null) return
+            for (index in 0 until source.length()) {
+                put(source.opt(index))
+            }
         }
     }
 }

@@ -56,6 +56,15 @@ class NotificationService {
       if (!state.isEnabled(definition.id)) {
         continue;
       }
+      final gesturePlan = _gestureExecutionPlan(
+        definition.gestureConfigId,
+        gestureConfigs,
+      );
+      final preGesturePlan = _gestureExecutionPlan(
+        definition.preGestureConfigId,
+        gestureConfigs,
+        allowInfinite: false,
+      );
       switch (definition.kind) {
         case AssistantTaskKind.feedWindow:
           if (state.isCompleted(definition.id)) {
@@ -79,37 +88,30 @@ class NotificationService {
                 ringtoneValue: definition.ringtoneValue,
                 targetAppPackage: state.selectedAppPackage,
                 targetAppLabel: state.selectedAppLabel,
-                gestureConfigName: _gestureConfigName(
-                  definition,
-                  gestureConfigs,
+                gestureConfigName: gesturePlan?.name,
+                gestureBeforeLoopActionsJson: _actionsJsonOrNull(
+                  gesturePlan?.beforeLoopActions,
                 ),
-                gestureActionsJson: _gestureActionsJson(
-                  definition,
-                  gestureConfigs,
+                gestureActionsJson: _actionsJsonOrNull(
+                  gesturePlan?.loopActions,
                 ),
-                gestureLoopCount: _gestureLoopCount(definition, gestureConfigs),
-                gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
-                  definition,
-                  gestureConfigs,
+                gestureLoopCount: gesturePlan?.loopCount,
+                gestureLoopIntervalMillis: gesturePlan?.loopIntervalMillis,
+                gestureInfiniteLoop: gesturePlan?.infiniteLoop,
+                preGestureConfigName: preGesturePlan?.name,
+                preGestureActionsJson: _actionsJsonOrNull(
+                  preGesturePlan == null
+                      ? null
+                      : [
+                          ...preGesturePlan.beforeLoopActions,
+                          ...preGesturePlan.loopActions,
+                        ],
                 ),
-                preGestureConfigName: _preGestureConfigName(
-                  definition,
-                  gestureConfigs,
-                ),
-                preGestureActionsJson: _preGestureActionsJson(
-                  definition,
-                  gestureConfigs,
-                ),
-                preGestureLoopCount: _preGestureLoopCount(
-                  definition,
-                  gestureConfigs,
-                ),
-                preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
-                  definition,
-                  gestureConfigs,
-                ),
+                preGestureLoopCount: preGesturePlan == null ? null : 1,
+                preGestureLoopIntervalMillis: preGesturePlan == null ? null : 0,
                 autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
-                autoCompleteDelaySeconds: definition.autoCompleteDelayDuration.inSeconds,
+                autoCompleteDelaySeconds:
+                    definition.autoCompleteDelayDuration.inSeconds,
               ),
             );
           }
@@ -137,40 +139,32 @@ class NotificationService {
                   ringtoneValue: definition.ringtoneValue,
                   targetAppPackage: state.selectedAppPackage,
                   targetAppLabel: state.selectedAppLabel,
-                  gestureConfigName: _gestureConfigName(
-                    definition,
-                    gestureConfigs,
+                  gestureConfigName: gesturePlan?.name,
+                  gestureBeforeLoopActionsJson: _actionsJsonOrNull(
+                    gesturePlan?.beforeLoopActions,
                   ),
-                  gestureActionsJson: _gestureActionsJson(
-                    definition,
-                    gestureConfigs,
+                  gestureActionsJson: _actionsJsonOrNull(
+                    gesturePlan?.loopActions,
                   ),
-                  gestureLoopCount: _gestureLoopCount(
-                    definition,
-                    gestureConfigs,
+                  gestureLoopCount: gesturePlan?.loopCount,
+                  gestureLoopIntervalMillis: gesturePlan?.loopIntervalMillis,
+                  gestureInfiniteLoop: gesturePlan?.infiniteLoop,
+                  preGestureConfigName: preGesturePlan?.name,
+                  preGestureActionsJson: _actionsJsonOrNull(
+                    preGesturePlan == null
+                        ? null
+                        : [
+                            ...preGesturePlan.beforeLoopActions,
+                            ...preGesturePlan.loopActions,
+                          ],
                   ),
-                  gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureConfigName: _preGestureConfigName(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureActionsJson: _preGestureActionsJson(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureLoopCount: _preGestureLoopCount(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
-                    definition,
-                    gestureConfigs,
-                  ),
+                  preGestureLoopCount: preGesturePlan == null ? null : 1,
+                  preGestureLoopIntervalMillis: preGesturePlan == null
+                      ? null
+                      : 0,
                   autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
-                  autoCompleteDelaySeconds: definition.autoCompleteDelayDuration.inSeconds,
+                  autoCompleteDelaySeconds:
+                      definition.autoCompleteDelayDuration.inSeconds,
                 ),
               );
             }
@@ -196,40 +190,32 @@ class NotificationService {
                   ringtoneValue: definition.ringtoneValue,
                   targetAppPackage: state.selectedAppPackage,
                   targetAppLabel: state.selectedAppLabel,
-                  gestureConfigName: _gestureConfigName(
-                    definition,
-                    gestureConfigs,
+                  gestureConfigName: gesturePlan?.name,
+                  gestureBeforeLoopActionsJson: _actionsJsonOrNull(
+                    gesturePlan?.beforeLoopActions,
                   ),
-                  gestureActionsJson: _gestureActionsJson(
-                    definition,
-                    gestureConfigs,
+                  gestureActionsJson: _actionsJsonOrNull(
+                    gesturePlan?.loopActions,
                   ),
-                  gestureLoopCount: _gestureLoopCount(
-                    definition,
-                    gestureConfigs,
+                  gestureLoopCount: gesturePlan?.loopCount,
+                  gestureLoopIntervalMillis: gesturePlan?.loopIntervalMillis,
+                  gestureInfiniteLoop: gesturePlan?.infiniteLoop,
+                  preGestureConfigName: preGesturePlan?.name,
+                  preGestureActionsJson: _actionsJsonOrNull(
+                    preGesturePlan == null
+                        ? null
+                        : [
+                            ...preGesturePlan.beforeLoopActions,
+                            ...preGesturePlan.loopActions,
+                          ],
                   ),
-                  gestureLoopIntervalMillis: _gestureLoopIntervalMillis(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureConfigName: _preGestureConfigName(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureActionsJson: _preGestureActionsJson(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureLoopCount: _preGestureLoopCount(
-                    definition,
-                    gestureConfigs,
-                  ),
-                  preGestureLoopIntervalMillis: _preGestureLoopIntervalMillis(
-                    definition,
-                    gestureConfigs,
-                  ),
+                  preGestureLoopCount: preGesturePlan == null ? null : 1,
+                  preGestureLoopIntervalMillis: preGesturePlan == null
+                      ? null
+                      : 0,
                   autoOpenDelaySeconds: definition.autoOpenDelaySeconds,
-                  autoCompleteDelaySeconds: definition.autoCompleteDelayDuration.inSeconds,
+                  autoCompleteDelaySeconds:
+                      definition.autoCompleteDelayDuration.inSeconds,
                 ),
               );
             }
@@ -251,70 +237,116 @@ class NotificationService {
     return configs.where((config) => config.id == configId).firstOrNull;
   }
 
-  String? _gestureConfigName(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(definition.gestureConfigId, configs)?.name;
-  }
-
-  String? _gestureActionsJson(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    final config = _gestureConfigFor(definition.gestureConfigId, configs);
-    if (config == null) return null;
-    return jsonEncode(config.actions.map((action) => action.toJson()).toList());
-  }
-
-  int? _gestureLoopCount(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(definition.gestureConfigId, configs)?.loopCount;
-  }
-
-  int? _gestureLoopIntervalMillis(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(
-      definition.gestureConfigId,
+  ({
+    String name,
+    List<Map<String, Object?>> beforeLoopActions,
+    List<Map<String, Object?>> loopActions,
+    int loopCount,
+    int loopIntervalMillis,
+    bool infiniteLoop,
+  })?
+  _gestureExecutionPlan(
+    String? configId,
+    List<GestureConfig> configs, {
+    bool allowInfinite = true,
+  }) {
+    final config = _gestureConfigFor(configId, configs);
+    return _resolveGestureExecutionPlan(
+      config,
       configs,
-    )?.loopIntervalMillis;
+      allowInfinite: allowInfinite,
+    );
   }
 
-  String? _preGestureConfigName(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(definition.preGestureConfigId, configs)?.name;
-  }
-
-  String? _preGestureActionsJson(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    final config = _gestureConfigFor(definition.preGestureConfigId, configs);
-    if (config == null) return null;
-    return jsonEncode(config.actions.map((action) => action.toJson()).toList());
-  }
-
-  int? _preGestureLoopCount(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(definition.preGestureConfigId, configs)?.loopCount;
-  }
-
-  int? _preGestureLoopIntervalMillis(
-    AssistantTaskDefinition definition,
-    List<GestureConfig> configs,
-  ) {
-    return _gestureConfigFor(
-      definition.preGestureConfigId,
+  ({
+    String name,
+    List<Map<String, Object?>> beforeLoopActions,
+    List<Map<String, Object?>> loopActions,
+    int loopCount,
+    int loopIntervalMillis,
+    bool infiniteLoop,
+  })?
+  _resolveGestureExecutionPlan(
+    GestureConfig? config,
+    List<GestureConfig> configs, {
+    bool allowInfinite = true,
+    Set<String>? visited,
+  }) {
+    if (config == null) {
+      return null;
+    }
+    final nextVisited = {...?visited};
+    if (!nextVisited.add(config.id)) {
+      return (
+        name: config.name,
+        beforeLoopActions: _expandFiniteConfigActions(config),
+        loopActions: const [],
+        loopCount: 1,
+        loopIntervalMillis: 0,
+        infiniteLoop: false,
+      );
+    }
+    if (config.infiniteLoop && allowInfinite) {
+      return (
+        name: config.name,
+        beforeLoopActions: const [],
+        loopActions: config.actions.map((action) => action.toJson()).toList(),
+        loopCount: config.loopCount,
+        loopIntervalMillis: config.loopIntervalMillis,
+        infiniteLoop: true,
+      );
+    }
+    final currentActions = _expandFiniteConfigActions(config);
+    final child = configs
+        .where((item) => item.id == config.followUpConfigId)
+        .firstOrNull;
+    final childPlan = _resolveGestureExecutionPlan(
+      child,
       configs,
-    )?.loopIntervalMillis;
+      allowInfinite: allowInfinite,
+      visited: nextVisited,
+    );
+    if (childPlan == null) {
+      return (
+        name: config.name,
+        beforeLoopActions: currentActions,
+        loopActions: const [],
+        loopCount: 1,
+        loopIntervalMillis: 0,
+        infiniteLoop: false,
+      );
+    }
+    return (
+      name: '${config.name} -> ${childPlan.name}',
+      beforeLoopActions: [...currentActions, ...childPlan.beforeLoopActions],
+      loopActions: childPlan.loopActions,
+      loopCount: childPlan.loopCount,
+      loopIntervalMillis: childPlan.loopIntervalMillis,
+      infiniteLoop: childPlan.infiniteLoop,
+    );
+  }
+
+  List<Map<String, Object?>> _expandFiniteConfigActions(GestureConfig config) {
+    final out = <Map<String, Object?>>[];
+    final loops = config.loopCount.clamp(1, 9999);
+    for (var i = 0; i < loops; i++) {
+      out.addAll(config.actions.map((action) => action.toJson()));
+      if (i < loops - 1 && config.loopIntervalMillis > 0) {
+        out.add(
+          WaitAction.fixedMilliseconds(
+            milliseconds: config.loopIntervalMillis,
+          ).toJson(),
+        );
+      }
+    }
+    return out;
+  }
+
+  String? _actionsJsonOrNull(List<Map<String, Object?>>? actions) {
+    if (actions == null || actions.isEmpty) {
+      return null;
+    }
+    return jsonEncode(actions);
   }
 
   Future<void> _showSummary(DailyTaskState state) async {

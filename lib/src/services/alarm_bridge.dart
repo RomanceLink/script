@@ -15,9 +15,11 @@ class AlarmReminder {
     this.targetAppPackage,
     this.targetAppLabel,
     this.gestureConfigName,
+    this.gestureBeforeLoopActionsJson,
     this.gestureActionsJson,
     this.gestureLoopCount,
     this.gestureLoopIntervalMillis,
+    this.gestureInfiniteLoop,
     this.preGestureConfigName,
     this.preGestureActionsJson,
     this.preGestureLoopCount,
@@ -37,9 +39,11 @@ class AlarmReminder {
   final String? targetAppPackage;
   final String? targetAppLabel;
   final String? gestureConfigName;
+  final String? gestureBeforeLoopActionsJson;
   final String? gestureActionsJson;
   final int? gestureLoopCount;
   final int? gestureLoopIntervalMillis;
+  final bool? gestureInfiniteLoop;
   final String? preGestureConfigName;
   final String? preGestureActionsJson;
   final int? preGestureLoopCount;
@@ -60,9 +64,11 @@ class AlarmReminder {
       'targetAppPackage': targetAppPackage,
       'targetAppLabel': targetAppLabel,
       'gestureConfigName': gestureConfigName,
+      'gestureBeforeLoopActionsJson': gestureBeforeLoopActionsJson,
       'gestureActionsJson': gestureActionsJson,
       'gestureLoopCount': gestureLoopCount,
       'gestureLoopIntervalMillis': gestureLoopIntervalMillis,
+      'gestureInfiniteLoop': gestureInfiniteLoop,
       'preGestureConfigName': preGestureConfigName,
       'preGestureActionsJson': preGestureActionsJson,
       'preGestureLoopCount': preGestureLoopCount,
@@ -88,12 +94,14 @@ class AlarmBridge {
   }
 
   Future<String?> consumePendingOpenTaskId() async {
-    final value = await _channel.invokeMethod<String>('consumePendingOpenTaskId');
+    final value = await _channel.invokeMethod<String>(
+      'consumePendingOpenTaskId',
+    );
     return value;
   }
 
-  Future<({String taskId, int dueAtMillis})?> consumePendingAutoComplete()
-  async {
+  Future<({String taskId, int dueAtMillis})?>
+  consumePendingAutoComplete() async {
     final result = await _channel.invokeMapMethod<String, Object?>(
       'consumePendingAutoComplete',
     );

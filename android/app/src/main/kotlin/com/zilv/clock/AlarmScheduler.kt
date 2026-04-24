@@ -61,9 +61,11 @@ object AlarmScheduler {
                 putExtra("targetAppPackage", reminder["targetAppPackage"] as String?)
                 putExtra("targetAppLabel", reminder["targetAppLabel"] as String?)
                 putExtra("gestureConfigName", reminder["gestureConfigName"] as String?)
+                putExtra("gestureBeforeLoopActionsJson", reminder["gestureBeforeLoopActionsJson"] as String?)
                 putExtra("gestureActionsJson", reminder["gestureActionsJson"] as String?)
                 putExtra("gestureLoopCount", (reminder["gestureLoopCount"] as? Number)?.toInt())
                 putExtra("gestureLoopIntervalMillis", (reminder["gestureLoopIntervalMillis"] as? Number)?.toInt())
+                putExtra("gestureInfiniteLoop", reminder["gestureInfiniteLoop"] as? Boolean ?: false)
                 putExtra("preGestureConfigName", reminder["preGestureConfigName"] as String?)
                 putExtra("preGestureActionsJson", reminder["preGestureActionsJson"] as String?)
                 putExtra("preGestureLoopCount", (reminder["preGestureLoopCount"] as? Number)?.toInt())
@@ -119,9 +121,11 @@ object AlarmScheduler {
                     "targetAppPackage" to if (obj.isNull("targetAppPackage")) null else obj.getString("targetAppPackage"),
                     "targetAppLabel" to if (obj.isNull("targetAppLabel")) null else obj.getString("targetAppLabel"),
                     "gestureConfigName" to if (obj.isNull("gestureConfigName")) null else obj.getString("gestureConfigName"),
+                    "gestureBeforeLoopActionsJson" to if (obj.isNull("gestureBeforeLoopActionsJson")) null else obj.getString("gestureBeforeLoopActionsJson"),
                     "gestureActionsJson" to if (obj.isNull("gestureActionsJson")) null else obj.getString("gestureActionsJson"),
                     "gestureLoopCount" to if (obj.isNull("gestureLoopCount")) null else obj.getInt("gestureLoopCount"),
                     "gestureLoopIntervalMillis" to if (obj.isNull("gestureLoopIntervalMillis")) null else obj.getInt("gestureLoopIntervalMillis"),
+                    "gestureInfiniteLoop" to if (obj.isNull("gestureInfiniteLoop")) false else obj.getBoolean("gestureInfiniteLoop"),
                     "preGestureConfigName" to if (obj.isNull("preGestureConfigName")) null else obj.getString("preGestureConfigName"),
                     "preGestureActionsJson" to if (obj.isNull("preGestureActionsJson")) null else obj.getString("preGestureActionsJson"),
                     "preGestureLoopCount" to if (obj.isNull("preGestureLoopCount")) null else obj.getInt("preGestureLoopCount"),

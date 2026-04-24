@@ -58,9 +58,11 @@ class AlarmActivity : ComponentActivity() {
         val preLoopCount = intent.getIntExtra("preGestureLoopCount", 1).coerceAtLeast(1)
         val preLoopIntervalMillis = intent.getIntExtra("preGestureLoopIntervalMillis", 0).coerceAtLeast(0)
         val configName = intent.getStringExtra("gestureConfigName")
+        val beforeLoopActionsJson = intent.getStringExtra("gestureBeforeLoopActionsJson")
         val actionsJson = intent.getStringExtra("gestureActionsJson")
         val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
         val loopIntervalMillis = intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
+        val infiniteLoop = intent.getBooleanExtra("gestureInfiniteLoop", false)
         val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
         val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
         val openTaskButton = findViewById<TextView>(R.id.openTaskButton)
@@ -85,9 +87,11 @@ class AlarmActivity : ComponentActivity() {
                 preLoopCount = preLoopCount,
                 preLoopIntervalMillis = preLoopIntervalMillis,
                 configName = configName,
+                beforeLoopActionsJson = beforeLoopActionsJson,
                 actionsJson = actionsJson,
                 loopCount = loopCount,
                 loopIntervalMillis = loopIntervalMillis,
+                infiniteLoop = infiniteLoop,
                 autoCompleteDelaySeconds = autoCompleteDelaySeconds,
             )
         }
@@ -104,9 +108,11 @@ class AlarmActivity : ComponentActivity() {
                     preLoopCount = preLoopCount,
                     preLoopIntervalMillis = preLoopIntervalMillis,
                     configName = configName,
+                    beforeLoopActionsJson = beforeLoopActionsJson,
                     actionsJson = actionsJson,
                     loopCount = loopCount,
                     loopIntervalMillis = loopIntervalMillis,
+                    infiniteLoop = infiniteLoop,
                     autoCompleteDelaySeconds = autoCompleteDelaySeconds,
                 )
             }.also {
@@ -123,9 +129,11 @@ class AlarmActivity : ComponentActivity() {
         preLoopCount: Int,
         preLoopIntervalMillis: Int,
         configName: String?,
+        beforeLoopActionsJson: String?,
         actionsJson: String?,
         loopCount: Int,
         loopIntervalMillis: Int,
+        infiniteLoop: Boolean,
         autoCompleteDelaySeconds: Int,
     ) {
         if (finishedAlarm) return
@@ -138,6 +146,7 @@ class AlarmActivity : ComponentActivity() {
             )
         }
         val preActions = AutoSwipeService.parseActionsJson(preActionsJson)
+        val beforeLoopActions = AutoSwipeService.parseActionsJson(beforeLoopActionsJson)
         val actions = AutoSwipeService.parseActionsJson(actionsJson)
         if (!targetAppPackage.isNullOrBlank()) {
             AlarmLaunchStore.setPendingTaskId(this@AlarmActivity, taskId)
@@ -152,9 +161,11 @@ class AlarmActivity : ComponentActivity() {
                 preLoopCount = preLoopCount,
                 preLoopIntervalMillis = preLoopIntervalMillis,
                 configName = configName,
+                beforeLoopActions = beforeLoopActions,
                 actions = actions,
                 loopCount = loopCount,
                 loopIntervalMillis = loopIntervalMillis,
+                infiniteLoop = infiniteLoop,
                 delaySeconds = 5,
             )
             if (!opened) {

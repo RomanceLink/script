@@ -5209,6 +5209,7 @@ class AutoSwipeService : AccessibilityService() {
         val preConfigName = intent.getStringExtra("preGestureConfigName")
         val configName = intent.getStringExtra("gestureConfigName")
         val preActions = parseActionsJson(intent.getStringExtra("preGestureActionsJson"))
+        val beforeLoopActions = parseActionsJson(intent.getStringExtra("gestureBeforeLoopActionsJson"))
         val actions = parseActionsJson(intent.getStringExtra("gestureActionsJson"))
         val preLoopCount = intent.getIntExtra("preGestureLoopCount", 1).coerceAtLeast(1)
         val preLoopIntervalMillis =
@@ -5216,6 +5217,7 @@ class AutoSwipeService : AccessibilityService() {
         val loopCount = intent.getIntExtra("gestureLoopCount", 1).coerceAtLeast(1)
         val loopIntervalMillis =
             intent.getIntExtra("gestureLoopIntervalMillis", 0).coerceAtLeast(0)
+        val infiniteLoop = intent.getBooleanExtra("gestureInfiniteLoop", false)
         val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
         val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
         val notificationId = intent.getIntExtra("notificationId", 0)
@@ -5241,9 +5243,11 @@ class AutoSwipeService : AccessibilityService() {
                 preLoopCount = preLoopCount,
                 preLoopIntervalMillis = preLoopIntervalMillis,
                 configName = configName,
+                beforeLoopActions = beforeLoopActions,
                 actions = actions,
                 loopCount = loopCount,
                 loopIntervalMillis = loopIntervalMillis,
+                infiniteLoop = infiniteLoop,
                 delaySeconds = autoOpenDelaySeconds,
             )
             if (opened) {
