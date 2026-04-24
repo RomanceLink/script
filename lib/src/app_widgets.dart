@@ -1288,20 +1288,26 @@ class _ToggleChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     // 采用更纯净、与卡片融合的配色
     final fill = isDark
-        ? (value ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.06))
-        : (value ? theme.colorScheme.primary.withValues(alpha: 0.09) : const Color(0xFFF5F7FA));
-        
+        ? (value
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.06))
+        : (value
+              ? theme.colorScheme.primary.withValues(alpha: 0.09)
+              : const Color(0xFFF5F7FA));
+
     final textColor = isDark
         ? (value ? Colors.white : Colors.white.withValues(alpha: 0.6))
         : (value ? theme.colorScheme.primary : const Color(0xFF667085));
-        
+
     final borderColor = isDark
         ? (value ? Colors.white.withValues(alpha: 0.2) : Colors.transparent)
-        : (value ? theme.colorScheme.primary.withValues(alpha: 0.15) : Colors.transparent);
-        
+        : (value
+              ? theme.colorScheme.primary.withValues(alpha: 0.15)
+              : Colors.transparent);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
       decoration: BoxDecoration(
@@ -1330,11 +1336,17 @@ class _ToggleChip extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               activeColor: Colors.white,
-              activeTrackColor: isDark ? Colors.white30 : theme.colorScheme.primary.withValues(alpha: 0.8),
+              activeTrackColor: isDark
+                  ? Colors.white30
+                  : theme.colorScheme.primary.withValues(alpha: 0.8),
               inactiveThumbColor: isDark ? Colors.white24 : Colors.black12,
               inactiveTrackColor: Colors.transparent,
               trackOutlineColor: WidgetStatePropertyAll(
-                isDark ? Colors.white10 : (value ? theme.colorScheme.primary.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05)),
+                isDark
+                    ? Colors.white10
+                    : (value
+                          ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                          : Colors.black.withValues(alpha: 0.05)),
               ),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -1837,6 +1849,11 @@ class _ActionSheetTile extends StatelessWidget {
     this.subtitle,
     this.destructive = false,
     this.enabled = true,
+    this.tintOverride,
+    this.backgroundOverride,
+    this.borderOverride,
+    this.shadowOverride,
+    this.iconBackgroundOverride,
   });
 
   final IconData icon;
@@ -1845,16 +1862,23 @@ class _ActionSheetTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool destructive;
   final bool enabled;
+  final Color? tintOverride;
+  final Color? backgroundOverride;
+  final Color? borderOverride;
+  final Color? shadowOverride;
+  final Color? iconBackgroundOverride;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final tint = !enabled
-        ? theme.colorScheme.onSurfaceVariant
-        : destructive
-        ? const Color(0xFFE05A5A)
-        : theme.colorScheme.primary;
+    final tint =
+        tintOverride ??
+        (!enabled
+            ? theme.colorScheme.onSurfaceVariant
+            : destructive
+            ? const Color(0xFFE05A5A)
+            : theme.colorScheme.primary);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: DecoratedBox(
@@ -1862,7 +1886,9 @@ class _ActionSheetTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: tint.withValues(alpha: isDark ? 0.12 : 0.08),
+              color:
+                  shadowOverride ??
+                  tint.withValues(alpha: isDark ? 0.12 : 0.08),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -1881,10 +1907,14 @@ class _ActionSheetTile extends StatelessWidget {
                   vertical: 13,
                 ),
                 decoration: BoxDecoration(
-                  color: _liquidGlassFill(theme, tint, strength: 0.9),
+                  color:
+                      backgroundOverride ??
+                      _liquidGlassFill(theme, tint, strength: 0.9),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: _liquidGlassBorder(theme, tint, strength: 0.8),
+                    color:
+                        borderOverride ??
+                        _liquidGlassBorder(theme, tint, strength: 0.8),
                   ),
                 ),
                 child: Row(
@@ -1893,7 +1923,9 @@ class _ActionSheetTile extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: tint.withValues(alpha: isDark ? 0.18 : 0.12),
+                        color:
+                            iconBackgroundOverride ??
+                            tint.withValues(alpha: isDark ? 0.18 : 0.12),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(

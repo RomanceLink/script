@@ -2124,6 +2124,18 @@ class _MottoGlassButton extends StatelessWidget {
 }
 
 extension on _DailyMottoSettingsPageState {
+  Color _mottoChoiceSheetBackground(ThemeData theme) {
+    return theme.brightness == Brightness.dark
+        ? const Color(0xE61A1D24)
+        : const Color(0xFFF3F5FF);
+  }
+
+  Color _mottoChoiceSheetTint(ThemeData theme) {
+    return theme.brightness == Brightness.dark
+        ? const Color(0xFFDCE6F5)
+        : const Color(0xFF5C6EE6);
+  }
+
   Future<T?> _showMottoChoiceSheet<T>({
     required List<T> values,
     required T selected,
@@ -2131,25 +2143,43 @@ extension on _DailyMottoSettingsPageState {
     required IconData selectedIcon,
     required IconData unselectedIcon,
   }) {
+    final theme = Theme.of(context);
+    final tint = _mottoChoiceSheetTint(theme);
     return showModalBottomSheet<T>(
       context: context,
       showDragHandle: true,
       clipBehavior: Clip.antiAlias,
-      builder: (context) => SafeArea(
-        top: false,
-        child: ListView.separated(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          itemCount: values.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final item = values[index];
-            return _ActionSheetTile(
-              icon: item == selected ? selectedIcon : unselectedIcon,
-              title: titleBuilder(item),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+      backgroundColor: _mottoChoiceSheetBackground(theme),
+      builder: (context) => Theme(
+        data: theme.copyWith(
+          bottomSheetTheme: theme.bottomSheetTheme.copyWith(
+            backgroundColor: _mottoChoiceSheetBackground(theme),
+            modalBackgroundColor: _mottoChoiceSheetBackground(theme),
+            surfaceTintColor: Colors.transparent,
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+            itemCount: values.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final item = values[index];
+              final isDark = theme.brightness == Brightness.dark;
+              return _ActionSheetTile(
+                icon: item == selected ? selectedIcon : unselectedIcon,
+                title: titleBuilder(item),
+                tintOverride: tint,
+                backgroundOverride: isDark ? const Color(0xB8242831) : null,
+                borderOverride: isDark ? const Color(0x30F7FBFF) : null,
+                shadowOverride: isDark ? const Color(0x42000000) : null,
+                iconBackgroundOverride: isDark ? const Color(0x20F7FBFF) : null,
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          ),
         ),
       ),
     );
