@@ -594,9 +594,26 @@ class _DailyMottoSettingsPageState extends State<_DailyMottoSettingsPage> {
           ],
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _editItem(),
-        label: const Text('新增箴言'),
+      floatingActionButton: Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return FloatingActionButton.extended(
+            onPressed: () => _editItem(),
+            backgroundColor: isDark
+                ? const Color(0xCC82A4E6)
+                : const Color(0xFFD3BAEF),
+            foregroundColor: isDark
+                ? const Color(0xFFE1E3E6)
+                : const Color(0xFFF5F5F6),
+            elevation: 0,
+            extendedPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 0,
+            ),
+            label: const Text('新增箴言'),
+          );
+        },
       ),
       body: _NeonPageBackground(
         child: ListView(
