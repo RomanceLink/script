@@ -5221,12 +5221,17 @@ class AutoSwipeService : AccessibilityService() {
         val autoOpenDelaySeconds = intent.getIntExtra("autoOpenDelaySeconds", 0).coerceAtLeast(0)
         val autoCompleteDelaySeconds = intent.getIntExtra("autoCompleteDelaySeconds", 0).coerceAtLeast(0)
         val notificationId = intent.getIntExtra("notificationId", 0)
-        if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
-            AlarmLaunchStore.setPendingAutoComplete(
-                this,
-                taskId,
-                System.currentTimeMillis() + autoCompleteDelaySeconds * 1000L,
-            )
+        if (taskId.isNotBlank()) {
+            if (autoCompleteDelaySeconds > 0) {
+                TaskAutoCompleteReceiver.schedule(
+                    this,
+                    taskId,
+                    TaskAutoCompleteReceiver.todayKey(),
+                    autoCompleteDelaySeconds,
+                )
+            } else {
+                TaskAutoCompleteReceiver.cancel(this, taskId)
+            }
         }
         if (taskId.isNotBlank()) {
             AlarmLaunchStore.setPendingTaskId(this, taskId)

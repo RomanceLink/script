@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import java.util.Calendar
 import org.json.JSONException
 import org.json.JSONArray
 import org.json.JSONObject
@@ -159,6 +160,16 @@ class TaskAutoCompleteReceiver : BroadcastReceiver() {
             )
             val triggerAt = System.currentTimeMillis() + delaySeconds * 1000L
             manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+        }
+
+        fun todayKey(nowMillis: Long = System.currentTimeMillis()): String {
+            val calendar = Calendar.getInstance().apply {
+                timeInMillis = nowMillis
+            }
+            val year = calendar.get(Calendar.YEAR)
+            val month = (calendar.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
+            val day = calendar.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
+            return "$year-$month-$day"
         }
 
         fun cancel(context: Context, taskId: String) {

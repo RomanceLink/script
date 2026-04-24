@@ -138,12 +138,17 @@ class AlarmActivity : ComponentActivity() {
     ) {
         if (finishedAlarm) return
         stopSound()
-        if (autoCompleteDelaySeconds > 0 && taskId.isNotBlank()) {
-            AlarmLaunchStore.setPendingAutoComplete(
-                this@AlarmActivity,
-                taskId,
-                System.currentTimeMillis() + autoCompleteDelaySeconds * 1000L,
-            )
+        if (taskId.isNotBlank()) {
+            if (autoCompleteDelaySeconds > 0) {
+                TaskAutoCompleteReceiver.schedule(
+                    this@AlarmActivity,
+                    taskId,
+                    TaskAutoCompleteReceiver.todayKey(),
+                    autoCompleteDelaySeconds,
+                )
+            } else {
+                TaskAutoCompleteReceiver.cancel(this@AlarmActivity, taskId)
+            }
         }
         val preActions = AutoSwipeService.parseActionsJson(preActionsJson)
         val beforeLoopActions = AutoSwipeService.parseActionsJson(beforeLoopActionsJson)
