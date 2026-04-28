@@ -1027,15 +1027,129 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     return results;
   }
 
+  List<Map<String, Object?>> _filterOcrRowsForPoemContent(
+    List<Map<String, Object?>> rows,
+  ) {
+    if (rows.length <= 2) {
+      return rows;
+    }
+    final normalizedRows = rows
+        .map((row) {
+          final text = (row['text'] ?? '').toString().trim();
+          final bounds = (row['bounds'] as Map?)?.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+          final left = (bounds?['left'] as num?)?.toDouble() ?? 0;
+          final top = (bounds?['top'] as num?)?.toDouble() ?? 0;
+          final right = (bounds?['right'] as num?)?.toDouble() ?? 1;
+          final bottom = (bounds?['bottom'] as num?)?.toDouble() ?? 1;
+          return {
+            'text': text,
+            'left': left,
+            'top': top,
+            'right': right,
+            'bottom': bottom,
+            'width': (right - left).clamp(0.0, 1.0),
+          };
+        })
+        .where((row) => ((row['text'] ?? '') as String).isNotEmpty)
+        .toList();
+    if (normalizedRows.length <= 2) {
+      return rows;
+    }
+
+    final anchors = normalizedRows.where((row) {
+      final text = (row['text'] ?? '') as String;
+      final width = (row['width'] as num).toDouble();
+      final usefulChars = RegExp(r'[一-龥，。！？；：“”、《》]').allMatches(text).length;
+      return width >= 0.24 || usefulChars >= 8;
+    }).toList();
+    final base = anchors.isNotEmpty ? anchors : normalizedRows;
+    final bandLeft = base
+        .map((row) => (row['left'] as num).toDouble())
+        .reduce((a, b) => a < b ? a : b);
+    final bandRight = base
+        .map((row) => (row['right'] as num).toDouble())
+        .reduce((a, b) => a > b ? a : b);
+    final bandWidth = (bandRight - bandLeft).clamp(0.01, 1.0);
+
+    final filtered =
+        normalizedRows.where((row) {
+          final text = (row['text'] ?? '') as String;
+          final left = (row['left'] as num).toDouble();
+          final right = (row['right'] as num).toDouble();
+          final width = (row['width'] as num).toDouble();
+          final overlap =
+              ((right < bandRight ? right : bandRight) -
+                      (left > bandLeft ? left : bandLeft))
+                  .clamp(0.0, 1.0);
+          final overlapRatio = overlap / width.clamp(0.01, 1.0);
+          final usefulChars = RegExp(
+            r'[一-龥，。！？；：“”、《》]',
+          ).allMatches(text).length;
+          if (width < bandWidth * 0.34 &&
+              overlapRatio < 0.72 &&
+              left > bandLeft + bandWidth * 0.58) {
+            return false;
+          }
+          if (text.length <= 6 &&
+              usefulChars <= 4 &&
+              width < 0.18 &&
+              left > bandLeft + bandWidth * 0.5) {
+            return false;
+          }
+          return overlapRatio >= 0.35 || width >= bandWidth * 0.55;
+        }).toList()..sort((a, b) {
+          final topCompare = ((a['top'] as num).toDouble()).compareTo(
+            (b['top'] as num).toDouble(),
+          );
+          if (topCompare != 0) {
+            return topCompare;
+          }
+          return ((a['left'] as num).toDouble()).compareTo(
+            (b['left'] as num).toDouble(),
+          );
+        });
+
+    if (filtered.isEmpty) {
+      return rows;
+    }
+    return filtered
+        .map(
+          (row) => {
+            'text': row['text'],
+            'bounds': {
+              'left': row['left'],
+              'top': row['top'],
+              'right': row['right'],
+              'bottom': row['bottom'],
+            },
+          },
+        )
+        .toList();
+  }
+
+  String _normalizeMottoToken(String value) {
+    return value
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll('（', '(')
+        .replaceAll('）', ')')
+        .replaceAll('【', '[')
+        .replaceAll('】', ']')
+        .trim();
+  }
+
   ({String? author, String? poemTitle}) _extractMottoMetadata(String text) {
     final normalized = text.replaceAll('\n', ' ');
     final titleMatch = RegExp(r'《([^》]{1,24})》').firstMatch(normalized);
     final authorBeforeTitle = RegExp(
-      r'([一-龥]{2,4})\s*《[^》]{1,24}》',
+      r'(?:作者[:：]?\s*)?(?:[（(【\[]?[^\s《》]{1,6}[】\])）]?\s*)?([一-龥·]{2,8})\s*《[^》]{1,24}》',
     ).firstMatch(normalized);
-    final authorAfterDash = RegExp(r'--\s*([一-龥]{2,4})').firstMatch(normalized);
+    final authorAfterDash = RegExp(
+      r'--\s*([一-龥·]{2,8})',
+    ).firstMatch(normalized);
     final authorAfterLabel = RegExp(
-      r'作者[:：]?\s*([一-龥]{2,4})',
+      r'作者[:：]?\s*([一-龥·]{2,8})',
     ).firstMatch(normalized);
     final author =
         authorBeforeTitle?.group(1) ??
@@ -1049,9 +1163,117 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     );
   }
 
-  List<DailyMottoEntry> _buildEntries(List<String> lines, String rawText) {
+  List<String> _metadataCandidates(({String? author, String? poemTitle}) meta) {
+    final author = _normalizeMottoToken(meta.author ?? '');
+    final poemTitle = _normalizeMottoToken(meta.poemTitle ?? '');
+    final candidates = <String>{
+      if (author.isNotEmpty) author,
+      if (author.isNotEmpty) '作者：$author',
+      if (author.isNotEmpty) '作者:$author',
+      if (author.isNotEmpty) '-- $author',
+      if (poemTitle.isNotEmpty) poemTitle,
+      if (poemTitle.isNotEmpty) '《$poemTitle》',
+      if (author.isNotEmpty && poemTitle.isNotEmpty) '$author《$poemTitle》',
+      if (author.isNotEmpty && poemTitle.isNotEmpty) '《$poemTitle》$author',
+      if (author.isNotEmpty && poemTitle.isNotEmpty) '作者：$author《$poemTitle》',
+    };
+    return candidates.toList()..sort((a, b) => b.length.compareTo(a.length));
+  }
+
+  bool _looksLikeMetadataLine(
+    String line,
+    ({String? author, String? poemTitle}) meta,
+  ) {
+    final normalized = _normalizeMottoToken(line);
+    if (normalized.isEmpty) {
+      return true;
+    }
+    final candidates = _metadataCandidates(meta);
+    if (candidates.any((item) => normalized == item)) {
+      return true;
+    }
+    if (RegExp(r'^作者[:：]').hasMatch(normalized)) {
+      return true;
+    }
+    if (RegExp(r'^《[^》]{1,24}》$').hasMatch(normalized)) {
+      return true;
+    }
+    if (RegExp(
+      r'^[（(【\[]?[^\s]{1,6}[】\])）]?\s*[一-龥·]{2,8}$',
+    ).hasMatch(normalized)) {
+      final author = _normalizeMottoToken(meta.author ?? '');
+      if (author.isNotEmpty && normalized.contains(author)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _stripMetadataFragments(
+    String line,
+    ({String? author, String? poemTitle}) meta,
+  ) {
+    var cleaned = _normalizeMottoToken(line);
+    if (cleaned.isEmpty) {
+      return '';
+    }
+    for (final candidate in _metadataCandidates(meta)) {
+      if (candidate.isEmpty) {
+        continue;
+      }
+      final escaped = RegExp.escape(candidate);
+      cleaned = cleaned.replaceFirst(
+        RegExp('^\\s*$escaped\\s*[-—:：]*\\s*'),
+        '',
+      );
+      cleaned = cleaned.replaceFirst(
+        RegExp('\\s*[-—:：]*\\s*$escaped\\s*\$'),
+        '',
+      );
+    }
+    cleaned = cleaned.replaceFirst(RegExp(r'^作者[:：]\s*'), '').trim();
+    return cleaned;
+  }
+
+  List<String> _sanitizeRecognizedLines(List<String> lines, String rawText) {
     final meta = _extractMottoMetadata(rawText);
-    return lines
+    final results = <String>[];
+    for (final rawLine in lines) {
+      final cleaned = _stripMetadataFragments(rawLine, meta).trim();
+      if (cleaned.isEmpty) {
+        continue;
+      }
+      if (_looksLikeMetadataLine(cleaned, meta)) {
+        continue;
+      }
+      if (results.any(
+        (existing) =>
+            _normalizeMottoToken(existing) == _normalizeMottoToken(cleaned),
+      )) {
+        continue;
+      }
+      results.add(cleaned);
+    }
+    return results;
+  }
+
+  List<DailyMottoEntry> _buildEntries(
+    List<String> lines,
+    String rawText, {
+    String? authorOverride,
+    String? poemTitleOverride,
+  }) {
+    final extractedMeta = _extractMottoMetadata(rawText);
+    final meta = (
+      author: authorOverride?.trim().isNotEmpty == true
+          ? authorOverride?.trim()
+          : extractedMeta.author,
+      poemTitle: poemTitleOverride?.trim().isNotEmpty == true
+          ? poemTitleOverride?.trim()
+          : extractedMeta.poemTitle,
+    );
+    final cleanedLines = _sanitizeRecognizedLines(lines, rawText);
+    return cleanedLines
         .map(
           (line) => DailyMottoEntry(
             id: dailyMottoEntryId(line),
@@ -1062,6 +1284,62 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
         )
         .where((item) => item.content.isNotEmpty)
         .toList();
+  }
+
+  Future<({String bodyText, String? author, String? poemTitle})>
+  _readDomStructuredMotto() async {
+    final raw = await _controller.runJavaScriptReturningResult(r'''
+(() => {
+  const clean = (text) => (text || '').replace(/\s+/g, ' ').trim();
+  const pickText = (selectors) => {
+    for (const selector of selectors) {
+      const nodes = Array.from(document.querySelectorAll(selector));
+      for (const node of nodes) {
+        const text = clean(node.innerText || node.textContent || '');
+        if (text) return text;
+      }
+    }
+    return '';
+  };
+  const bodySelectors = ['.post-body', '.entry-content', '.article-content', '.content', '.post', 'article', 'main'];
+  let bodyRoot = null;
+  for (const selector of bodySelectors) {
+    const found = document.querySelector(selector);
+    if (found && clean(found.innerText || found.textContent || '').length > 20) {
+      bodyRoot = found;
+      break;
+    }
+  }
+  if (!bodyRoot) bodyRoot = document.body;
+  const cloned = bodyRoot ? bodyRoot.cloneNode(true) : document.body.cloneNode(true);
+  cloned.querySelectorAll('script,style,noscript,nav,header,footer,aside,.sidebar,.recommend,.related,.tags,.tag,.category,.categories,.cat,.tool,.tools,.toolbar,.btn,.button').forEach((node) => node.remove());
+  const title = pickText(['h1', '.post-title', '.entry-title', '.article-title', '.title', '.article h2', '.content h2']);
+  const author = pickText(['.author', '.post-author', '.article-author', '[class*="author"] a', '[class*="author"] span']);
+  const bodyText = clean(cloned.innerText || cloned.textContent || '');
+  return JSON.stringify({ title, author, bodyText });
+})()
+''');
+    final text = raw.toString();
+    final decoded = text.startsWith('"') && text.endsWith('"')
+        ? text
+              .substring(1, text.length - 1)
+              .replaceAll(r'\"', '"')
+              .replaceAll(r'\n', '\n')
+        : text;
+    try {
+      final map = jsonDecode(decoded) as Map<String, Object?>;
+      final poemTitle = (map['title'] as String?)?.trim();
+      final author = (map['author'] as String?)?.trim();
+      final bodyText = (map['bodyText'] as String?)?.trim() ?? '';
+      return (
+        bodyText: bodyText,
+        author: author?.isEmpty == true ? null : author,
+        poemTitle: poemTitle?.isEmpty == true ? null : poemTitle,
+      );
+    } catch (_) {
+      final fallback = await _readDomText();
+      return (bodyText: fallback, author: null, poemTitle: null);
+    }
   }
 
   Future<String?> _editRecognizedLine(String value) async {
@@ -1324,9 +1602,19 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     }
     setState(() => _recognizing = true);
     try {
-      final normalized = await _readDomText();
-      final lines = _extractReadableLines(normalized);
-      await _confirmAndPop(_buildEntries(lines, normalized));
+      final dom = await _readDomStructuredMotto();
+      final lines = _extractReadableLines(dom.bodyText);
+      final fallback = lines.isEmpty
+          ? _rawOcrFallbackLines(dom.bodyText)
+          : lines;
+      await _confirmAndPop(
+        _buildEntries(
+          fallback,
+          dom.bodyText,
+          authorOverride: dom.author,
+          poemTitleOverride: dom.poemTitle,
+        ),
+      );
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
@@ -1370,20 +1658,35 @@ class _MottoWebRecognizePageState extends State<_MottoWebRecognizePage> {
     try {
       await Future<void>.delayed(const Duration(milliseconds: 180));
       final rows = await AlarmBridge().recognizeScreenText(region: region);
-      final text = rows
+      final filteredRows = selectedOnly
+          ? rows
+          : _filterOcrRowsForPoemContent(rows);
+      final dom = await _readDomStructuredMotto();
+      final text = filteredRows
           .map((item) => (item['text'] ?? '').toString().trim())
           .where((item) => item.isNotEmpty)
           .join('\n');
       final lines = _extractReadableLines(text);
       final fallbackLines = lines.isEmpty ? _rawOcrFallbackLines(text) : lines;
       if (fallbackLines.isEmpty) {
-        final domRaw = await _readDomText();
         await _confirmAndPop(
-          _buildEntries(_extractReadableLines(domRaw), domRaw),
+          _buildEntries(
+            _extractReadableLines(dom.bodyText),
+            dom.bodyText,
+            authorOverride: dom.author,
+            poemTitleOverride: dom.poemTitle,
+          ),
         );
         return;
       }
-      await _confirmAndPop(_buildEntries(fallbackLines, text));
+      await _confirmAndPop(
+        _buildEntries(
+          fallbackLines,
+          text,
+          authorOverride: dom.author,
+          poemTitleOverride: dom.poemTitle,
+        ),
+      );
     } catch (error) {
       if (mounted) {
         VibrantHUD.show(context, '$error', type: ToastType.error);
