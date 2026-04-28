@@ -127,11 +127,13 @@ class _ModernSectionCard extends StatelessWidget {
     required this.accent,
     required this.title,
     required this.child,
+    this.expandChild = false,
   });
 
   final Color accent;
   final String title;
   final Widget child;
+  final bool expandChild;
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +170,15 @@ class _ModernSectionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Padding(padding: const EdgeInsets.all(16), child: child),
+              if (expandChild)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: child,
+                  ),
+                )
+              else
+                Padding(padding: const EdgeInsets.all(16), child: child),
             ],
           ),
         ),
@@ -187,13 +197,19 @@ class _CompactTimeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timer_outlined, size: 12, color: isDark ? Colors.white70 : Colors.black54),
+          Icon(
+            Icons.timer_outlined,
+            size: 12,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
@@ -278,12 +294,14 @@ class _ModernActionTile extends StatelessWidget {
     required this.action,
     required this.onDelete,
     this.onEdit,
+    this.showReorderHandle = true,
   });
 
   final int index;
   final GestureAction action;
   final VoidCallback onDelete;
   final VoidCallback? onEdit;
+  final bool showReorderHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -368,13 +386,14 @@ class _ModernActionTile extends StatelessWidget {
                 ),
                 onPressed: onDelete,
               ),
-              ReorderableDragStartListener(
-                index: index,
-                child: const Icon(
-                  Icons.drag_indicator_rounded,
-                  color: Colors.grey,
+              if (showReorderHandle)
+                ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(
+                    Icons.drag_indicator_rounded,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
             ],
           ),

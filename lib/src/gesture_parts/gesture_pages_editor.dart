@@ -68,12 +68,6 @@ class _GestureEditPageState extends State<GestureEditPage> {
         10000000,
       );
 
-  double _actionListHeight(BuildContext context) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final desired = (_actions.length * 84.0).clamp(180.0, screenHeight * 0.46);
-    return desired.toDouble();
-  }
-
   Future<void> _pickFollowUpConfig() async {
     final currentId = widget.config?.id;
     final result = await showModalBottomSheet<String>(
@@ -932,25 +926,46 @@ class _GestureEditPageState extends State<GestureEditPage> {
     var regionMode = ButtonRegionMode.values.byName(
       pickerResult['regionMode'] as String? ?? ButtonRegionMode.custom.name,
     );
-    var successMode = ButtonResultActionMode.defaultClick;
+    List<GestureAction> readActions(String key) {
+      return ((pickerResult[key] as List<Object?>?) ?? const [])
+          .whereType<Map<String, Object?>>()
+          .map(GestureAction.fromJson)
+          .toList();
+    }
+
+    var successMode = ButtonResultActionMode.values.byName(
+      pickerResult['successMode'] as String? ??
+          ButtonResultActionMode.defaultClick.name,
+    );
     var retrySuccessMode = ButtonResultActionMode.defaultClick;
     var failAction = ButtonFailAction.notify;
-    var successActions = <GestureAction>[];
-    var retryActions = <GestureAction>[];
-    var retrySuccessActions = <GestureAction>[];
+    var successActions = readActions('successActions');
+    var retryActions = readActions('retryActions');
+    var retrySuccessActions = readActions('retrySuccessActions');
+    retrySuccessMode = ButtonResultActionMode.values.byName(
+      pickerResult['retrySuccessMode'] as String? ??
+          ButtonResultActionMode.defaultClick.name,
+    );
+    failAction = ButtonFailAction.values.byName(
+      pickerResult['failAction'] as String? ?? ButtonFailAction.notify.name,
+    );
     var pickingCustomAction = false;
 
     Future<void> pickCustomActions(
       BuildContext dialogContext,
+      List<GestureAction> initialActions,
       ValueChanged<List<GestureAction>> onPicked,
       StateSetter setDialogState,
     ) async {
       if (pickingCustomAction) return;
       setDialogState(() => pickingCustomAction = true);
-      final actions = await _pickNestedGestureActions(dialogContext);
+      final actions = await _editNestedGestureActions(
+        dialogContext,
+        initialActions: initialActions,
+      );
       if (!dialogContext.mounted) return;
       setDialogState(() => pickingCustomAction = false);
-      if (actions.isEmpty) return;
+      if (actions == null) return;
       onPicked(actions);
     }
 
@@ -1090,6 +1105,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               isBusy: pickingCustomAction,
                               onRecord: () => pickCustomActions(
                                 context,
+                                successActions,
                                 (actions) => setDialogState(() {
                                   successMode = ButtonResultActionMode.custom;
                                   successActions = actions;
@@ -1107,6 +1123,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               isBusy: pickingCustomAction,
                               onRecord: () => pickCustomActions(
                                 context,
+                                retryActions,
                                 (actions) => setDialogState(
                                   () => retryActions = actions,
                                 ),
@@ -1148,6 +1165,7 @@ class _GestureEditPageState extends State<GestureEditPage> {
                               isBusy: pickingCustomAction,
                               onRecord: () => pickCustomActions(
                                 context,
+                                retrySuccessActions,
                                 (actions) => setDialogState(() {
                                   retrySuccessMode =
                                       ButtonResultActionMode.custom;
@@ -1260,18 +1278,224 @@ class _GestureEditPageState extends State<GestureEditPage> {
     }
   }
 
+  Future<List<GestureAction>?> _editNestedGestureActions(
+    BuildContext dialogContext, {
+    List<GestureAction> initialActions = const [],
+  }) async {
+    final working = List<GestureAction>.from(initialActions);
+    return showDialog<List<GestureAction>>(
+      context: dialogContext,
+      barrierColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> addActions() async {
+            final added = await _pickNestedGestureActions(context);
+            if (!context.mounted || added.isEmpty) return;
+            setDialogState(() => working.addAll(added));
+          }
+
+          Future<void> editActionAt(int index) async {
+            final current = working[index];
+            final edited = await _editNestedGestureAction(context, current);
+            if (!context.mounted || edited == null) return;
+            setDialogState(() => working[index] = edited);
+          }
+
+          void reorderAction(int oldIndex, int newIndex) {
+            setDialogState(() {
+              if (oldIndex < newIndex) {
+                newIndex -= 1;
+              }
+              final item = working.removeAt(oldIndex);
+              working.insert(newIndex, item);
+            });
+          }
+
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '编辑自定义动作',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '这里可以连续添加很多步骤，包含点击、滑动、毫秒等待、导航、启动应用等。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: working.isEmpty
+                          ? Center(
+                              child: Text(
+                                '还没有添加步骤',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            )
+                          : ReorderableListView.builder(
+                              buildDefaultDragHandles: false,
+                              itemCount: working.length,
+                              proxyDecorator: (child, index, animation) {
+                                return AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, _) {
+                                    final elevation = Tween<double>(
+                                      begin: 0,
+                                      end: 10,
+                                    ).evaluate(animation);
+                                    return Material(
+                                      elevation: elevation,
+                                      shadowColor: Colors.black.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(16),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: child,
+                                    );
+                                  },
+                                );
+                              },
+                              onReorder: reorderAction,
+                              itemBuilder: (context, index) {
+                                return ReorderableDelayedDragStartListener(
+                                  key: ValueKey(
+                                    '${working[index].type.name}-$index',
+                                  ),
+                                  index: index,
+                                  child: _ModernActionTile(
+                                    index: index,
+                                    action: working[index],
+                                    showReorderHandle: false,
+                                    onEdit:
+                                        _isNestedActionEditable(working[index])
+                                        ? () => editActionAt(index)
+                                        : null,
+                                    onDelete: () => setDialogState(
+                                      () => working.removeAt(index),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: addActions,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('添加步骤'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('取消'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(working),
+                          child: const Text('保存'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  bool _isNestedActionEditable(GestureAction action) {
+    return action is ClickAction ||
+        action is SwipeAction ||
+        action is WaitAction ||
+        action is NavAction ||
+        action is LaunchAppAction;
+  }
+
+  Future<GestureAction?> _editNestedGestureAction(
+    BuildContext dialogContext,
+    GestureAction action,
+  ) async {
+    if (action is ClickAction) {
+      await _waitForOverlayDismissal();
+      if (!mounted) return null;
+      final result = await AlarmBridge().enterPickerMode('click');
+      if (result == null || result['cancelled'] == true) return null;
+      return ClickAction(
+        x1: (result['x1'] as num).toDouble(),
+        y1: (result['y1'] as num).toDouble(),
+        duration: action.duration,
+      );
+    }
+    if (action is SwipeAction) {
+      await _waitForOverlayDismissal();
+      if (!mounted) return null;
+      final result = await AlarmBridge().enterPickerMode('swipe');
+      if (result == null || result['cancelled'] == true) return null;
+      return SwipeAction(
+        x1: (result['x1'] as num).toDouble(),
+        y1: (result['y1'] as num).toDouble(),
+        x2: (result['x2'] as num).toDouble(),
+        y2: (result['y2'] as num).toDouble(),
+        duration: action.duration,
+      );
+    }
+    if (action is WaitAction) {
+      return _pickNestedWaitAction(dialogContext, initial: action);
+    }
+    if (action is NavAction) {
+      return _pickNestedNavAction(dialogContext, initial: action.navType);
+    }
+    if (action is LaunchAppAction) {
+      final apps = await widget.launcher.listLaunchableApps();
+      final recentPackages = await widget.launcher.loadRecentAppPackages();
+      if (!mounted) return null;
+      final selected = await _showAppPickerSheet(
+        context: dialogContext,
+        apps: apps,
+        recentPackages: recentPackages,
+      );
+      if (selected == null) return null;
+      await widget.launcher.markAppAsRecent(selected.packageName);
+      return LaunchAppAction(
+        packageName: selected.packageName,
+        label: selected.appName,
+      );
+    }
+    return null;
+  }
+
   Future<List<GestureAction>> _pickNestedGestureActions([
     BuildContext? pickerContext,
   ]) async {
     final type = await showModalBottomSheet<String>(
       context: pickerContext ?? context,
       useRootNavigator: true,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
             children: [
               _GlassActionTile(
                 icon: Icons.fiber_manual_record_rounded,
@@ -1293,12 +1517,86 @@ class _GestureEditPageState extends State<GestureEditPage> {
                 title: '手动标点：直线滑动',
                 onTap: () => Navigator.of(context).pop('swipe'),
               ),
+              _GlassActionTile(
+                icon: Icons.timer_rounded,
+                title: '随机等待',
+                onTap: () => Navigator.of(context).pop('randomWait'),
+              ),
+              _GlassActionTile(
+                icon: Icons.more_time_rounded,
+                title: '毫秒等待',
+                onTap: () => Navigator.of(context).pop('millisecondWait'),
+              ),
+              _GlassActionTile(
+                icon: Icons.hourglass_bottom_rounded,
+                title: '固定等待',
+                onTap: () => Navigator.of(context).pop('fixedWait'),
+              ),
+              _GlassActionTile(
+                icon: Icons.navigation_rounded,
+                title: '导航动作',
+                onTap: () => Navigator.of(context).pop('nav'),
+              ),
+              _GlassActionTile(
+                icon: Icons.lock_outline_rounded,
+                title: '锁屏',
+                onTap: () => Navigator.of(context).pop('lock'),
+              ),
+              _GlassActionTile(
+                icon: Icons.rocket_launch_rounded,
+                title: '启动应用',
+                onTap: () => Navigator.of(context).pop('launchApp'),
+              ),
             ],
           ),
         ),
       ),
     );
     if (type == null) return const [];
+
+    if (type == 'randomWait') {
+      final action = await _pickNestedWaitAction(
+        pickerContext ?? context,
+        randomWait: true,
+      );
+      return action == null ? const [] : [action];
+    }
+    if (type == 'millisecondWait') {
+      final action = await _pickNestedWaitAction(
+        pickerContext ?? context,
+        milliseconds: true,
+      );
+      return action == null ? const [] : [action];
+    }
+    if (type == 'fixedWait') {
+      final action = await _pickNestedWaitAction(pickerContext ?? context);
+      return action == null ? const [] : [action];
+    }
+    if (type == 'nav') {
+      final action = await _pickNestedNavAction(pickerContext ?? context);
+      return action == null ? const [] : [action];
+    }
+    if (type == 'lock') {
+      return const [LockScreenAction()];
+    }
+    if (type == 'launchApp') {
+      final apps = await widget.launcher.listLaunchableApps();
+      final recentPackages = await widget.launcher.loadRecentAppPackages();
+      if (!mounted) return const [];
+      final selected = await _showAppPickerSheet(
+        context: pickerContext ?? context,
+        apps: apps,
+        recentPackages: recentPackages,
+      );
+      if (selected == null) return const [];
+      await widget.launcher.markAppAsRecent(selected.packageName);
+      return [
+        LaunchAppAction(
+          packageName: selected.packageName,
+          label: selected.appName,
+        ),
+      ];
+    }
 
     await _waitForOverlayDismissal();
     if (!mounted) return const [];
@@ -1326,6 +1624,141 @@ class _GestureEditPageState extends State<GestureEditPage> {
         y2: (result['y2'] as num).toDouble(),
       ),
     ];
+  }
+
+  Future<WaitAction?> _pickNestedWaitAction(
+    BuildContext dialogContext, {
+    bool randomWait = false,
+    bool milliseconds = false,
+    WaitAction? initial,
+  }) async {
+    if (randomWait || initial?.isRandom == true) {
+      var minText = '${initial?.effectiveMinSeconds ?? 30}';
+      var maxText = '${initial?.effectiveMaxSeconds ?? 120}';
+      return showDialog<WaitAction>(
+        context: dialogContext,
+        barrierColor: Colors.transparent,
+        builder: (context) => AlertDialog(
+          title: const Text('设置随机等待范围'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                initialValue: minText,
+                onChanged: (value) => minText = value,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '最小秒数'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: maxText,
+                onChanged: (value) => maxText = value,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '最大秒数'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                final min = int.tryParse(minText.trim()) ?? 30;
+                final max = int.tryParse(maxText.trim()) ?? 120;
+                Navigator.of(
+                  context,
+                ).pop(WaitAction.random(minSeconds: min, maxSeconds: max));
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final useMilliseconds =
+        milliseconds || (initial?.usesMilliseconds ?? false);
+    var valueText = useMilliseconds
+        ? '${initial?.milliseconds ?? 800}'
+        : '${initial?.seconds ?? 5}';
+    return showDialog<WaitAction>(
+      context: dialogContext,
+      barrierColor: Colors.transparent,
+      builder: (context) => AlertDialog(
+        title: Text(useMilliseconds ? '设置毫秒等待' : '设置固定等待'),
+        content: TextFormField(
+          initialValue: valueText,
+          onChanged: (value) => valueText = value,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: useMilliseconds ? '等待毫秒' : '等待秒数',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final parsed = int.tryParse(valueText.trim());
+              Navigator.of(context).pop(
+                useMilliseconds
+                    ? WaitAction.fixedMilliseconds(milliseconds: parsed ?? 800)
+                    : WaitAction.fixed(seconds: parsed ?? 5),
+              );
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<NavAction?> _pickNestedNavAction(
+    BuildContext dialogContext, {
+    NavType? initial,
+  }) async {
+    return showModalBottomSheet<NavAction>(
+      context: dialogContext,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GlassActionTile(
+                icon: Icons.keyboard_return_rounded,
+                title: '返回键',
+                subtitle: initial == NavType.back ? '当前已选' : null,
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(const NavAction(navType: NavType.back)),
+              ),
+              _GlassActionTile(
+                icon: Icons.home_rounded,
+                title: '回到桌面',
+                subtitle: initial == NavType.home ? '当前已选' : null,
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(const NavAction(navType: NavType.home)),
+              ),
+              _GlassActionTile(
+                icon: Icons.view_carousel_rounded,
+                title: '多任务界面',
+                subtitle: initial == NavType.recents ? '当前已选' : null,
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(const NavAction(navType: NavType.recents)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _save() {
@@ -1558,167 +1991,185 @@ class _GestureEditPageState extends State<GestureEditPage> {
         child: Column(
           children: [
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _ModernSectionCard(
-                    accent: const Color(0xFF7F8CFF),
-                    title: '方案信息',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start, // 关键：顶端齐平
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          _nameController.text.trim().isEmpty
-                                              ? '未命名方案'
-                                              : _nameController.text.trim(),
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(fontWeight: FontWeight.w900, fontSize: 16),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Column(
+                  children: [
+                    _ModernSectionCard(
+                      accent: const Color(0xFF7F8CFF),
+                      title: '方案信息',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _nameController.text.trim().isEmpty
+                                                ? '未命名方案'
+                                                : _nameController.text.trim(),
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 16,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
+                                        const SizedBox(width: 8),
+                                        _CompactTimeBadge(
+                                          isDark: isDark,
+                                          label: _infiniteLoop
+                                              ? '持续执行'
+                                              : estimateGestureConfigDuration(
+                                                  previewConfig,
+                                                ).label,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _infiniteLoop
+                                          ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
+                                          : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant
+                                                .withValues(alpha: 0.7),
+                                            fontSize: 11,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Transform.translate(
+                                offset: const Offset(0, -8),
+                                child: IconButton(
+                                  onPressed: _editName,
+                                  icon: const Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 24,
+                                  ),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: isDark
+                                        ? Colors.white.withValues(alpha: 0.08)
+                                        : Colors.black.withValues(alpha: 0.04),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _CompactSelectionTile(
+                            label: '追加配置',
+                            value:
+                                _availableConfigs
+                                    .where(
+                                      (item) => item.id == _followUpConfigId,
+                                    )
+                                    .firstOrNull
+                                    ?.name ??
+                                '无',
+                            onTap: _pickFollowUpConfig,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: _ModernSectionCard(
+                        accent: const Color(0xFF82A7F7),
+                        title: '动作步骤 (可拖动排序)',
+                        expandChild: true,
+                        child: _actions.isEmpty
+                            ? SizedBox.expand(
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.ads_click_rounded,
+                                        size: 40,
+                                        color: theme.colorScheme.outlineVariant,
                                       ),
-                                      const SizedBox(width: 8),
-                                      _CompactTimeBadge(
-                                        isDark: isDark,
-                                        label: _infiniteLoop
-                                            ? '持续执行'
-                                            : estimateGestureConfigDuration(previewConfig).label,
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        '暂无动作，点击下方按钮添加',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _infiniteLoop
-                                        ? '无限循环 · 间隔 $_loopIntervalMillis 毫秒'
-                                        : '循环 $_loopCount 次 · 间隔 $_loopIntervalMillis 毫秒',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // 微调 IconButton 的位置，使其与第一行文字完美水平
-                            Transform.translate(
-                              offset: const Offset(0, -8),
-                              child: IconButton(
-                                onPressed: _editName,
-                                icon: const Icon(Icons.edit_note_rounded, size: 24), // 略微放大一点更精致
-                                style: IconButton.styleFrom(
-                                  backgroundColor: isDark
-                                      ? Colors.white.withValues(alpha: 0.08)
-                                      : Colors.black.withValues(alpha: 0.04),
-                                  visualDensity: VisualDensity.compact,
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _CompactSelectionTile(
-                          label: '追加配置',
-                          value:
-                              _availableConfigs
-                                  .where((item) => item.id == _followUpConfigId)
-                                  .firstOrNull
-                                  ?.name ??
-                              '无',
-                          onTap: _pickFollowUpConfig,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _ModernSectionCard(
-                    accent: const Color(0xFF82A7F7),
-                    title: '动作步骤 (可拖动排序)',
-                    child: _actions.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 30),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.ads_click_rounded,
-                                    size: 40,
-                                    color: theme.colorScheme.outlineVariant,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    '暂无动作，点击下方按钮添加',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 12,
+                              )
+                            : ReorderableListView.builder(
+                                buildDefaultDragHandles: false,
+                                physics: const ClampingScrollPhysics(),
+                                itemCount: _actions.length,
+                                proxyDecorator: (child, index, animation) {
+                                  return AnimatedBuilder(
+                                    animation: animation,
+                                    builder: (context, _) {
+                                      final elevation = Tween<double>(
+                                        begin: 0,
+                                        end: 10,
+                                      ).evaluate(animation);
+                                      return Material(
+                                        elevation: elevation,
+                                        shadowColor: Colors.black.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: child,
+                                      );
+                                    },
+                                  );
+                                },
+                                onReorder: (oldIndex, newIndex) {
+                                  setState(() {
+                                    if (oldIndex < newIndex) newIndex -= 1;
+                                    final item = _actions.removeAt(oldIndex);
+                                    _actions.insert(newIndex, item);
+                                  });
+                                },
+                                itemBuilder: (context, index) {
+                                  final action = _actions[index];
+                                  return _ModernActionTile(
+                                    key: ValueKey(
+                                      '${action.runtimeType}-$index',
                                     ),
-                                  ),
-                                ],
+                                    index: index,
+                                    action: action,
+                                    onDelete: () => setState(
+                                      () => _actions.removeAt(index),
+                                    ),
+                                    onEdit: _isPositionEditable(action)
+                                        ? () => _editAction(index)
+                                        : null,
+                                  );
+                                },
                               ),
-                            ),
-                          )
-                        : SizedBox(
-                            height: _actionListHeight(context),
-                            child: ReorderableListView.builder(
-                              buildDefaultDragHandles: false,
-                              physics: const ClampingScrollPhysics(),
-                              itemCount: _actions.length,
-                              proxyDecorator: (child, index, animation) {
-                                return AnimatedBuilder(
-                                  animation: animation,
-                                  builder: (context, _) {
-                                    final elevation = Tween<double>(
-                                      begin: 0,
-                                      end: 10,
-                                    ).evaluate(animation);
-                                    return Material(
-                                      elevation: elevation,
-                                      shadowColor: Colors.black.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(16),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: child,
-                                    );
-                                  },
-                                );
-                              },
-                              onReorder: (oldIndex, newIndex) {
-                                setState(() {
-                                  if (oldIndex < newIndex) newIndex -= 1;
-                                  final item = _actions.removeAt(oldIndex);
-                                  _actions.insert(newIndex, item);
-                                });
-                              },
-                              itemBuilder: (context, index) {
-                                final action = _actions[index];
-                                return _ModernActionTile(
-                                  key: ValueKey('${action.runtimeType}-$index'),
-                                  index: index,
-                                  action: action,
-                                  onDelete: () =>
-                                      setState(() => _actions.removeAt(index)),
-                                  onEdit: _isPositionEditable(action)
-                                      ? () => _editAction(index)
-                                      : null,
-                                );
-                              },
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
             Container(
